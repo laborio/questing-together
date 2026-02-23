@@ -1,0 +1,115 @@
+ACTE I — MARCHANDISES EN TRANSIT
+BRANCHING DENSIFIÉ — ITÉRATION 2 (STYLE AVENTURE / JDR)
+
+============================================================
+SCÈNE 1 — ROUTE D’HIVER
+============================================================
+
+Route commerciale secondaire. Froid sec. Peu de trafic.
+Plusieurs caravanes passent, chargées et silencieuses.
+
+INDICES OBSERVABLES :
+- Ballots longs sous toile
+- Herbes amères frottées sur certaines bâches
+- Nœuds de corde identiques
+- Conducteurs nerveux
+
+CHOIX :
+A) Continuer sans s’impliquer  
+B) Observer attentivement  
+C) Questionner des voyageurs  
+D) Inspecter un chariot isolé  
+
+CONSÉQUENCES :
+A → aucun indice immédiat  
+B → note des nœuds identiques  
+C → rumeurs contradictoires  
+D → Jeton de Poids trouvé (malaise léger)
+
+============================================================
+SCÈNE 2 — MAÎTRE HAVEL
+============================================================
+
+Maître Havel propose une escorte jusqu’au relais de Grève.
+Il insiste : ne pas ouvrir les ballots.
+
+CHOIX :
+A) Accepter sans condition  
+B) Négocier (inspection partielle)  
+C) Refuser et suivre discrètement  
+D) Accepter mais fouiller de nuit  
+
+CONSÉQUENCES :
+A → relation neutre  
+B → Havel ment / se ferme  
+C → autre piste découverte  
+D → corps + Sceau Funéraire
+
+============================================================
+SCÈNE 3 — L’INCIDENT
+============================================================
+
+Essieu brisé. Ballot entrouvert.
+
+SI corps déjà vu :
+    tension contenue
+SINON :
+    choc moral + panique
+
+CHOIX :
+A) Exiger des explications  
+B) Refermer et repartir  
+C) Abandonner l’escorte  
+D) Prévenir une autorité  
+
+============================================================
+SCÈNE 4 — L’EMBUSCADE DU PONT
+============================================================
+
+Un groupe armé réclame les ballots.
+
+CHOIX :
+A) Défendre  
+B) Négocier  
+C) Céder  
+D) Suivre discrètement  
+
+============================================================
+SCÈNE 5 — CONSÉQUENCES
+============================================================
+
+Selon choix :
+- Havel avoue partiellement
+- Havel ment
+- Havel disparaît
+- Havel est tué
+
+INFOS POSSIBLES :
+- Réseau anonyme
+- Paiements indirects
+- Reliques anciennes
+- Peur organisée
+
+============================================================
+SCÈNE 6 — RELAIS VIDE
+============================================================
+
+Relais désert. Traces de passage. Clou de Clôture découvert.
+
+CHOIX :
+A) Détruire le lieu  
+B) Piéger  
+C) Dénoncer  
+D) Observer  
+
+============================================================
+SORTIES ACTE I
+============================================================
+
+- Groupe allié
+- Groupe suspect
+- Groupe traqué
+- Groupe ignoré
+
+============================================================
+FIN ACTE I

@@ -1,0 +1,329 @@
+{
+  "version": 3,
+  "startSceneId": "scene_1",
+  "meta": {
+    "title": "Les Bannieres Noires",
+    "theme": "fantasy sombre, intrigue et choix moraux"
+  },
+  "combat": {
+    "partyHp": 30,
+    "actions": [
+      {
+        "id": "combat_warrior_strike",
+        "role": "warrior",
+        "text": "Frappe brutale.",
+        "effect": {
+          "damage": 6
+        }
+      },
+      {
+        "id": "combat_warrior_guard",
+        "role": "warrior",
+        "text": "Garde haute.",
+        "effect": {
+          "block": 4
+        }
+      },
+      {
+        "id": "combat_warrior_taunt",
+        "role": "warrior",
+        "text": "Provoque pour attirer.",
+        "effect": {
+          "damage": 2,
+          "enemyAttackDelta": -2
+        }
+      },
+      {
+        "id": "combat_sage_bolt",
+        "role": "sage",
+        "text": "Decharge arcanique.",
+        "effect": {
+          "damage": 5
+        }
+      },
+      {
+        "id": "combat_sage_ward",
+        "role": "sage",
+        "text": "Dresse un voile.",
+        "effect": {
+          "block": 3
+        }
+      },
+      {
+        "id": "combat_sage_insight",
+        "role": "sage",
+        "text": "Expose une faiblesse.",
+        "effect": {
+          "damage": 2,
+          "enemyAttackDelta": -1
+        }
+      },
+      {
+        "id": "combat_ranger_shot",
+        "role": "ranger",
+        "text": "Tir precis.",
+        "effect": {
+          "damage": 5
+        }
+      },
+      {
+        "id": "combat_ranger_snare",
+        "role": "ranger",
+        "text": "Entrave leurs appuis.",
+        "effect": {
+          "enemyAttackDelta": -3
+        }
+      },
+      {
+        "id": "combat_ranger_focus",
+        "role": "ranger",
+        "text": "Focus et frappe.",
+        "effect": {
+          "damage": 4,
+          "block": 1
+        }
+      },
+      {
+        "id": "combat_run",
+        "role": "any",
+        "text": "Battre en retraite.",
+        "effect": {
+          "run": true,
+          "block": 1
+        }
+      }
+    ]
+  },
+  "scenes": [
+    {
+      "id": "scene_1",
+      "title": "Scene 1 - La rencontre ",
+      "canonicalTruth": "Verite interne a definir.",
+      "intro": "Après avoir marché 4 heures dans la forêt, le groupe arrive à un embranchement. A la croisée des deux chemin, un homme attend, debout, l'air endormi. ",
+      "evidence": [],
+      "steps": [
+        {
+          "id": "scene_1_step1",
+          "actions": [
+            {
+              "id": "scene_1_warrior_1",
+              "role": "warrior",
+              "text": "Bordel, il est dégeulasse ce saucisson !",
+              "stage": "L'air énvervé."
+            },
+            {
+              "id": "scene_1_sage_1",
+              "role": "sage",
+              "text": "Action du sage.",
+              "stage": "observe et decide."
+            },
+            {
+              "id": "scene_1_ranger_1",
+              "role": "ranger",
+              "text": "Action du ranger.",
+              "stage": "se deplace en silence."
+            },
+            {
+              "id": "scene_1_warrior_2",
+              "role": "warrior",
+              "text": "Compter ses doigts de pieds.",
+              "stage": "Un air intéressé apparait sur le visage du guerrier."
+            }
+          ],
+          "outcomes": {
+            "scene_1_warrior_1": {
+              "narration": "Le saucisson se fracasse contre les pierres du sentier. Un parasite répugnant s'en enfuit.",
+              "dialogue": [
+                {
+                  "speaker": "Paladin Baldour",
+                  "text": "Je vous en prie soyez poli !"
+                }
+              ],
+              "unlockOptionIds": [
+                "B"
+              ]
+            },
+            "scene_1_sage_1": {
+              "narration": "Le groupe enregistre ce choix."
+            },
+            "scene_1_ranger_1": {
+              "narration": "Le groupe enregistre ce choix.",
+              "unlockOptionIds": [
+                "C"
+              ]
+            },
+            "scene_1_warrior_2": {
+              "narration": "",
+              "dialogue": [
+                {
+                  "speaker": "Warrior",
+                  "text": "7 ! Euh, non attendez...",
+                  "aside": ""
+                }
+              ],
+              "unlockOptionIds": [
+                "C"
+              ],
+              "hpDelta": -1
+            }
+          }
+        }
+      ],
+      "options": [
+        {
+          "id": "A",
+          "text": "Demander au paladin ce qu'il fait là.",
+          "defaultVisible": true,
+          "next": [
+            {
+              "to": "scene_2"
+            }
+          ]
+        },
+        {
+          "id": "B",
+          "text": "Marcher un peu vite pour le semer.",
+          "defaultVisible": false,
+          "next": [
+            {
+              "to": "scene_2"
+            }
+          ]
+        },
+        {
+          "id": "C",
+          "text": "Lui lancer un freezbi.",
+          "defaultVisible": false,
+          "next": [
+            {
+              "to": "scene_2"
+            }
+          ]
+        }
+      ],
+      "unlockRules": [],
+      "outcomeByOption": {
+        "A": {
+          "text": "La suite se dessine."
+        },
+        "B": {
+          "text": "La suite se dessine."
+        },
+        "C": {
+          "text": "La suite se dessine."
+        }
+      },
+      "introDialogue": [
+        {
+          "speaker": "Paladin Baldour",
+          "text": "Hola... J'ai fini ma salade.",
+          "aside": "Tire sur sa pipe remplie d'herbe de la comté."
+        }
+      ]
+    },
+    {
+      "id": "scene_2",
+      "title": "Le trepas du baldoche.",
+      "canonicalTruth": "Verite interne a definir.",
+      "intro": "Le baldoche est pris d'un long baillement. Tout cet excercie l'a épuisé. ",
+      "evidence": [],
+      "steps": [
+        {
+          "id": "scene_2_step1",
+          "actions": [
+            {
+              "id": "scene_2_warrior_1",
+              "role": "warrior",
+              "text": "Action du guerrier.",
+              "stage": "agit avec prudence."
+            },
+            {
+              "id": "scene_2_sage_1",
+              "role": "sage",
+              "text": "Action du sage.",
+              "stage": "observe et decide."
+            },
+            {
+              "id": "scene_2_ranger_1",
+              "role": "ranger",
+              "text": "Action du ranger.",
+              "stage": "se deplace en silence."
+            }
+          ],
+          "outcomes": {
+            "scene_2_warrior_1": {
+              "narration": "Le groupe enregistre ce choix."
+            },
+            "scene_2_sage_1": {
+              "narration": "Le groupe enregistre ce choix."
+            },
+            "scene_2_ranger_1": {
+              "narration": "Le groupe enregistre ce choix."
+            }
+          }
+        }
+      ],
+      "options": [
+        {
+          "id": "A",
+          "text": "Choix par defaut.",
+          "defaultVisible": true,
+          "next": [
+            {
+              "to": "scene_2"
+            }
+          ]
+        },
+        {
+          "id": "B",
+          "text": "Choix B.",
+          "defaultVisible": false,
+          "next": [
+            {
+              "to": "scene_2"
+            }
+          ]
+        },
+        {
+          "id": "C",
+          "text": "Choix C.",
+          "defaultVisible": false,
+          "next": [
+            {
+              "to": "scene_2"
+            }
+          ]
+        }
+      ],
+      "unlockRules": [],
+      "outcomeByOption": {
+        "A": {
+          "text": "La suite se dessine."
+        },
+        "B": {
+          "text": "La suite se dessine."
+        },
+        "C": {
+          "text": "La suite se dessine."
+        }
+      },
+      "meta": {
+        "graph": {
+          "position": {
+            "x": 399.083732639068,
+            "y": 29.088077039727256
+          }
+        }
+      },
+      "isEnding": true,
+      "mode": "story",
+      "introDialogue": [
+        {
+          "speaker": "Paladin Baldoche",
+          "text": "J'ai fini ma salade... c'est l'heure d'aller se coucher.",
+          "aside": "Le paladin traine ses pieds avec lenteur."
+        }
+      ]
+    }
+  ]
+}

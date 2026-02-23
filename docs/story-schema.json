@@ -1,0 +1,285 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Questing Together Story Data",
+  "type": "object",
+  "required": ["version", "startSceneId", "scenes"],
+  "additionalProperties": false,
+  "properties": {
+    "version": { "type": "number" },
+    "startSceneId": { "type": "string", "minLength": 1 },
+    "combat": { "$ref": "#/definitions/combatConfig" },
+    "meta": {
+      "type": "object",
+      "additionalProperties": true
+    },
+    "scenes": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/definitions/scene" }
+    }
+  },
+  "definitions": {
+    "optionId": {
+      "type": "string",
+      "enum": ["A", "B", "C"]
+    },
+    "tagSet": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "global": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "scene": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      }
+    },
+    "tagCondition": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "all": { "type": "array", "items": { "type": "string" } },
+        "any": { "type": "array", "items": { "type": "string" } },
+        "none": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "tagRoute": {
+      "type": "object",
+      "required": ["to"],
+      "additionalProperties": false,
+      "properties": {
+        "ifGlobal": { "$ref": "#/definitions/tagCondition" },
+        "ifScene": { "$ref": "#/definitions/tagCondition" },
+        "ifActions": { "$ref": "#/definitions/tagCondition" },
+        "to": { "type": ["string", "null"] }
+      }
+    },
+    "dialogueLine": {
+      "type": "object",
+      "required": ["speaker", "text"],
+      "additionalProperties": false,
+      "properties": {
+        "speaker": { "type": "string" },
+        "text": { "type": "string" },
+        "aside": { "type": "string" }
+      }
+    },
+    "evidence": {
+      "type": "object",
+      "required": ["id", "label", "description"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "type": "string" },
+        "label": { "type": "string" },
+        "description": { "type": "string" }
+      }
+    },
+    "sceneAction": {
+      "type": "object",
+      "required": ["id", "role", "text"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "type": "string" },
+        "role": { "type": "string" },
+        "text": { "type": "string" },
+        "stage": { "type": "string" }
+      }
+    },
+    "sceneActionOutcome": {
+      "type": "object",
+      "required": ["narration"],
+      "additionalProperties": false,
+      "properties": {
+        "narration": { "type": "string" },
+        "dialogue": {
+          "type": "array",
+          "items": { "$ref": "#/definitions/dialogueLine" }
+        },
+        "evidenceIds": { "type": "array", "items": { "type": "string" } },
+        "unlockOptionIds": {
+          "type": "array",
+          "items": { "$ref": "#/definitions/optionId" }
+        },
+        "disableActionIds": { "type": "array", "items": { "type": "string" } },
+        "tagsAdded": { "$ref": "#/definitions/tagSet" },
+        "hpDelta": { "type": "number" }
+      }
+    },
+    "combatActionEffect": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "damage": { "type": "number" },
+        "block": { "type": "number" },
+        "enemyAttackDelta": { "type": "number" },
+        "run": { "type": "boolean" }
+      }
+    },
+    "combatAction": {
+      "type": "object",
+      "required": ["id", "role", "text", "effect"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "type": "string" },
+        "role": { "type": "string" },
+        "text": { "type": "string" },
+        "effect": { "$ref": "#/definitions/combatActionEffect" }
+      }
+    },
+    "combatConfig": {
+      "type": "object",
+      "required": ["partyHp", "actions"],
+      "additionalProperties": false,
+      "properties": {
+        "partyHp": { "type": "number" },
+        "actions": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "$ref": "#/definitions/combatAction" }
+        }
+      }
+    },
+    "combatSceneConfig": {
+      "type": "object",
+      "required": ["enemyName", "enemyHp", "enemyAttack"],
+      "additionalProperties": false,
+      "properties": {
+        "enemyName": { "type": "string" },
+        "enemyHp": { "type": "number" },
+        "enemyAttack": { "type": "number" },
+        "allowRun": { "type": "boolean" }
+      }
+    },
+    "timedSceneConfig": {
+      "type": "object",
+      "required": ["kind", "durationSeconds"],
+      "additionalProperties": false,
+      "properties": {
+        "kind": { "type": "string", "enum": ["rest", "travel", "wait"] },
+        "durationSeconds": { "type": "number" },
+        "allowEarly": { "type": "boolean" },
+        "statusText": { "type": "string" }
+      }
+    },
+    "sceneStep": {
+      "type": "object",
+      "required": ["id", "actions", "outcomes"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "type": "string" },
+        "actions": {
+          "type": "array",
+          "minItems": 0,
+          "items": { "$ref": "#/definitions/sceneAction" }
+        },
+        "outcomes": {
+          "type": "object",
+          "additionalProperties": { "$ref": "#/definitions/sceneActionOutcome" }
+        }
+      }
+    },
+    "sceneOption": {
+      "type": "object",
+      "required": ["id", "text", "next"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "$ref": "#/definitions/optionId" },
+        "text": { "type": "string" },
+        "defaultVisible": { "type": "boolean" },
+        "isRisky": { "type": "boolean" },
+        "tagsAdded": { "$ref": "#/definitions/tagSet" },
+        "next": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "$ref": "#/definitions/tagRoute" }
+        }
+      }
+    },
+    "sceneUnlockRule": {
+      "type": "object",
+      "required": ["optionId", "evidenceIds"],
+      "additionalProperties": false,
+      "properties": {
+        "optionId": { "$ref": "#/definitions/optionId" },
+        "evidenceIds": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "sceneOutcome": {
+      "type": "object",
+      "required": ["text"],
+      "additionalProperties": false,
+      "properties": {
+        "text": { "type": "string" },
+        "hpDelta": { "type": "number" }
+      }
+    },
+    "scene": {
+      "type": "object",
+      "required": [
+        "id",
+        "title",
+        "canonicalTruth",
+        "intro",
+        "evidence",
+        "steps",
+        "options",
+        "unlockRules",
+        "outcomeByOption"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "type": "string" },
+        "title": { "type": "string" },
+        "canonicalTruth": { "type": "string" },
+        "intro": { "type": "string" },
+        "mode": { "type": "string", "enum": ["story", "combat", "timed"] },
+        "combat": { "$ref": "#/definitions/combatSceneConfig" },
+        "timed": { "$ref": "#/definitions/timedSceneConfig" },
+        "introDialogue": {
+          "type": "array",
+          "items": { "$ref": "#/definitions/dialogueLine" }
+        },
+        "introByPreviousOption": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "A": { "type": "string" },
+            "B": { "type": "string" },
+            "C": { "type": "string" }
+          }
+        },
+        "evidence": {
+          "type": "array",
+          "items": { "$ref": "#/definitions/evidence" }
+        },
+        "steps": {
+          "type": "array",
+          "minItems": 0,
+          "items": { "$ref": "#/definitions/sceneStep" }
+        },
+        "options": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "$ref": "#/definitions/sceneOption" }
+        },
+        "unlockRules": {
+          "type": "array",
+          "items": { "$ref": "#/definitions/sceneUnlockRule" }
+        },
+        "outcomeByOption": {
+          "type": "object",
+          "minProperties": 1,
+          "additionalProperties": { "$ref": "#/definitions/sceneOutcome" }
+        },
+        "isEnding": { "type": "boolean" },
+        "meta": {
+          "type": "object",
+          "additionalProperties": true
+        }
+      }
+    }
+  }
+}

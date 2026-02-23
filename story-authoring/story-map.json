@@ -1,0 +1,55 @@
+{
+  "version": 1,
+  "title": "Les Bannieres Noires",
+  "generatedAt": "2026-02-14T15:19:27.853Z",
+  "startSceneId": "scene_1",
+  "notes": "Auto-generated from src/story/story-data.json. Edit source story instead.",
+  "scenes": [
+    {
+      "id": "scene_1",
+      "title": "Scene 1 - La rencontre ",
+      "type": "story",
+      "summary": "Après avoir marché 4 heures dans la forêt, le groupe arrive à un embranchement.",
+      "routes": {
+        "A": [
+          {
+            "to": "scene_2"
+          }
+        ],
+        "B": [
+          {
+            "to": "scene_2"
+          }
+        ],
+        "C": [
+          {
+            "to": "scene_2"
+          }
+        ]
+      }
+    },
+    {
+      "id": "scene_2",
+      "title": "Le trepas du baldoche.",
+      "type": "ending",
+      "summary": "Le baldoche est pris d'un long baillement.",
+      "routes": {
+        "A": [
+          {
+            "to": "scene_2"
+          }
+        ],
+        "B": [
+          {
+            "to": "scene_2"
+          }
+        ],
+        "C": [
+          {
+            "to": "scene_2"
+          }
+        ]
+      }
+    }
+  ]
+}

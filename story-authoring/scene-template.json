@@ -1,0 +1,63 @@
+{
+  "id": "scene_id_here",
+  "title": "Scene Title",
+  "canonicalTruth": "Hidden truth for the writer, not shown to players.",
+  "intro": "Short intro paragraph shown to all players.",
+  "introDialogue": [
+    { "speaker": "NPC", "text": "A short spoken line." }
+  ],
+  "introByPreviousOption": {
+    "A": "Optional variant if previous option A was chosen.",
+    "B": "Optional variant if previous option B was chosen.",
+    "C": "Optional variant if previous option C was chosen."
+  },
+  "mode": "story",
+  "combat": {
+    "enemyName": "Enemy Name",
+    "enemyHp": 18,
+    "enemyAttack": 6,
+    "allowRun": true
+  },
+  "timed": {
+    "kind": "rest",
+    "durationSeconds": 21600,
+    "allowEarly": true,
+    "statusText": "The group is busy..."
+  },
+  "evidence": [
+    { "id": "evidence_id", "label": "INTERPRETIVE_TAG", "description": "Short description." }
+  ],
+  "steps": [
+    {
+      "id": "step1",
+      "actions": [
+        { "id": "action_warrior_1", "role": "warrior", "text": "\"Spoken line.\"", "stage": "stage direction." },
+        { "id": "action_sage_1", "role": "sage", "text": "\"Spoken line.\"", "stage": "stage direction." },
+        { "id": "action_ranger_1", "role": "ranger", "text": "Action description.", "stage": "stage direction." }
+      ],
+      "outcomes": {
+        "action_warrior_1": {
+          "narration": "What happens after the action.",
+          "evidenceIds": ["evidence_id"],
+          "unlockOptionIds": ["B"],
+          "disableActionIds": ["action_sage_1"],
+          "tagsAdded": { "global": ["TAG"], "scene": ["SCENE_TAG"] },
+          "hpDelta": -1
+        }
+      }
+    }
+  ],
+  "options": [
+    { "id": "A", "text": "Default option.", "defaultVisible": true, "next": [{ "to": "next_scene_id" }] },
+    { "id": "B", "text": "Hidden option.", "next": [{ "to": "next_scene_id" }] },
+    { "id": "C", "text": "Hidden option.", "isRisky": true, "next": [{ "to": "next_scene_id" }] }
+  ],
+  "unlockRules": [
+    { "optionId": "B", "evidenceIds": ["evidence_id"] }
+  ],
+  "outcomeByOption": {
+    "A": { "text": "Outcome text.", "hpDelta": 0 },
+    "B": { "text": "Outcome text.", "hpDelta": -2 },
+    "C": { "text": "Outcome text.", "hpDelta": 1 }
+  }
+}

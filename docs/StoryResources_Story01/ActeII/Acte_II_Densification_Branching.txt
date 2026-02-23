@@ -1,0 +1,94 @@
+ACTE II — D’OÙ VIENNENT LES MORTS
+DENSIFICATION — SCÈNES JOUABLES À BRANCHES
+
+============================================================
+SCÈNE 1 — ARRIVÉE À RONCEVAL
+============================================================
+
+Village anxieux. Enterrements en plein jour.
+
+CHOIX :
+A) Observer discrètement  
+B) Parler au prêtre  
+C) Parler aux villageois  
+D) Inspecter le cimetière  
+
+============================================================
+SCÈNE 2 — LE COUPABLE DÉSIGNÉ
+============================================================
+
+Ysolde, herboriste, accusée.
+
+CHOIX :
+A) Défendre  
+B) Accuser  
+C) Enquêter  
+D) Quitter le village  
+
+CONSÉQUENCES :
+A → hostilité de la foule  
+B → innocente exécutée  
+C → temps gagné  
+D → culte agit librement
+
+============================================================
+SCÈNE 3 — TOMBE VIDE
+============================================================
+
+Découverte d’une exhumation propre.
+
+INDICES :
+- Sceau Funéraire
+- Herbes amères
+- Aucun vol annexe
+
+============================================================
+SCÈNE 4 — VEILLE NOCTURNE
+============================================================
+
+Pilleurs au travail.
+
+CHOIX :
+A) Intervenir  
+B) Observer  
+C) Capturer  
+D) Tuer  
+
+A → combat  
+B → piste du hangar  
+C → infos + peur  
+D → escalade de violence
+
+============================================================
+SCÈNE 5 — SITE DE TRI
+============================================================
+
+Grange abandonnée. Corps préparés.
+
+CHOIX :
+A) Détruire  
+B) Protéger  
+C) Dénoncer  
+D) Laisser  
+
+============================================================
+SCÈNE 6 — CONTRECOUP
+============================================================
+
+Réaction régionale selon actions :
+- Panique
+- Stabilisation
+- Renforcement du culte
+- Hostilité envers le groupe
+
+============================================================
+SORTIES ACTE II
+============================================================
+
+- Groupe recherché
+- Groupe allié local
+- Groupe craint
+- Groupe ignoré
+
+============================================================
+FIN ACTE II

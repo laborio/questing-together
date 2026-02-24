@@ -54,13 +54,16 @@ export type DialogueLine = {
   speaker: string;
   text: string;
   aside?: string;
+  narration?: string;
 };
 
 export type SceneAction = {
   id: ActionId;
   role: RoleId | 'any';
   text: string;
+  buttonText?: string;
   stage?: string;
+  narration?: string;
 };
 
 export type CombatActionEffect = {
@@ -380,8 +383,14 @@ function assertStoryData(raw: unknown): StoryData {
               if (typeof action.text !== 'string') {
                 errors.push(`scenes[${sceneIndex}].steps[${stepIndex}].actions[${actionIndex}].text must be string`);
               }
+              if (action.buttonText !== undefined && typeof action.buttonText !== 'string') {
+                errors.push(`scenes[${sceneIndex}].steps[${stepIndex}].actions[${actionIndex}].buttonText must be string`);
+              }
               if (action.stage !== undefined && typeof action.stage !== 'string') {
                 errors.push(`scenes[${sceneIndex}].steps[${stepIndex}].actions[${actionIndex}].stage must be string`);
+              }
+              if (action.narration !== undefined && typeof action.narration !== 'string') {
+                errors.push(`scenes[${sceneIndex}].steps[${stepIndex}].actions[${actionIndex}].narration must be string`);
               }
             });
           }
@@ -405,6 +414,13 @@ function assertStoryData(raw: unknown): StoryData {
                   outcome.dialogue.forEach((line: unknown, lineIndex: number) => {
                     if (!isObject(line) || typeof line.speaker !== 'string' || typeof line.text !== 'string') {
                       errors.push(`outcomes.${action.id}.dialogue[${lineIndex}] must have speaker/text`);
+                      return;
+                    }
+                    if (line.aside !== undefined && typeof line.aside !== 'string') {
+                      errors.push(`outcomes.${action.id}.dialogue[${lineIndex}].aside must be string`);
+                    }
+                    if (line.narration !== undefined && typeof line.narration !== 'string') {
+                      errors.push(`outcomes.${action.id}.dialogue[${lineIndex}].narration must be string`);
                     }
                   });
                 }

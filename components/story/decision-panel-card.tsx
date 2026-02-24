@@ -61,6 +61,7 @@ type DecisionPanelCardProps = {
   onContinueToNextScene: () => void;
   onFinishTimedScene: () => void;
   onResetStory: () => void;
+  canResetStory?: boolean;
   embedded?: boolean;
 };
 
@@ -99,6 +100,7 @@ export function DecisionPanelCard({
   onContinueToNextScene,
   onFinishTimedScene,
   onResetStory,
+  canResetStory = true,
   embedded = false,
 }: DecisionPanelCardProps) {
   const [activeTab, setActiveTab] = useState<TabId>('actions');
@@ -261,17 +263,9 @@ export function DecisionPanelCard({
         </Text>
 
         {resolvedOption ? (
-          localHasContinued ? (
-            <Text style={styles.waitingText}>
-              Waiting for party to continue ({continuedCount}/{expectedPlayerCount}).
-            </Text>
-          ) : (
-            <Pressable onPress={onContinueToNextScene} style={styles.textureButton}>
-              <ImageBackground source={buttonTextureSelected} style={styles.textureBg} imageStyle={styles.textureImage} resizeMode="stretch">
-                <Text style={styles.textureText}>Meet your party at the next scene</Text>
-              </ImageBackground>
-            </Pressable>
-          )
+          <Text style={styles.waitingText}>
+            Advancing when party confirmations are synced ({continuedCount}/{expectedPlayerCount}).
+          </Text>
         ) : localConfirmedOption ? (
           <Text style={styles.waitingText}>Vote locked. Waiting for other players to confirm.</Text>
         ) : (
@@ -381,6 +375,7 @@ export function DecisionPanelCard({
           onConfirmOption={onConfirmOption}
           onContinueToNextScene={onContinueToNextScene}
           onResetStory={onResetStory}
+          canResetStory={canResetStory}
           embedded={embedded}
         />
       )}

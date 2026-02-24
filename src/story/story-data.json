@@ -109,7 +109,9 @@
               "id": "scene_1_warrior_1",
               "role": "warrior",
               "text": "Bordel, il est dégeulasse ce saucisson !",
-              "stage": "L'air énvervé."
+              "stage": "Jette son saucisson par terre, l'air énervé.",
+              "narration": "Le saucisson se fracasse contre les pierres du sentier. Un parasite répugnant s'en enfuit.",
+              "buttonText": "\"Bordel, il est dégeulasse ce saucisson !\""
             },
             {
               "id": "scene_1_sage_1",
@@ -126,17 +128,20 @@
             {
               "id": "scene_1_warrior_2",
               "role": "warrior",
-              "text": "Compter ses doigts de pieds.",
-              "stage": "Un air intéressé apparait sur le visage du guerrier."
+              "text": "7 ! Enfin je crois....",
+              "stage": "Un air intéressé apparait sur le visage du guerrier.",
+              "buttonText": "Compter ses doigts de pied"
             }
           ],
           "outcomes": {
             "scene_1_warrior_1": {
-              "narration": "Le saucisson se fracasse contre les pierres du sentier. Un parasite répugnant s'en enfuit.",
+              "narration": "Fin de narration. ",
               "dialogue": [
                 {
                   "speaker": "Paladin Baldour",
-                  "text": "Je vous en prie soyez poli !"
+                  "text": "Je vous en prie soyez poli !",
+                  "aside": "Recule d'un pas.",
+                  "narration": "Les oiseaux dans les arbres aux alentours d'envolent."
                 }
               ],
               "unlockOptionIds": [
@@ -153,12 +158,12 @@
               ]
             },
             "scene_1_warrior_2": {
-              "narration": "",
+              "narration": "Un froid glacial s'installe.",
               "dialogue": [
                 {
-                  "speaker": "Warrior",
-                  "text": "7 ! Euh, non attendez...",
-                  "aside": ""
+                  "speaker": "Paladin Baldour",
+                  "text": "Ohlala, c'est pas brillant...",
+                  "aside": "Baille."
                 }
               ],
               "unlockOptionIds": [

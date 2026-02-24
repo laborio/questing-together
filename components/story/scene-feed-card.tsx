@@ -1,5 +1,17 @@
-import React, { useEffect, useRef, useState } from 'react';
-import { Image, NativeScrollEvent, NativeSyntheticEvent, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import {
+  Animated,
+  Image,
+  NativeScrollEvent,
+  NativeSyntheticEvent,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextStyle,
+  View,
+  StyleProp,
+} from 'react-native';
 
 const dividerLarge = require('../../assets/images/T_Divider_L.png');
 const dividerSmall = require('../../assets/images/T_Divider_S.png');
@@ -14,10 +26,11 @@ type SceneHistoryItem = {
 type JournalEntry =
   | { id: string; kind: 'transition'; text: string }
   | { id: string; kind: 'narration'; text: string }
-  | { id: string; kind: 'npc'; speaker: string; text: string; aside?: string }
+  | { id: string; kind: 'npc'; speaker: string; text: string; aside?: string; narration?: string }
   | { id: string; kind: 'player'; speaker: string; lines: string[]; stage?: string; narration?: string };
 
 type SceneFeedCardProps = {
+  sceneId?: string | null;
   sceneTitle?: string | null;
   journalEntries: JournalEntry[];
   sceneHistory: SceneHistoryItem[];
@@ -26,7 +39,96 @@ type SceneFeedCardProps = {
   fullBleed?: boolean;
 };
 
+const LINE_FADE_DURATION_MS = 240;
+const LINE_REVEAL_GAP_MS = 120;
+const FOOTER_FADE_DURATION_MS = 500;
+const FOOTER_REVEAL_BUFFER_MS = 120;
+
+function StoryText({
+  text,
+  style,
+  animate,
+  startDelay = 0,
+}: {
+  text: string;
+  style?: StyleProp<TextStyle>;
+  animate: boolean;
+  startDelay?: number;
+}) {
+  const opacity = useRef(new Animated.Value(animate ? 0 : 1)).current;
+
+  useEffect(() => {
+    if (!animate) {
+      opacity.setValue(1);
+      return;
+    }
+
+    opacity.setValue(0);
+
+    const startTimer = setTimeout(() => {
+      Animated.timing(opacity, {
+        toValue: 1,
+        duration: LINE_FADE_DURATION_MS,
+        useNativeDriver: true,
+      }).start();
+    }, startDelay);
+
+    return () => {
+      clearTimeout(startTimer);
+      opacity.stopAnimation();
+    };
+  }, [animate, opacity, startDelay, text]);
+
+  return (
+    <Animated.View style={{ opacity }}>
+      <Text style={style}>{text}</Text>
+    </Animated.View>
+  );
+}
+
+function quoted(text: string) {
+  const trimmed = text.trim();
+  if (!trimmed) return text;
+  if (/^[\"“«]/.test(trimmed)) return text;
+  return `"${text}"`;
+}
+
+function getEntryAnimationUnits(item: JournalEntry): { key: string; text: string }[] {
+  if (item.kind === 'transition') {
+    return [{ key: `${item.id}-transition`, text: item.text }];
+  }
+
+  if (item.kind === 'narration') {
+    return [{ key: `${item.id}-narration`, text: item.text }];
+  }
+
+  if (item.kind === 'npc') {
+    const units: { key: string; text: string }[] = [{ key: `${item.id}-speaker`, text: item.speaker }];
+    if (item.aside) {
+      units.push({ key: `${item.id}-aside`, text: item.aside });
+    }
+    units.push({ key: `${item.id}-line`, text: quoted(item.text) });
+    if (item.narration) {
+      units.push({ key: `${item.id}-narration`, text: item.narration });
+    }
+    return units;
+  }
+
+  const units: { key: string; text: string }[] = [];
+  if (item.stage) {
+    units.push({ key: `${item.id}-stage`, text: item.stage });
+  }
+  item.lines.forEach((line, lineIndex) => {
+    units.push({ key: `${item.id}-line-${lineIndex}`, text: quoted(line) });
+  });
+  if (item.narration) {
+    units.push({ key: `${item.id}-narration`, text: item.narration });
+  }
+  return units;
+}
+
 export function SceneFeedCard({
+  sceneId,
   sceneTitle,
   journalEntries,
   sceneHistory,
@@ -39,11 +141,13 @@ export function SceneFeedCard({
   const autoScrollRef = useRef(true);
   const [animateFromIndex, setAnimateFromIndex] = useState<number | null>(null);
   const previousCountRef = useRef<number | null>(null);
+  const revealedFooterScenesRef = useRef<Set<string>>(new Set());
+  const footerOpacity = useRef(new Animated.Value(1)).current;
 
   useEffect(() => {
     if (previousCountRef.current === null) {
       previousCountRef.current = journalEntries.length;
-      setAnimateFromIndex(journalEntries.length);
+      setAnimateFromIndex(0);
       return;
     }
     if (journalEntries.length > previousCountRef.current) {
@@ -61,64 +165,62 @@ export function SceneFeedCard({
     }
   }, [journalEntries.length]);
 
-  function TypewriterText({
-    text,
-    style,
-    startDelay = 0,
-  }: {
-    text: string;
-    style?: object;
-    startDelay?: number;
-  }) {
-    const [visibleText, setVisibleText] = useState('');
+  const animationPlan = useMemo(() => {
+    const delays = new Map<string, number>();
+    if (animateFromIndex === null || animateFromIndex >= journalEntries.length) {
+      return { delays, totalDurationMs: 0 };
+    }
 
-    useEffect(() => {
-      let currentIndex = 0;
-      let interval: ReturnType<typeof setInterval> | null = null;
+    let delayCursor = 0;
 
-      setVisibleText('');
+    for (let index = animateFromIndex; index < journalEntries.length; index += 1) {
+      const units = getEntryAnimationUnits(journalEntries[index]);
+      units.forEach(({ key, text }) => {
+        if (!text) return;
+        delays.set(key, delayCursor);
+        delayCursor += LINE_FADE_DURATION_MS + LINE_REVEAL_GAP_MS;
+      });
+    }
 
-      const startTimer = setTimeout(() => {
-        interval = setInterval(() => {
-          currentIndex += 1;
-          setVisibleText(text.slice(0, currentIndex));
-          if (currentIndex >= text.length && interval) {
-            clearInterval(interval);
-          }
-        }, 28);
-      }, startDelay);
+    const totalDurationMs = delayCursor > 0 ? delayCursor - LINE_REVEAL_GAP_MS : 0;
+    return { delays, totalDurationMs };
+  }, [animateFromIndex, journalEntries]);
 
-      return () => {
-        clearTimeout(startTimer);
-        if (interval) clearInterval(interval);
-      };
-    }, [startDelay, text]);
+  const footerSceneKey = sceneId ?? sceneTitle ?? '__scene__';
 
-    return <Text style={style}>{visibleText}</Text>;
-  }
+  useEffect(() => {
+    if (!footer) return;
+    if (revealedFooterScenesRef.current.has(footerSceneKey)) {
+      footerOpacity.setValue(1);
+      return;
+    }
 
-  function StoryText({
-    text,
-    style,
-    animate,
-    startDelay,
-  }: {
-    text: string;
-    style?: object;
-    animate: boolean;
-    startDelay: number;
-  }) {
-    if (!text) return null;
-    if (!animate) return <Text style={style}>{text}</Text>;
-    return <TypewriterText text={text} style={style} startDelay={startDelay} />;
-  }
+    footerOpacity.setValue(0);
+  }, [footer, footerOpacity, footerSceneKey]);
 
-  function quoted(text: string) {
-    const trimmed = text.trim();
-    if (!trimmed) return text;
-    if (/^[\"“«]/.test(trimmed)) return text;
-    return `"${text}"`;
-  }
+  useEffect(() => {
+    if (!footer) return;
+    if (animateFromIndex === null) return;
+    if (revealedFooterScenesRef.current.has(footerSceneKey)) return;
+
+    const revealDelayMs = Math.max(0, animationPlan.totalDurationMs + FOOTER_REVEAL_BUFFER_MS);
+    const timer = setTimeout(() => {
+      Animated.timing(footerOpacity, {
+        toValue: 1,
+        duration: FOOTER_FADE_DURATION_MS,
+        useNativeDriver: true,
+      }).start(() => {
+        revealedFooterScenesRef.current.add(footerSceneKey);
+      });
+    }, revealDelayMs);
+
+    return () => {
+      clearTimeout(timer);
+      footerOpacity.stopAnimation();
+    };
+  }, [animateFromIndex, animationPlan.totalDurationMs, footer, footerOpacity, footerSceneKey]);
+
+  const getStartDelay = (animationKey: string) => animationPlan.delays.get(animationKey) ?? 0;
 
   return (
     <View style={[styles.card, fullBleed && styles.cardFull]}>
@@ -145,13 +247,17 @@ export function SceneFeedCard({
           {journalEntries.map((item, index) => {
             const shouldAnimate =
               animateFromIndex !== null && animateFromIndex < journalEntries.length && index >= animateFromIndex;
-            const startDelay = shouldAnimate && animateFromIndex !== null ? (index - animateFromIndex) * 120 : 0;
 
             if (item.kind === 'transition') {
               return (
                 <View key={item.id} style={styles.transitionWrap}>
                   <Image source={dividerLarge} style={styles.transitionDivider} resizeMode="contain" />
-                  <StoryText text={item.text} style={styles.transitionText} animate={shouldAnimate} startDelay={startDelay} />
+                  <StoryText
+                    text={item.text}
+                    style={styles.transitionText}
+                    animate={shouldAnimate}
+                    startDelay={getStartDelay(`${item.id}-transition`)}
+                  />
                   <Image source={dividerLarge} style={styles.transitionDivider} resizeMode="contain" />
                 </View>
               );
@@ -160,7 +266,12 @@ export function SceneFeedCard({
             if (item.kind === 'narration') {
               return (
                 <View key={item.id} style={styles.narrativeParagraph}>
-                  <StoryText text={item.text} style={styles.narrativeText} animate={shouldAnimate} startDelay={startDelay} />
+                  <StoryText
+                    text={item.text}
+                    style={styles.narrativeText}
+                    animate={shouldAnimate}
+                    startDelay={getStartDelay(`${item.id}-narration`)}
+                  />
                 </View>
               );
             }
@@ -168,21 +279,34 @@ export function SceneFeedCard({
             if (item.kind === 'npc') {
               return (
                 <View key={item.id} style={[styles.dialogueWrap, styles.dialogueNpc]}>
-                  <Text style={styles.dialogueSpeaker}>{item.speaker}</Text>
+                  <StoryText
+                    text={item.speaker}
+                    style={styles.dialogueSpeaker}
+                    animate={shouldAnimate}
+                    startDelay={getStartDelay(`${item.id}-speaker`)}
+                  />
                   {item.aside ? (
                     <StoryText
                       text={item.aside}
                       style={styles.dialogueAside}
                       animate={shouldAnimate}
-                      startDelay={startDelay}
+                      startDelay={getStartDelay(`${item.id}-aside`)}
                     />
                   ) : null}
                   <StoryText
                     text={quoted(item.text)}
                     style={styles.dialogueLine}
                     animate={shouldAnimate}
-                    startDelay={startDelay}
+                    startDelay={getStartDelay(`${item.id}-line`)}
                   />
+                  {item.narration ? (
+                    <StoryText
+                      text={item.narration}
+                      style={styles.actionNarration}
+                      animate={shouldAnimate}
+                      startDelay={getStartDelay(`${item.id}-narration`)}
+                    />
+                  ) : null}
                 </View>
               );
             }
@@ -192,7 +316,12 @@ export function SceneFeedCard({
                 <Image source={dividerSmall} style={styles.actionDivider} resizeMode="contain" />
                 <Text style={styles.dialogueSpeaker}>{item.speaker}</Text>
                 {item.stage ? (
-                  <StoryText text={item.stage} style={styles.dialogueAside} animate={shouldAnimate} startDelay={startDelay} />
+                  <StoryText
+                    text={item.stage}
+                    style={styles.dialogueAside}
+                    animate={shouldAnimate}
+                    startDelay={getStartDelay(`${item.id}-stage`)}
+                  />
                 ) : null}
                 {item.lines.map((line, lineIndex) => (
                   <StoryText
@@ -200,7 +329,7 @@ export function SceneFeedCard({
                     text={quoted(line)}
                     style={styles.dialogueLine}
                     animate={shouldAnimate}
-                    startDelay={startDelay}
+                    startDelay={getStartDelay(`${item.id}-line-${lineIndex}`)}
                   />
                 ))}
                 {item.narration ? (
@@ -208,7 +337,7 @@ export function SceneFeedCard({
                     text={item.narration}
                     style={styles.actionNarration}
                     animate={shouldAnimate}
-                    startDelay={startDelay}
+                    startDelay={getStartDelay(`${item.id}-narration`)}
                   />
                 ) : null}
               </View>
@@ -216,10 +345,10 @@ export function SceneFeedCard({
           })}
         </ScrollView>
         {footer ? (
-          <View style={styles.journalFooter}>
+          <Animated.View style={[styles.journalFooter, { opacity: footerOpacity }]}>
             <Image source={dividerLarge} style={styles.journalDivider} resizeMode="contain" />
             {footer}
-          </View>
+          </Animated.View>
         ) : null}
 
         {sceneHistory.length ? (

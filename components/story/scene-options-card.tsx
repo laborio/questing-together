@@ -21,6 +21,7 @@ type SceneOptionsCardProps = {
   onConfirmOption: (optionId: OptionId) => void;
   onContinueToNextScene: () => void;
   onResetStory: () => void;
+  canResetStory?: boolean;
   embedded?: boolean;
 };
 
@@ -42,6 +43,7 @@ export function SceneOptionsCard({
   onConfirmOption,
   onContinueToNextScene,
   onResetStory,
+  canResetStory = true,
   embedded = false,
 }: SceneOptionsCardProps) {
   const [draftOptionId, setDraftOptionId] = useState<OptionId | null>(null);
@@ -75,10 +77,16 @@ export function SceneOptionsCard({
       {isStoryEnded ? (
         <>
           <Text style={styles.endTitle}>Story complete</Text>
-          <Text style={styles.endText}>All five scenes are finished. You can reset to replay.</Text>
-          <Pressable onPress={onResetStory} style={styles.resetButton}>
-            <Text style={styles.resetButtonText}>Reset Story</Text>
-          </Pressable>
+          <Text style={styles.endText}>
+            {canResetStory
+              ? 'All five scenes are finished. Host can restart from Scene 1 for everyone.'
+              : 'All five scenes are finished. Waiting for host to restart the adventure.'}
+          </Text>
+          {canResetStory ? (
+            <Pressable onPress={onResetStory} style={styles.resetButton}>
+              <Text style={styles.resetButtonText}>Restart Adventure</Text>
+            </Pressable>
+          ) : null}
         </>
       ) : (
         <>
@@ -148,12 +156,12 @@ export function SceneOptionsCard({
               </Text>
               {localHasContinued ? (
                 <Text style={styles.waitingText}>
-                  Waiting for party to continue ({continuedCount}/{expectedPlayerCount}).
+                  Advancing when party confirmations are synced ({continuedCount}/{expectedPlayerCount}).
                 </Text>
               ) : (
-                <Pressable onPress={onContinueToNextScene} style={styles.confirmButton}>
-                  <Text style={styles.confirmButtonText}>Meet your party at the next scene</Text>
-                </Pressable>
+                <Text style={styles.waitingText}>
+                  Advancing when party confirmations are synced ({continuedCount}/{expectedPlayerCount}).
+                </Text>
               )}
             </>
           ) : localConfirmedOption ? (

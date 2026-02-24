@@ -65,6 +65,7 @@ export default function IndexScreen() {
   );
   const localRole = localPlayerRow?.role_id ?? null;
   const isAdventureStarted = room?.status === 'in_progress';
+  const isHost = Boolean(auth.user?.id && room?.host_user_id === auth.user.id);
 
   const playerDisplayNameById = useMemo(() => {
     const mapping: Partial<Record<PlayerId, string>> = { ...playerNameById };
@@ -88,6 +89,7 @@ export default function IndexScreen() {
     roomId,
     localPlayerId: localPlayerId ?? 'p1',
     localRole,
+    isHost,
     playerCount: roomConnection.players.length,
     playerDisplayNameById,
     playerRoleById,
@@ -109,7 +111,6 @@ export default function IndexScreen() {
       .join(', ');
   }, [roomConnection.players]);
 
-  const isHost = Boolean(auth.user?.id && room?.host_user_id === auth.user.id);
   const isLobby = room?.status === 'lobby';
   const localRoleLabel = localRole ? roles.find((role) => role.id === localRole)?.label ?? localRole : null;
   const localDisplayName =
@@ -235,6 +236,14 @@ export default function IndexScreen() {
                   void roomConnection.startAdventure();
                 }}
               />
+              <View style={styles.roomControls}>
+                <Pressable
+                  disabled={roomConnection.isBusy}
+                  onPress={() => void roomConnection.leaveRoom()}
+                  style={[styles.leaveRoomButton, roomConnection.isBusy && styles.leaveRoomButtonDisabled]}>
+                  <Text style={styles.leaveRoomButtonText}>{roomConnection.isBusy ? 'Leaving...' : 'Leave Room'}</Text>
+                </Pressable>
+              </View>
             </>
           ) : !isAdventureStarted || !localRole ? (
             <Text style={styles.loadingText}>Waiting for adventure to start...</Text>
@@ -248,6 +257,7 @@ export default function IndexScreen() {
               <View style={styles.storyWide}>
                 <SceneFeedCard
                   fullBleed
+                  sceneId={roomStory.currentScene.id}
                   sceneTitle={roomStory.currentScene.title}
                   journalEntries={roomStory.journalEntries}
                   sceneHistory={roomStory.sceneHistory}
@@ -286,6 +296,7 @@ export default function IndexScreen() {
                       onContinueToNextScene={roomStory.continueToNextScene}
                       onFinishTimedScene={() => roomStory.finishTimedScene(true)}
                       onResetStory={roomStory.resetStory}
+                      canResetStory={isHost}
                     />
                   }
                 />
@@ -338,9 +349,11 @@ export default function IndexScreen() {
           ) : null}
           <PartyStatusCard title="Party Status" rows={partyStatusRows} variant="parchment" />
           <View style={styles.roomControls}>
-            <Pressable onPress={() => void roomStory.resetStory()} style={styles.resetStoryButton}>
-              <Text style={styles.resetStoryButtonText}>Reset Story</Text>
-            </Pressable>
+            {isHost ? (
+              <Pressable onPress={() => void roomStory.resetStory()} style={styles.resetStoryButton}>
+                <Text style={styles.resetStoryButtonText}>Restart Adventure</Text>
+              </Pressable>
+            ) : null}
             <Pressable
               disabled={roomConnection.isBusy}
               onPress={() => void roomConnection.leaveRoom()}

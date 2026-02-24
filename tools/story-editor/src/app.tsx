@@ -524,8 +524,8 @@ function DialogueEditor({
   lines,
   onChange
 }: {
-  lines: { speaker: string; text: string; aside?: string }[];
-  onChange: (next: { speaker: string; text: string; aside?: string }[]) => void;
+  lines: { speaker: string; text: string; aside?: string; narration?: string }[];
+  onChange: (next: { speaker: string; text: string; aside?: string; narration?: string }[]) => void;
 }) {
   return (
     <div className="dialogue-editor">
@@ -541,8 +541,17 @@ function DialogueEditor({
             }}
           />
           <input
+            value={line.aside ?? ''}
+            placeholder="Aside (optional)"
+            onChange={(event) => {
+              const next = [...lines];
+              next[index] = { ...next[index], aside: event.target.value || undefined };
+              onChange(next);
+            }}
+          />
+          <input
             value={line.text}
-            placeholder="Line"
+            placeholder="Dialogue line"
             onChange={(event) => {
               const next = [...lines];
               next[index] = { ...next[index], text: event.target.value };
@@ -550,11 +559,11 @@ function DialogueEditor({
             }}
           />
           <input
-            value={line.aside ?? ''}
-            placeholder="Aside (optional)"
+            value={line.narration ?? ''}
+            placeholder="Narration (optional)"
             onChange={(event) => {
               const next = [...lines];
-              next[index] = { ...next[index], aside: event.target.value || undefined };
+              next[index] = { ...next[index], narration: event.target.value || undefined };
               onChange(next);
             }}
           />
@@ -565,7 +574,7 @@ function DialogueEditor({
       ))}
       <button
         className="secondary"
-        onClick={() => onChange([...lines, { speaker: '', text: '', aside: '' }])}
+        onClick={() => onChange([...lines, { speaker: '', text: '', aside: '', narration: '' }])}
       >
         Add dialogue line
       </button>
@@ -725,9 +734,27 @@ function createActionId(scene: Scene, role: string): string {
 
 function createStoryStep(sceneId: string): SceneStep {
   const actions: SceneAction[] = [
-    { id: `${sceneId}_warrior_1`, role: 'warrior', text: 'Action du guerrier.', stage: 'agit avec prudence.' },
-    { id: `${sceneId}_sage_1`, role: 'sage', text: 'Action du sage.', stage: 'observe et decide.' },
-    { id: `${sceneId}_ranger_1`, role: 'ranger', text: 'Action du ranger.', stage: 'se deplace en silence.' }
+    {
+      id: `${sceneId}_warrior_1`,
+      role: 'warrior',
+      buttonText: 'Action du guerrier.',
+      text: 'Action du guerrier.',
+      stage: 'agit avec prudence.',
+    },
+    {
+      id: `${sceneId}_sage_1`,
+      role: 'sage',
+      buttonText: 'Action du sage.',
+      text: 'Action du sage.',
+      stage: 'observe et decide.',
+    },
+    {
+      id: `${sceneId}_ranger_1`,
+      role: 'ranger',
+      buttonText: 'Action du ranger.',
+      text: 'Action du ranger.',
+      stage: 'se deplace en silence.',
+    },
   ];
 
   const outcomes: Record<string, SceneActionOutcome> = {};
@@ -2231,16 +2258,16 @@ export default function App() {
                                   const target = scene.steps.find((item) => item.id === step.id);
                                   if (!target) return;
                                   const used = new Set(collectActionIds(scene));
-                                  const makeAction = (role: string, text: string, stage?: string) => {
+                                  const makeAction = (role: string, buttonText: string, text: string, stage?: string) => {
                                     const id = getUniqueId(used, `${scene.id}_${role}_`);
                                     used.add(id);
-                                    const action: SceneAction = { id, role, text, stage };
+                                    const action: SceneAction = { id, role, buttonText, text, stage };
                                     target.actions.push(action);
                                     target.outcomes[id] = { narration: 'Le groupe enregistre ce choix.' };
                                   };
-                                  makeAction('warrior', 'Action du guerrier.', 'agit avec prudence.');
-                                  makeAction('sage', 'Action du sage.', 'observe et decide.');
-                                  makeAction('ranger', 'Action du ranger.', 'se deplace en silence.');
+                                  makeAction('warrior', 'Action du guerrier.', 'Action du guerrier.', 'agit avec prudence.');
+                                  makeAction('sage', 'Action du sage.', 'Action du sage.', 'observe et decide.');
+                                  makeAction('ranger', 'Action du ranger.', 'Action du ranger.', 'se deplace en silence.');
                                 },
                                 { replaceHistory: false }
                               )
@@ -2261,6 +2288,7 @@ export default function App() {
                                     const action: SceneAction = {
                                       id,
                                       role,
+                                      buttonText: `Nouvelle action (${role}).`,
                                       text: `Nouvelle action (${role}).`
                                     };
                                     target.actions.push(action);
@@ -2375,22 +2403,6 @@ export default function App() {
                                         Delete
                                       </button>
                                     </div>
-                                    <label>Action text</label>
-                                    <input
-                                      value={action.text}
-                                      onChange={(event) =>
-                                        updateSelectedScene(
-                                          (scene) => {
-                                            const target = scene.steps
-                                              .flatMap((item) => item.actions)
-                                              .find((item) => item.id === action.id);
-                                            if (!target) return;
-                                            target.text = event.target.value;
-                                          },
-                                          { replaceHistory: true }
-                                        )
-                                      }
-                                    />
                                     <label>Stage / tone (optional)</label>
                                     <input
                                       value={action.stage ?? ''}
@@ -2407,44 +2419,94 @@ export default function App() {
                                         )
                                       }
                                     />
+                                    <label>Action button content</label>
+                                    <input
+                                      value={action.buttonText ?? action.text}
+                                      onChange={(event) =>
+                                        updateSelectedScene(
+                                          (scene) => {
+                                            const target = scene.steps
+                                              .flatMap((item) => item.actions)
+                                              .find((item) => item.id === action.id);
+                                            if (!target) return;
+                                            target.buttonText = event.target.value || undefined;
+                                          },
+                                          { replaceHistory: true }
+                                        )
+                                      }
+                                    />
+                                    <label>Player dialogue line</label>
+                                    <input
+                                      value={action.text}
+                                      onChange={(event) =>
+                                        updateSelectedScene(
+                                          (scene) => {
+                                            const target = scene.steps
+                                              .flatMap((item) => item.actions)
+                                              .find((item) => item.id === action.id);
+                                            if (!target) return;
+                                            target.text = event.target.value;
+                                          },
+                                          { replaceHistory: true }
+                                        )
+                                      }
+                                    />
+                                    <label>Player closing narration (optional)</label>
+                                    <textarea
+                                      className="compact"
+                                      value={action.narration ?? ''}
+                                      onChange={(event) =>
+                                        updateSelectedScene(
+                                          (scene) => {
+                                            const target = scene.steps
+                                              .flatMap((item) => item.actions)
+                                              .find((item) => item.id === action.id);
+                                            if (!target) return;
+                                            target.narration = event.target.value || undefined;
+                                          },
+                                          { replaceHistory: true }
+                                        )
+                                      }
+                                    />
+                                    <label>Additional NPC answer line(s) (optional)</label>
+                                    <DialogueEditor
+                                      lines={outcome.dialogue ?? []}
+                                      onChange={(next) =>
+                                        updateSelectedScene(
+                                          (scene) => {
+                                            const targetStep = scene.steps.find((item) => item.id === step.id);
+                                            if (!targetStep) return;
+                                            const existing = targetStep.outcomes[action.id] ?? { narration: '' };
+                                            targetStep.outcomes[action.id] = {
+                                              ...existing,
+                                              dialogue: next.length ? next : undefined
+                                            };
+                                          },
+                                          { replaceHistory: true }
+                                        )
+                                      }
+                                    />
+                                    <label>Additional NPC closing narration (optional)</label>
+                                    <textarea
+                                      className="compact"
+                                      value={outcome.narration}
+                                      onChange={(event) =>
+                                        updateSelectedScene(
+                                          (scene) => {
+                                            const targetStep = scene.steps.find((item) => item.id === step.id);
+                                            if (!targetStep) return;
+                                            const existing = targetStep.outcomes[action.id] ?? { narration: '' };
+                                            targetStep.outcomes[action.id] = {
+                                              ...existing,
+                                              narration: event.target.value
+                                            };
+                                          },
+                                          { replaceHistory: true }
+                                        )
+                                      }
+                                    />
                                     <div className="action-outcome">
-                                      <div className="impact-label">Outcome</div>
-                                      <DialogueEditor
-                                        lines={outcome.dialogue ?? []}
-                                        onChange={(next) =>
-                                          updateSelectedScene(
-                                            (scene) => {
-                                              const targetStep = scene.steps.find((item) => item.id === step.id);
-                                              if (!targetStep) return;
-                                              const existing = targetStep.outcomes[action.id] ?? { narration: '' };
-                                              targetStep.outcomes[action.id] = {
-                                                ...existing,
-                                                dialogue: next.length ? next : undefined
-                                              };
-                                            },
-                                            { replaceHistory: true }
-                                          )
-                                        }
-                                      />
-                                      <label>Narration</label>
-                                      <textarea
-                                        className="compact"
-                                        value={outcome.narration}
-                                        onChange={(event) =>
-                                          updateSelectedScene(
-                                            (scene) => {
-                                              const targetStep = scene.steps.find((item) => item.id === step.id);
-                                              if (!targetStep) return;
-                                              const existing = targetStep.outcomes[action.id] ?? { narration: '' };
-                                              targetStep.outcomes[action.id] = {
-                                                ...existing,
-                                                narration: event.target.value
-                                              };
-                                            },
-                                            { replaceHistory: true }
-                                          )
-                                        }
-                                      />
+                                      <div className="impact-label">Outcome effects</div>
                                       <MultiSelect
                                         label="Evidence ids"
                                         options={evidenceIdLibrary}
@@ -2590,16 +2652,16 @@ export default function App() {
                             const stepIds = new Set(scene.steps.map((item) => item.id));
                             const newStepId = getUniqueId(stepIds, `${scene.id}_step_`);
                             const used = new Set(collectActionIds(scene));
-                            const makeAction = (role: string, text: string, stage?: string) => {
+                            const makeAction = (role: string, buttonText: string, text: string, stage?: string) => {
                               const id = getUniqueId(used, `${scene.id}_${role}_`);
                               used.add(id);
-                              const action: SceneAction = { id, role, text, stage };
+                              const action: SceneAction = { id, role, buttonText, text, stage };
                               return action;
                             };
                             const actions = [
-                              makeAction('warrior', 'Action du guerrier.', 'agit avec prudence.'),
-                              makeAction('sage', 'Action du sage.', 'observe et decide.'),
-                              makeAction('ranger', 'Action du ranger.', 'se deplace en silence.')
+                              makeAction('warrior', 'Action du guerrier.', 'Action du guerrier.', 'agit avec prudence.'),
+                              makeAction('sage', 'Action du sage.', 'Action du sage.', 'observe et decide.'),
+                              makeAction('ranger', 'Action du ranger.', 'Action du ranger.', 'se deplace en silence.')
                             ];
                             const outcomes: Record<string, SceneActionOutcome> = {};
                             actions.forEach((action) => {

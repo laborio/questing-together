@@ -92,7 +92,7 @@ type SceneHistoryItem = {
 type JournalEntry =
   | { id: string; kind: 'transition'; text: string }
   | { id: string; kind: 'narration'; text: string }
-  | { id: string; kind: 'npc'; speaker: string; text: string; aside?: string }
+  | { id: string; kind: 'npc'; speaker: string; text: string; aside?: string; narration?: string }
   | { id: string; kind: 'player'; speaker: string; lines: string[]; stage?: string; narration?: string };
 
 type CombatOutcome = 'victory' | 'defeat' | 'escape';
@@ -123,6 +123,7 @@ type UseRoomStoryOptions = {
   roomId: string | null;
   localPlayerId: PlayerId;
   localRole: RoleId | null;
+  isHost?: boolean;
   playerCount?: number;
   playerDisplayNameById?: Partial<Record<PlayerId, string>>;
   playerRoleById?: Partial<Record<PlayerId, RoleId | null>>;
@@ -583,6 +584,7 @@ export function useRoomStory({
   roomId,
   localPlayerId,
   localRole,
+  isHost = false,
   playerCount,
   playerDisplayNameById = {},
   playerRoleById = {},
@@ -865,10 +867,10 @@ export function useRoomStory({
           });
         });
       } else {
-        const actionMetaMap = new Map<ActionId, { text: string; stage?: string }>();
+        const actionMetaMap = new Map<ActionId, { text: string; stage?: string; narration?: string }>();
         scene.steps.forEach((step) => {
           step.actions.forEach((action) => {
-            actionMetaMap.set(action.id, { text: action.text, stage: action.stage });
+            actionMetaMap.set(action.id, { text: action.text, stage: action.stage, narration: action.narration });
           });
         });
 
@@ -890,9 +892,11 @@ export function useRoomStory({
           const playerName = playerDisplayNameById[action.playerId] ?? playerNameById[action.playerId];
           const roleId = playerRoleById[action.playerId] ?? null;
           const roleLabel = roleId ? roleLabelById[roleId] : 'Adventurer';
+          const npcDialogue = outcome?.dialogue ?? [];
 
           const narrationText =
-            outcome?.narration ??
+            meta?.narration ??
+            (npcDialogue.length === 0 ? outcome?.narration : null) ??
             (action.actionId === NO_REACTION_ACTION_ID ? 'The moment passes in silence.' : null);
 
           entries.push({
@@ -904,13 +908,14 @@ export function useRoomStory({
             narration: narrationText ?? undefined,
           });
 
-          (outcome?.dialogue ?? []).forEach((line, lineIndex) => {
+          npcDialogue.forEach((line, lineIndex) => {
             entries.push({
               id: `npc-${sceneId}-${action.eventId}-${lineIndex}`,
               kind: 'npc',
               speaker: line.speaker,
               text: line.text,
               aside: line.aside,
+              narration: line.narration ?? (lineIndex === npcDialogue.length - 1 ? outcome?.narration : undefined),
             });
           });
         });
@@ -1225,7 +1230,7 @@ export function useRoomStory({
       .filter((action) => action.role === localRole || action.role === 'any')
       .map((action) => ({
         id: action.id,
-        text: action.text,
+        text: action.buttonText ?? action.text,
         isDisabled: disabledActionIds.has(action.id),
         hpDelta: currentStep.outcomes[action.id]?.hpDelta,
       }));
@@ -1391,8 +1396,14 @@ export function useRoomStory({
     setStoryError(null);
   }, [currentScene.id, isStoryEnded, localHasContinued, resolvedOption, roomId]);
 
+  useEffect(() => {
+    if (isCombatScene || isTimedScene) return;
+    if (!resolvedOption || isStoryEnded || localHasContinued || !localConfirmedOption) return;
+    void continueToNextScene();
+  }, [continueToNextScene, isCombatScene, isStoryEnded, isTimedScene, localConfirmedOption, localHasContinued, resolvedOption]);
+
   const resetStory = useCallback(async () => {
-    if (!roomId) return;
+    if (!roomId || !isHost) return;
 
     const { error } = await supabase.rpc('story_reset', {
       p_room_id: roomId,
@@ -1405,7 +1416,7 @@ export function useRoomStory({
     }
 
     setStoryError(null);
-  }, [roomId]);
+  }, [isHost, roomId]);
 
   return {
     isReady,

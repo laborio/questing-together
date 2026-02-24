@@ -700,6 +700,7 @@ begin
       select 1
       from public.room_events re
       where re.room_id = p_room_id
+        and re.id > public.story_last_reset_id(p_room_id)
         and re.type = 'scene_action'
         and re.payload_json->>'sceneId' = p_scene_id
         and re.payload_json->>'stepId' = p_step_id
@@ -712,6 +713,7 @@ begin
     select 1
     from public.room_events re
     where re.room_id = p_room_id
+      and re.id > public.story_last_reset_id(p_room_id)
       and re.type = 'scene_action'
       and re.payload_json->>'sceneId' = p_scene_id
       and re.payload_json->>'stepId' = p_step_id
@@ -724,6 +726,7 @@ begin
   into v_action_count
   from public.room_events re
   where re.room_id = p_room_id
+    and re.id > public.story_last_reset_id(p_room_id)
     and re.type = 'scene_action'
     and re.payload_json->>'sceneId' = p_scene_id
     and re.payload_json->>'stepId' = p_step_id;
@@ -817,6 +820,7 @@ begin
     select 1
     from public.room_events re
     where re.room_id = p_room_id
+      and re.id > public.story_last_reset_id(p_room_id)
       and re.type = 'scene_resolve'
       and re.payload_json->>'sceneId' = p_scene_id
   ) then
@@ -827,6 +831,7 @@ begin
   into v_action_count
   from public.room_events re
   where re.room_id = p_room_id
+    and re.id > public.story_last_reset_id(p_room_id)
     and re.type = 'scene_action'
     and re.payload_json->>'sceneId' = p_scene_id
     and re.payload_json->>'stepId' = p_step_id;
@@ -839,6 +844,7 @@ begin
     select 1
     from public.room_events re
     where re.room_id = p_room_id
+      and re.id > public.story_last_reset_id(p_room_id)
       and re.type = 'option_confirm'
       and re.payload_json->>'sceneId' = p_scene_id
       and re.payload_json->>'playerId' = v_player_id::text
@@ -850,6 +856,7 @@ begin
     select 1
     from public.room_events re
     where re.room_id = p_room_id
+      and re.id > public.story_last_reset_id(p_room_id)
       and re.type = 'option_confirm'
       and re.payload_json->>'sceneId' = p_scene_id
       and re.payload_json->>'optionId' = p_option_id
@@ -876,6 +883,7 @@ begin
   into v_vote_count
   from public.room_events re
   where re.room_id = p_room_id
+    and re.id > public.story_last_reset_id(p_room_id)
     and re.type = 'option_confirm'
     and re.payload_json->>'sceneId' = p_scene_id;
 
@@ -883,6 +891,7 @@ begin
     select 1
     from public.room_events re
     where re.room_id = p_room_id
+      and re.id > public.story_last_reset_id(p_room_id)
       and re.type = 'scene_resolve'
       and re.payload_json->>'sceneId' = p_scene_id
   ) then
@@ -890,6 +899,7 @@ begin
       select re.payload_json->>'optionId' as option_id, count(*) as vote_count
       from public.room_events re
       where re.room_id = p_room_id
+        and re.id > public.story_last_reset_id(p_room_id)
         and re.type = 'option_confirm'
         and re.payload_json->>'sceneId' = p_scene_id
       group by re.payload_json->>'optionId'
@@ -900,6 +910,7 @@ begin
       select re.payload_json->>'optionId' as option_id, count(*) as vote_count
       from public.room_events re
       where re.room_id = p_room_id
+        and re.id > public.story_last_reset_id(p_room_id)
         and re.type = 'option_confirm'
         and re.payload_json->>'sceneId' = p_scene_id
       group by re.payload_json->>'optionId'
@@ -922,6 +933,7 @@ begin
     into v_resolved_next_scene_id
     from public.room_events re
     where re.room_id = p_room_id
+      and re.id > public.story_last_reset_id(p_room_id)
       and re.type = 'option_confirm'
       and re.payload_json->>'sceneId' = p_scene_id
       and re.payload_json->>'optionId' = v_resolved_option
@@ -1001,6 +1013,7 @@ begin
     select 1
     from public.room_events re
     where re.room_id = p_room_id
+      and re.id > public.story_last_reset_id(p_room_id)
       and re.type = 'scene_resolve'
       and re.payload_json->>'sceneId' = p_scene_id
   ) then
@@ -1086,6 +1099,7 @@ begin
   into v_action_count
   from public.room_events re
   where re.room_id = p_room_id
+    and re.id > public.story_last_reset_id(p_room_id)
     and re.type = 'scene_action'
     and re.payload_json->>'sceneId' = p_scene_id
     and re.payload_json->>'stepId' = p_step_id;
@@ -1098,6 +1112,7 @@ begin
     select 1
     from public.room_events re
     where re.room_id = p_room_id
+      and re.id > public.story_last_reset_id(p_room_id)
       and re.type = 'scene_timer_started'
       and re.payload_json->>'sceneId' = p_scene_id
   ) then
@@ -1181,6 +1196,7 @@ begin
     select 1
     from public.room_events re
     where re.room_id = p_room_id
+      and re.id > public.story_last_reset_id(p_room_id)
       and re.type = 'scene_advance'
       and re.payload_json->>'sceneId' = p_scene_id
   ) then
@@ -1191,6 +1207,7 @@ begin
   into v_end_at
   from public.room_events re
   where re.room_id = p_room_id
+    and re.id > public.story_last_reset_id(p_room_id)
     and re.type = 'scene_timer_started'
     and re.payload_json->>'sceneId' = p_scene_id
   order by re.id desc
@@ -1275,6 +1292,7 @@ begin
   into v_resolved_option
   from public.room_events re
   where re.room_id = p_room_id
+    and re.id > public.story_last_reset_id(p_room_id)
     and re.type = 'scene_resolve'
     and re.payload_json->>'sceneId' = p_scene_id
   order by re.id desc
@@ -1288,6 +1306,7 @@ begin
   into v_next_scene_id
   from public.room_events re
   where re.room_id = p_room_id
+    and re.id > public.story_last_reset_id(p_room_id)
     and re.type = 'scene_resolve'
     and re.payload_json->>'sceneId' = p_scene_id
   order by re.id desc
@@ -1296,6 +1315,7 @@ begin
   if exists (
     select 1 from public.room_events re
     where re.room_id = p_room_id
+      and re.id > public.story_last_reset_id(p_room_id)
       and re.type = 'scene_continue'
       and re.payload_json->>'sceneId' = p_scene_id
       and re.payload_json->>'playerId' = v_player_id::text
@@ -1319,6 +1339,7 @@ begin
   into v_continue_count
   from public.room_events re
   where re.room_id = p_room_id
+    and re.id > public.story_last_reset_id(p_room_id)
     and re.type = 'scene_continue'
     and re.payload_json->>'sceneId' = p_scene_id;
 
@@ -1329,6 +1350,7 @@ begin
   if v_continue_count = 3 and not exists (
     select 1 from public.room_events re
     where re.room_id = p_room_id
+      and re.id > public.story_last_reset_id(p_room_id)
       and re.type = 'scene_advance'
       and re.payload_json->>'sceneId' = p_scene_id
   ) then
@@ -1360,6 +1382,7 @@ set search_path = public
 as $$
 declare
   v_user_id uuid := auth.uid();
+  v_host_id uuid;
   v_event_id bigint;
   v_start_scene_id text := coalesce(nullif(p_start_scene_id, ''), 's1_courtyard_gate');
 begin
@@ -1370,6 +1393,24 @@ begin
   if not public.is_room_member(p_room_id) then
     raise exception 'Not a room member';
   end if;
+
+  select r.host_user_id
+  into v_host_id
+  from public.rooms r
+  where r.id = p_room_id
+  for update;
+
+  if v_host_id is null then
+    raise exception 'Room not found';
+  end if;
+
+  if v_host_id <> v_user_id then
+    raise exception 'Only host can reset story';
+  end if;
+
+  update public.rooms
+  set status = 'in_progress'
+  where id = p_room_id;
 
   insert into public.room_events (room_id, actor_user_id, type, payload_json)
   values (

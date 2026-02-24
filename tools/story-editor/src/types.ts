@@ -22,13 +22,16 @@ export type DialogueLine = {
   speaker: string;
   text: string;
   aside?: string;
+  narration?: string;
 };
 
 export type SceneAction = {
   id: string;
   role: string;
   text: string;
+  buttonText?: string;
   stage?: string;
+  narration?: string;
 };
 
 export type SceneActionOutcome = {

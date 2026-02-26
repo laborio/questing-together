@@ -13,6 +13,7 @@ type SceneActionsCardProps = {
   phaseLabel: string;
   statusText: string;
   actions: SceneActionChoice[];
+  localSelectedActionId: string | null;
   canAct: boolean;
   allowSkip: boolean;
   onTakeAction: (actionId: string) => void;
@@ -24,6 +25,7 @@ export function SceneActionsCard({
   phaseLabel,
   statusText,
   actions,
+  localSelectedActionId,
   canAct,
   allowSkip,
   onTakeAction,
@@ -38,6 +40,7 @@ export function SceneActionsCard({
 
       <ScrollView style={styles.actionsScroll} contentContainerStyle={styles.actionsList} showsVerticalScrollIndicator={false}>
         {actions.map((action) => {
+          const isSelectedAction = action.id === localSelectedActionId;
           const isDisabled = !canAct || action.isDisabled;
           const hasHpDelta = typeof action.hpDelta === 'number' && Number.isFinite(action.hpDelta) && action.hpDelta !== 0;
           const hpLabel = hasHpDelta ? `HP ${action.hpDelta > 0 ? '+' : ''}${action.hpDelta}` : null;
@@ -49,8 +52,9 @@ export function SceneActionsCard({
               onPress={() => onTakeAction(action.id)}
               style={[
                 styles.actionButton,
-                isDisabled && styles.actionButtonDisabled,
-                !isDisabled && styles.actionButtonActive,
+                (isSelectedAction || !isDisabled) && styles.actionButtonActive,
+                isSelectedAction && styles.actionButtonSelected,
+                isDisabled && !isSelectedAction && styles.actionButtonDisabled,
               ]}>
               <Text style={styles.actionText}>{action.text}</Text>
               {hpLabel || action.effectText ? (
@@ -133,6 +137,11 @@ const styles = StyleSheet.create({
   actionButtonActive: {
     borderColor: '#c9a87a',
     backgroundColor: '#4b3624',
+  },
+  actionButtonSelected: {
+    borderColor: '#d9be8f',
+    backgroundColor: '#5a3e27',
+    opacity: 1,
   },
   actionButtonDisabled: {
     opacity: 0.55,

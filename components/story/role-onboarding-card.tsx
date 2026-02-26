@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Image, ImageBackground, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { playerNameById, roles } from '@/src/game/constants';
 import { PlayerId, RoleId } from '@/src/game/types';
@@ -19,6 +19,11 @@ type RoleOnboardingCardProps = {
   onSelectRole: (roleId: RoleId) => void;
   onStartAdventure: () => void;
 };
+
+const dividerLarge = require('../../assets/images/T_Divider_L.png');
+const buttonTexture = require('../../assets/images/T_Button.png');
+const buttonTextureSelected = require('../../assets/images/T_Button_Selected.png');
+const buttonTextureDisabled = require('../../assets/images/T_Button_Disabled.png');
 
 export function RoleOnboardingCard({
   localPlayerId,
@@ -55,6 +60,7 @@ export function RoleOnboardingCard({
     <View style={styles.card}>
       <Text style={styles.sectionTitle}>Pick Your Role</Text>
       <Text style={styles.subtitle}>First come, first serve. Each role can be taken by one player only.</Text>
+      <Image source={dividerLarge} style={styles.divider} resizeMode="contain" />
 
       <View style={styles.nameCard}>
         <Text style={styles.nameTitle}>Choose your name</Text>
@@ -88,7 +94,13 @@ export function RoleOnboardingCard({
             onSetDisplayName(normalizedName);
           }}
           style={[styles.nameSaveButton, (!isNameValid || isBusy) && styles.roleButtonDisabled]}>
-          <Text style={styles.nameSaveButtonText}>{localNameSaved ? 'Update Name' : 'Save Name'}</Text>
+          <ImageBackground
+            source={!isNameValid || isBusy ? buttonTextureDisabled : buttonTexture}
+            resizeMode="stretch"
+            imageStyle={styles.textureImage}
+            style={styles.textureButton}>
+            <Text style={styles.nameSaveButtonText}>{localNameSaved ? 'Update Name' : 'Save Name'}</Text>
+          </ImageBackground>
         </Pressable>
         {localNameSaved ? <Text style={styles.nameSavedText}>Saved as {existingName}.</Text> : null}
       </View>
@@ -111,17 +123,23 @@ export function RoleOnboardingCard({
                 isTakenByOther && styles.roleButtonTaken,
                 isDisabled && styles.roleButtonDisabled,
               ]}>
-              <View style={styles.roleHeader}>
-                <Text style={styles.roleLabel}>{role.label}</Text>
-                <Text style={styles.roleStatus}>
-                  {isSelectedByLocal
-                    ? 'You'
-                    : owner
-                      ? `Taken by ${owner.displayName ?? playerNameById[owner.playerId]}`
-                      : 'Available'}
-                </Text>
-              </View>
-              <Text style={styles.roleSummary}>{role.summary}</Text>
+              <ImageBackground
+                source={isSelectedByLocal ? buttonTextureSelected : isDisabled ? buttonTextureDisabled : buttonTexture}
+                resizeMode="stretch"
+                imageStyle={styles.textureImage}
+                style={styles.roleButtonBg}>
+                <View style={styles.roleHeader}>
+                  <Text style={styles.roleLabel}>{role.label}</Text>
+                  <Text style={styles.roleStatus}>
+                    {isSelectedByLocal
+                      ? 'You'
+                      : owner
+                        ? `Taken by ${owner.displayName ?? playerNameById[owner.playerId]}`
+                        : 'Available'}
+                  </Text>
+                </View>
+                <Text style={styles.roleSummary}>{role.summary}</Text>
+              </ImageBackground>
             </Pressable>
           );
         })}
@@ -149,7 +167,13 @@ export function RoleOnboardingCard({
           disabled={!allPicked || isBusy}
           onPress={onStartAdventure}
           style={[styles.startButton, (!allPicked || isBusy) && styles.startButtonDisabled]}>
-          <Text style={styles.startButtonText}>{isBusy ? 'Starting...' : 'Start Adventure'}</Text>
+          <ImageBackground
+            source={!allPicked || isBusy ? buttonTextureDisabled : buttonTextureSelected}
+            resizeMode="stretch"
+            imageStyle={styles.textureImage}
+            style={styles.textureButton}>
+            <Text style={styles.startButtonText}>{isBusy ? 'Starting...' : 'Start Adventure'}</Text>
+          </ImageBackground>
         </Pressable>
       ) : (
         <Text style={styles.hostHint}>Waiting for host to start once everyone has picked.</Text>
@@ -160,89 +184,111 @@ export function RoleOnboardingCard({
 
 const styles = StyleSheet.create({
   card: {
-    backgroundColor: '#0f172a',
+    backgroundColor: 'transparent',
     borderRadius: 12,
-    padding: 12,
-    gap: 10,
-    borderWidth: 1,
-    borderColor: '#1e293b',
+    padding: 0,
+    gap: 12,
+    borderWidth: 0,
+    width: '100%',
+    alignSelf: 'stretch',
   },
   sectionTitle: {
-    fontSize: 17,
+    fontSize: 20,
     fontWeight: '700',
-    color: '#e2e8f0',
+    color: '#4b3420',
+    fontFamily: 'Besley',
+    textAlign: 'center',
   },
   subtitle: {
-    fontSize: 12,
-    color: '#94a3b8',
+    fontSize: 13,
+    color: '#6b4a2a',
     lineHeight: 18,
+    fontFamily: 'Besley',
+    textAlign: 'center',
+  },
+  divider: {
+    width: '72%',
+    aspectRatio: 400 / 22,
+    alignSelf: 'center',
   },
   nameCard: {
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: '#334155',
-    backgroundColor: '#111827',
-    padding: 10,
-    gap: 6,
+    borderRadius: 0,
+    borderWidth: 0,
+    backgroundColor: 'transparent',
+    padding: 0,
+    gap: 8,
   },
   nameTitle: {
     fontSize: 12,
     fontWeight: '700',
-    color: '#bae6fd',
+    color: '#6b4a2a',
     textTransform: 'uppercase',
+    fontFamily: 'Besley',
   },
   nameInput: {
     borderWidth: 1,
-    borderColor: '#334155',
+    borderColor: '#c2a377',
     borderRadius: 9,
     paddingHorizontal: 10,
     paddingVertical: 8,
-    color: '#e2e8f0',
-    backgroundColor: '#0b1220',
+    color: '#4d3625',
+    backgroundColor: '#f8efdf',
     fontSize: 14,
+    fontFamily: 'Besley',
   },
   nameError: {
     fontSize: 11,
-    color: '#fca5a5',
+    color: '#9c3f32',
+    fontFamily: 'Besley',
   },
   nameSaveButton: {
-    borderRadius: 9,
-    borderWidth: 1,
-    borderColor: '#38bdf8',
-    backgroundColor: '#082f49',
-    paddingVertical: 9,
+    width: '100%',
+  },
+  textureButton: {
+    borderRadius: 10,
+    minHeight: 48,
     alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+  },
+  textureImage: {
+    borderRadius: 10,
   },
   nameSaveButtonText: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: '#bae6fd',
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#f8f1e2',
     textTransform: 'uppercase',
+    fontFamily: 'Besley',
   },
   nameSavedText: {
     fontSize: 11,
-    color: '#86efac',
+    color: '#5f7a45',
+    fontFamily: 'Besley',
   },
   roleList: {
     gap: 8,
   },
   roleButton: {
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: '#334155',
-    backgroundColor: '#111827',
-    padding: 10,
-    gap: 4,
+    width: '100%',
   },
   roleButtonSelected: {
-    borderColor: '#38bdf8',
-    backgroundColor: '#082f49',
+    opacity: 1,
   },
   roleButtonTaken: {
-    borderColor: '#475569',
+    opacity: 0.88,
   },
   roleButtonDisabled: {
-    opacity: 0.6,
+    opacity: 0.72,
+  },
+  roleButtonBg: {
+    borderRadius: 10,
+    minHeight: 74,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    justifyContent: 'center',
+    gap: 5,
   },
   roleHeader: {
     flexDirection: 'row',
@@ -251,60 +297,67 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   roleLabel: {
-    fontSize: 13,
+    fontSize: 14,
     fontWeight: '700',
-    color: '#e2e8f0',
+    color: '#f8f1e2',
+    fontFamily: 'Besley',
   },
   roleStatus: {
-    fontSize: 11,
-    color: '#7dd3fc',
+    fontSize: 10,
+    color: '#efdcbb',
     fontWeight: '700',
     textTransform: 'uppercase',
+    fontFamily: 'Besley',
   },
   roleSummary: {
     fontSize: 12,
-    color: '#cbd5e1',
+    color: '#f2e4ca',
     lineHeight: 17,
+    fontFamily: 'Besley',
   },
   assignmentCard: {
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: '#334155',
-    backgroundColor: '#111827',
-    padding: 10,
+    borderRadius: 0,
+    borderWidth: 0,
+    backgroundColor: 'transparent',
+    padding: 0,
     gap: 3,
   },
   assignmentTitle: {
     fontSize: 12,
     fontWeight: '700',
-    color: '#bae6fd',
+    color: '#5f4325',
     textTransform: 'uppercase',
     marginBottom: 2,
+    fontFamily: 'Besley',
   },
   assignmentLine: {
     fontSize: 12,
-    color: '#cbd5e1',
+    color: '#5f4325',
+    fontFamily: 'Besley',
   },
   readyLine: {
     fontSize: 12,
-    color: '#94a3b8',
+    color: '#6b4a2a',
+    fontFamily: 'Besley',
+    textAlign: 'center',
   },
   startButton: {
-    borderRadius: 10,
-    backgroundColor: '#0284c7',
-    paddingVertical: 10,
-    alignItems: 'center',
+    width: '100%',
   },
   startButtonDisabled: {
-    opacity: 0.5,
+    opacity: 0.6,
   },
   startButtonText: {
-    color: '#ffffff',
-    fontSize: 13,
+    color: '#f8f1e2',
+    fontSize: 14,
     fontWeight: '700',
+    textTransform: 'uppercase',
+    fontFamily: 'Besley',
   },
   hostHint: {
     fontSize: 12,
-    color: '#94a3b8',
+    color: '#6b4a2a',
+    textAlign: 'center',
+    fontFamily: 'Besley',
   },
 });

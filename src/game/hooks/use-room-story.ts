@@ -146,6 +146,7 @@ type UseRoomStoryResult = {
   phaseLabel: string;
   phaseStatusText: string;
   availableActions: Array<{ id: string; text: string; isDisabled?: boolean; hpDelta?: number; effectText?: string }>;
+  localSelectedActionId: string | null;
   canAct: boolean;
   allowSkip: boolean;
   visibleOptions: Scene['options'];
@@ -1159,6 +1160,7 @@ export function useRoomStory({
 
   const playersActed = new Set(currentStepActions.map((action) => action.playerId));
   const localHasActed = playersActed.has(localPlayerId);
+  const localSelectedActionId = currentStepActions.find((action) => action.playerId === localPlayerId)?.actionId ?? null;
   const phaseLabel = isCombatScene
     ? `Combat Round ${combatSnapshot?.currentRoundIndex ?? 1}`
     : isTimedScene
@@ -1435,6 +1437,7 @@ export function useRoomStory({
     phaseLabel,
     phaseStatusText,
     availableActions,
+    localSelectedActionId,
     canAct,
     allowSkip,
     visibleOptions,

@@ -28,13 +28,15 @@ type UseRoomConnectionResult = {
   players: RoomPlayerRecord[];
   isBusy: boolean;
   roomError: string | null;
-  createRoom: (playerId: PlayerId) => Promise<void>;
-  joinRoom: (code: string, playerId: PlayerId) => Promise<void>;
+  createRoom: () => Promise<void>;
+  joinRoom: (code: string) => Promise<void>;
   setDisplayName: (displayName: string) => Promise<void>;
   selectRole: (roleId: RoleId) => Promise<void>;
   startAdventure: () => Promise<void>;
   leaveRoom: () => Promise<void>;
 };
+
+const PLAYER_SLOT_ORDER: PlayerId[] = ['p1', 'p2', 'p3'];
 
 function getErrorMessage(error: unknown, fallback: string) {
   if (error instanceof Error) return error.message;
@@ -47,6 +49,11 @@ function getErrorMessage(error: unknown, fallback: string) {
     if (combined) return combined;
   }
   return fallback;
+}
+
+function shouldFallbackToLegacyJoin(error: unknown) {
+  const message = getErrorMessage(error, '');
+  return message.includes('join_room') && message.includes('does not exist');
 }
 
 function withSchemaHint(message: string) {
@@ -78,6 +85,18 @@ async function fetchRoomPlayers(roomId: string): Promise<RoomPlayerRecord[]> {
   return (data ?? []) as RoomPlayerRecord[];
 }
 
+async function fetchRoomIdByCode(code: string): Promise<string | null> {
+  const { data, error } = await supabase
+    .from('rooms')
+    .select('id')
+    .eq('code', code)
+    .neq('status', 'finished')
+    .maybeSingle();
+
+  if (error) throw error;
+  return (data?.id as string | undefined) ?? null;
+}
+
 async function loadJoinedRoomIdForCurrentUser(): Promise<string | null> {
   const { data: authData } = await supabase.auth.getUser();
   const userId = authData.user?.id;
@@ -85,13 +104,32 @@ async function loadJoinedRoomIdForCurrentUser(): Promise<string | null> {
 
   const { data, error } = await supabase
     .from('room_players')
-    .select('room_id')
+    .select('room_id, updated_at')
     .eq('user_id', userId)
-    .limit(1)
-    .maybeSingle();
+    .order('updated_at', { ascending: false })
+    .limit(20);
 
   if (error) throw error;
-  return (data?.room_id as string | undefined) ?? null;
+  const rows = (data ?? []) as { room_id: string | null }[];
+  if (!rows.length) return null;
+
+  for (const row of rows) {
+    const roomId = row.room_id;
+    if (!roomId) continue;
+    const room = await fetchRoomSnapshot(roomId);
+    if (!room) continue;
+    if (room.status === 'finished') continue;
+    return roomId;
+  }
+
+  return null;
+}
+
+function nextAvailableSlot(takenSlots: Set<PlayerId>): PlayerId | null {
+  for (const playerId of PLAYER_SLOT_ORDER) {
+    if (!takenSlots.has(playerId)) return playerId;
+  }
+  return null;
 }
 
 export function useRoomConnection(): UseRoomConnectionResult {
@@ -171,12 +209,12 @@ export function useRoomConnection(): UseRoomConnectionResult {
   }, [refreshRoomState, room?.id]);
 
   const createRoom = useCallback(
-    async (playerId: PlayerId) => {
+    async () => {
       setIsBusy(true);
       setRoomError(null);
 
       try {
-        const { data, error } = await supabase.rpc('create_room', { p_player_id: playerId });
+        const { data, error } = await supabase.rpc('create_room');
         if (error) throw error;
 
         const created = Array.isArray(data) ? data[0] : null;
@@ -195,7 +233,7 @@ export function useRoomConnection(): UseRoomConnectionResult {
   );
 
   const joinRoom = useCallback(
-    async (code: string, playerId: PlayerId) => {
+    async (code: string) => {
       setIsBusy(true);
       setRoomError(null);
 
@@ -207,14 +245,28 @@ export function useRoomConnection(): UseRoomConnectionResult {
 
         const { data, error } = await supabase.rpc('join_room', {
           p_code: normalizedCode,
-          p_player_id: playerId,
         });
+        if (error && shouldFallbackToLegacyJoin(error)) {
+          const roomId = await fetchRoomIdByCode(normalizedCode);
+          if (!roomId) throw new Error('Room not found');
 
-        if (error) throw error;
-        if (!data) {
-          throw new Error('Could not join room');
+          const joinedPlayers = await fetchRoomPlayers(roomId);
+          const takenSlots = new Set<PlayerId>(joinedPlayers.map((player) => player.player_id));
+          const playerId = nextAvailableSlot(takenSlots);
+          if (!playerId) throw new Error('Room is full');
+
+          const fallback = await supabase.rpc('join_room', {
+            p_code: normalizedCode,
+            p_player_id: playerId,
+          });
+          if (fallback.error) throw fallback.error;
+          if (!fallback.data) throw new Error('Could not join room');
+          await refreshRoomState(fallback.data as string);
+          return;
         }
 
+        if (error) throw error;
+        if (!data) throw new Error('Could not join room');
         await refreshRoomState(data as string);
       } catch (error) {
         setRoomError(getErrorMessage(error, 'Failed to join room'));

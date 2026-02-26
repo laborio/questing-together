@@ -1,5 +1,5 @@
 import React from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { Image, ImageSourcePropType, StyleSheet, Text, View } from 'react-native';
 
 type PartyStatusTone = 'ready' | 'waiting' | 'neutral' | 'offline';
 
@@ -18,18 +18,18 @@ type PartyTopBarProps = {
   variant?: 'default' | 'parchment' | 'overlay';
 };
 
-const roleColorMap: Record<string, string> = {
-  warrior: '#7b3f2a',
-  sage: '#4f6b8a',
-  ranger: '#3d6b4d',
-};
+const portraitFrame = require('../../assets/images/T_PortraitFrame.png');
+const rangerPortrait = require('../../assets/images/T_RangerPortrait.png');
+const sagePortrait = require('../../assets/images/T_SagePortrait.png');
+const warriorPortrait = require('../../assets/images/T_WarriorPortrait.png');
+const partyHealthFrame = require('../../assets/images/T_PartyHealthFrame.png');
 
-const toneDotMap: Record<PartyStatusTone, string> = {
-  ready: '#7dbf72',
-  waiting: '#d6b25d',
-  neutral: '#9b8b75',
-  offline: '#b35b4a',
-};
+function portraitByRole(role: string): ImageSourcePropType {
+  const normalized = role.toLowerCase();
+  if (normalized.includes('ranger')) return rangerPortrait;
+  if (normalized.includes('sage')) return sagePortrait;
+  return warriorPortrait;
+}
 
 export function PartyTopBar({ partyHp, partyHpMax, rows, variant = 'default' }: PartyTopBarProps) {
   const max = Math.max(1, partyHpMax);
@@ -49,42 +49,13 @@ export function PartyTopBar({ partyHp, partyHpMax, rows, variant = 'default' }: 
     >
       <View style={[styles.avatarRow, isCompact && styles.avatarRowCompact]}>
         {rows.map((row) => {
-          const roleKey = row.role.toLowerCase();
-          const roleColor = roleColorMap[roleKey] ?? '#7a5c3a';
-          const dotColor = toneDotMap[row.tone] ?? toneDotMap.neutral;
-          const initial = row.name ? row.name[0]?.toUpperCase() : '?';
+          const portrait = portraitByRole(row.role);
 
           return (
             <View key={row.id} style={[styles.avatarWrap, isCompact && styles.avatarWrapCompact]}>
-              <View
-                style={[
-                  styles.avatarCircle,
-                  isParchment && styles.avatarCircleParchment,
-                  isOverlay && styles.avatarCircleOverlay,
-                  isCompact && styles.avatarCircleCompact,
-                  { borderColor: roleColor },
-                ]}
-              >
-                <View style={[styles.avatarInner, { backgroundColor: roleColor }]}>
-                  <Text
-                    style={[
-                      styles.avatarInitial,
-                      isParchment && styles.avatarInitialParchment,
-                      isOverlay && styles.avatarInitialOverlay,
-                      isCompact && styles.avatarInitialCompact,
-                    ]}
-                  >
-                    {initial}
-                  </Text>
-                </View>
-                <View
-                  style={[
-                    styles.statusDot,
-                    isParchment && styles.statusDotParchment,
-                    isOverlay && styles.statusDotOverlay,
-                    { backgroundColor: dotColor },
-                  ]}
-                />
+              <View style={[styles.avatarFrameWrap, isCompact && styles.avatarFrameWrapCompact]}>
+                <Image source={portraitFrame} style={[styles.avatarFrame, isCompact && styles.avatarFrameCompact]} />
+                <Image source={portrait} style={styles.avatarPortrait} resizeMode="contain" />
               </View>
               <Text
                 style={[
@@ -103,21 +74,24 @@ export function PartyTopBar({ partyHp, partyHpMax, rows, variant = 'default' }: 
 
       <View
         style={[
-          styles.hpPlaque,
-          isParchment && styles.hpPlaqueParchment,
-          isOverlay && styles.hpPlaqueOverlay,
-          isCompact && styles.hpPlaqueCompact,
+          styles.hpFrameWrap,
+          isCompact && styles.hpFrameWrapCompact,
         ]}
       >
-        <Text style={[styles.hpLabel, isParchment && styles.hpLabelParchment, isOverlay && styles.hpLabelOverlay]}>
-          Party Health
-        </Text>
-        <Text style={[styles.hpValue, isParchment && styles.hpValueParchment, isOverlay && styles.hpValueOverlay]}>
-          {partyHp} / {partyHpMax}
-        </Text>
-        <View style={[styles.hpBar, isParchment && styles.hpBarParchment, isOverlay && styles.hpBarOverlay]}>
+        <View style={[styles.hpFillClip, isCompact && styles.hpFillClipCompact]}>
           <View style={[styles.hpFill, { width: `${percent * 100}%` }]} />
         </View>
+        <Image source={partyHealthFrame} style={styles.hpFrame} resizeMode="stretch" />
+        <Text
+          style={[
+            styles.hpFrameText,
+            isParchment && styles.hpFrameTextParchment,
+            isOverlay && styles.hpFrameTextOverlay,
+            isCompact && styles.hpFrameTextCompact,
+          ]}
+        >
+          Party Health {partyHp}/{partyHpMax}
+        </Text>
       </View>
     </View>
   );
@@ -127,11 +101,11 @@ const styles = StyleSheet.create({
   bar: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
-    padding: 10,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#7a5c3a',
+    gap: 0,
+    padding: 0,
+    borderRadius: 0,
+    borderWidth: 0,
+    borderColor: '#070504',
     backgroundColor: '#3b2a1d',
   },
   barParchment: {
@@ -144,91 +118,57 @@ const styles = StyleSheet.create({
     backgroundColor: 'transparent',
   },
   barCompact: {
-    paddingVertical: 4,
-    paddingHorizontal: 6,
-    gap: 8,
+    paddingVertical: 0,
+    paddingHorizontal: 0,
+    gap: 0,
   },
   avatarRowCompact: {
-    gap: 6,
+    gap: 4,
     flexWrap: 'nowrap',
   },
   avatarRow: {
     flexDirection: 'row',
-    gap: 10,
-    flexWrap: 'wrap',
-    flex: 1,
+    gap: 8,
+    flexWrap: 'nowrap',
+    flexShrink: 0,
   },
   avatarWrap: {
     alignItems: 'center',
-    width: 72,
+    width: 96,
   },
   avatarWrapCompact: {
-    width: 48,
+    width: 66,
   },
-  avatarCircle: {
-    width: 54,
-    height: 54,
-    borderRadius: 999,
-    borderWidth: 2,
-    padding: 3,
-    backgroundColor: '#1f1610',
+  avatarFrameWrap: {
+    width: 84,
+    height: 84,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  avatarCircleCompact: {
-    width: 34,
-    height: 34,
-    padding: 2,
+  avatarFrameWrapCompact: {
+    width: 52,
+    height: 52,
   },
-  avatarCircleParchment: {
-    backgroundColor: '#f6efe0',
-  },
-  avatarCircleOverlay: {
-    backgroundColor: 'transparent',
-    borderWidth: 0,
-  },
-  avatarInner: {
+  avatarFrame: {
     width: '100%',
     height: '100%',
-    borderRadius: 999,
-    alignItems: 'center',
-    justifyContent: 'center',
   },
-  avatarInitial: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#f4ead7',
+  avatarFrameCompact: {
+    width: '100%',
+    height: '100%',
   },
-  avatarInitialCompact: {
-    fontSize: 12,
-  },
-  avatarInitialParchment: {
-    color: '#f8f1e2',
-  },
-  avatarInitialOverlay: {
-    color: '#f8f1e2',
-  },
-  statusDot: {
+  avatarPortrait: {
     position: 'absolute',
-    right: 2,
-    bottom: 2,
-    width: 10,
-    height: 10,
-    borderRadius: 999,
-    borderWidth: 1,
-    borderColor: '#f4ead7',
-  },
-  statusDotParchment: {
-    borderColor: '#4b3420',
-  },
-  statusDotOverlay: {
-    borderColor: '#4b3420',
+    width: '100%',
+    height: '100%',
+    zIndex: 2,
   },
   avatarName: {
     marginTop: 4,
-    fontSize: 11,
+    fontSize: 16,
     color: '#f3e8d0',
     fontWeight: '600',
+    fontFamily: 'Besley',
   },
   avatarNameCompact: {
     fontSize: 9,
@@ -239,69 +179,54 @@ const styles = StyleSheet.create({
   avatarNameOverlay: {
     color: '#f8f1e2',
   },
-  hpPlaque: {
-    minWidth: 140,
-    paddingHorizontal: 10,
-    paddingVertical: 8,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: '#a58357',
-    backgroundColor: '#4a3624',
+  hpFrameWrap: {
+    flex: 1,
+    minWidth: 0,
+    height: 36,
+    justifyContent: 'center',
   },
-  hpPlaqueCompact: {
-    minWidth: 120,
-    paddingHorizontal: 8,
-    paddingVertical: 6,
+  hpFrameWrapCompact: {
+    height: 32,
   },
-  hpPlaqueParchment: {
-    borderColor: '#c9a87a',
-    backgroundColor: '#ebd7b5',
+  hpFrame: {
+    ...StyleSheet.absoluteFillObject,
+    width: undefined,
+    height: undefined,
   },
-  hpPlaqueOverlay: {
-    borderWidth: 0,
-    borderColor: 'transparent',
-    backgroundColor: 'transparent',
-  },
-  hpLabel: {
-    fontSize: 11,
-    textTransform: 'uppercase',
-    letterSpacing: 0.8,
-    color: '#e8d7bf',
-    fontWeight: '700',
-  },
-  hpLabelParchment: {
-    color: '#6b4a2a',
-  },
-  hpLabelOverlay: {
-    color: '#f4ead7',
-  },
-  hpValue: {
-    marginTop: 2,
-    fontSize: 13,
-    color: '#f5efe5',
-    fontWeight: '700',
-  },
-  hpValueParchment: {
-    color: '#4b3420',
-  },
-  hpValueOverlay: {
-    color: '#f8f1e2',
-  },
-  hpBar: {
-    marginTop: 6,
-    height: 6,
-    borderRadius: 999,
-    backgroundColor: '#2a1d14',
+  hpFillClip: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    top: 0,
+    bottom: 0,
+    borderRadius: 0,
     overflow: 'hidden',
   },
-  hpBarParchment: {
-    backgroundColor: '#d9c2a2',
-  },
-  hpBarOverlay: {
-    backgroundColor: '#d9c2a2',
+  hpFillClipCompact: {
+    left: 0,
+    right: 0,
+    top: 0,
+    bottom: 0,
+    borderRadius: 9,
   },
   hpFill: {
     height: '100%',
-    backgroundColor: '#9acd5a',
+    backgroundColor: 'rgba(43, 120, 50, 0.30)',
+  },
+  hpFrameText: {
+    textAlign: 'center',
+    color: '#f8f1e2',
+    fontSize: 13,
+    fontWeight: '700',
+    fontFamily: 'Besley',
+  },
+  hpFrameTextCompact: {
+    fontSize: 11,
+  },
+  hpFrameTextParchment: {
+    color: '#4b3420',
+  },
+  hpFrameTextOverlay: {
+    color: '#f8f1e2',
   },
 });

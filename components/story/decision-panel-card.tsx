@@ -36,6 +36,7 @@ type DecisionPanelCardProps = {
   phaseLabel: string;
   statusText: string;
   actions: SceneActionChoice[];
+  localSelectedActionId: string | null;
   canAct: boolean;
   allowSkip: boolean;
   onTakeAction: (actionId: string) => void;
@@ -75,6 +76,7 @@ export function DecisionPanelCard({
   phaseLabel,
   statusText,
   actions,
+  localSelectedActionId,
   canAct,
   allowSkip,
   onTakeAction,
@@ -166,6 +168,7 @@ export function DecisionPanelCard({
         <Text style={styles.journalPrompt}>What do you do?</Text>
         <View style={styles.buttonStack}>
           {actions.map((action) => {
+            const isSelectedAction = action.id === localSelectedActionId;
             const isDisabled = !canAct || action.isDisabled;
             const hpDelta = typeof action.hpDelta === 'number' && Number.isFinite(action.hpDelta) ? action.hpDelta : 0;
             const hasHpDelta = hpDelta !== 0;
@@ -175,9 +178,9 @@ export function DecisionPanelCard({
                 key={action.id}
                 disabled={isDisabled}
                 onPress={() => onTakeAction(action.id)}
-                style={[styles.textureButton, isDisabled && styles.textureButtonDisabled]}>
+                style={[styles.textureButton, isSelectedAction && styles.textureButtonSelected, isDisabled && !isSelectedAction && styles.textureButtonDisabled]}>
                 <ImageBackground
-                  source={isDisabled ? buttonTextureDisabled : buttonTexture}
+                  source={isSelectedAction ? buttonTextureSelected : isDisabled ? buttonTextureDisabled : buttonTexture}
                   style={styles.textureBg}
                   imageStyle={styles.textureImage}
                   resizeMode="stretch"
@@ -315,6 +318,7 @@ export function DecisionPanelCard({
             phaseLabel={phaseLabel}
             statusText={statusText}
             actions={actions}
+            localSelectedActionId={localSelectedActionId}
             canAct={canAct}
             allowSkip={allowSkip}
             onTakeAction={onTakeAction}
@@ -335,6 +339,7 @@ export function DecisionPanelCard({
           phaseLabel={phaseLabel}
           statusText={statusText}
           actions={actions}
+          localSelectedActionId={localSelectedActionId}
           canAct={canAct}
           allowSkip={allowSkip}
           onTakeAction={onTakeAction}

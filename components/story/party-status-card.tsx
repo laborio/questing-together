@@ -45,7 +45,7 @@ export function PartyStatusCard({ title, rows, variant = 'default' }: PartyStatu
 
 const styles = StyleSheet.create({
   card: {
-    backgroundColor: '#2a1d14',
+    backgroundColor: '#3b1901',
     borderRadius: 12,
     padding: 12,
     gap: 8,
@@ -53,16 +53,16 @@ const styles = StyleSheet.create({
     borderColor: '#6f4e2e',
   },
   cardParchment: {
-    backgroundColor: '#f0e2c9',
-    borderColor: '#c9a87a',
+    backgroundColor: '#33160000',
+    borderColor: '#c9a87a00',
   },
   title: {
     fontSize: 14,
     fontWeight: '700',
-    color: '#f3e8d0',
+    color: '#5a3612',
   },
   titleParchment: {
-    color: '#f4ead7',
+    color: '#000000',
   },
   row: {
     flexDirection: 'row',
@@ -73,7 +73,7 @@ const styles = StyleSheet.create({
   name: {
     fontSize: 13,
     fontWeight: '700',
-    color: '#f3e8d0',
+    color: '#554011',
   },
   nameParchment: {
     color: '#f4ead7',

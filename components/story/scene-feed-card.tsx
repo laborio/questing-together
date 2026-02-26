@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Animated,
+  Easing,
   Image,
   NativeScrollEvent,
   NativeSyntheticEvent,
@@ -39,8 +40,9 @@ type SceneFeedCardProps = {
   fullBleed?: boolean;
 };
 
-const LINE_FADE_DURATION_MS = 240;
-const LINE_REVEAL_GAP_MS = 120;
+const LINE_REVEAL_CADENCE_MS = 360;
+const LINE_FADE_DURATION_MS = 2400;
+const LINE_FADE_EASING = Easing.out(Easing.cubic);
 const FOOTER_FADE_DURATION_MS = 500;
 const FOOTER_REVEAL_BUFFER_MS = 120;
 
@@ -69,6 +71,7 @@ function StoryText({
       Animated.timing(opacity, {
         toValue: 1,
         duration: LINE_FADE_DURATION_MS,
+        easing: LINE_FADE_EASING,
         useNativeDriver: true,
       }).start();
     }, startDelay);
@@ -178,11 +181,11 @@ export function SceneFeedCard({
       units.forEach(({ key, text }) => {
         if (!text) return;
         delays.set(key, delayCursor);
-        delayCursor += LINE_FADE_DURATION_MS + LINE_REVEAL_GAP_MS;
+        delayCursor += LINE_REVEAL_CADENCE_MS;
       });
     }
 
-    const totalDurationMs = delayCursor > 0 ? delayCursor - LINE_REVEAL_GAP_MS : 0;
+    const totalDurationMs = delayCursor > 0 ? delayCursor - LINE_REVEAL_CADENCE_MS + LINE_FADE_DURATION_MS : 0;
     return { delays, totalDurationMs };
   }, [animateFromIndex, journalEntries]);
 
@@ -477,7 +480,7 @@ const styles = StyleSheet.create({
   },
   dialogueAside: {
     fontSize: 16,
-    fontWeight: '500',
+    fontWeight: '400',
     lineHeight: 20,
     color: '#413129',
     fontStyle: 'italic',
@@ -490,7 +493,7 @@ const styles = StyleSheet.create({
     lineHeight: 20,
     color: '#413129',
     fontFamily: 'Besley',
-    fontWeight: '500',
+    fontWeight: '400',
     fontStyle: 'italic',
     marginTop: 4,
     marginBottom: 12,

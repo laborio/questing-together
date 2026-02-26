@@ -1,13 +1,11 @@
-import React, { useEffect, useMemo, useState } from 'react';
-import { Image, Pressable, SafeAreaView, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import React, { useMemo, useState } from 'react';
+import { Image, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { PartyChatOverlay } from '@/components/chat/party-chat-overlay';
 import { DecisionPanelCard } from '@/components/story/decision-panel-card';
-import { AdventureIntroCard } from '@/components/story/adventure-intro-card';
 import { PartyTopBar } from '@/components/story/party-top-bar';
 import { PartyStatusCard } from '@/components/story/party-status-card';
-import { PlayerIdentityCard } from '@/components/story/player-identity-card';
 import { RoleOnboardingCard } from '@/components/story/role-onboarding-card';
 import { RoomConnectionCard } from '@/components/story/room-connection-card';
 import { SceneFeedCard } from '@/components/story/scene-feed-card';
@@ -17,7 +15,6 @@ import { useRoomStory } from '@/src/game/hooks/use-room-story';
 import { PlayerId, RoleId } from '@/src/game/types';
 import { useAnonymousAuth } from '@/src/online/hooks/use-anonymous-auth';
 import { useRoomConnection } from '@/src/online/hooks/use-room-connection';
-import { STORY_START_SCENE_ID } from '@/src/story/story';
 
 const paperTexture = require('../assets/images/T_Background_Paper.png');
 const headerTexture = require('../assets/images/T_Background_Header.png');
@@ -48,21 +45,24 @@ function TiledBackground({ source }: { source: number }) {
 export default function IndexScreen() {
   const auth = useAnonymousAuth();
   const roomConnection = useRoomConnection();
-  const [localPlayerId, setLocalPlayerId] = useState<PlayerId | null>(null);
-  const [introDismissed, setIntroDismissed] = useState(false);
   const [showStatusPanel, setShowStatusPanel] = useState(false);
-  const { width: windowWidth } = useWindowDimensions();
+  const [resolvedHeaderHeight, setResolvedHeaderHeight] = useState(0);
   const insets = useSafeAreaInsets();
+  const { width: windowWidth, height: windowHeight } = useWindowDimensions();
   const headerHeight = Math.round(Math.min(160, Math.max(90, windowWidth * (100 / 420))));
-  const headerTopPadding = Math.max(8, insets.top + 6);
+  const headerVerticalPadding = 10;
+  const headerMinHeight = headerHeight + insets.top;
+  const storyHeaderInsetTop = Math.max(headerMinHeight, resolvedHeaderHeight) + 16;
 
   const room = roomConnection.room;
   const roomId = room?.id ?? null;
+  const isTitleScreen = !room;
 
-  const localPlayerRow = useMemo(
-    () => roomConnection.players.find((player) => player.player_id === localPlayerId),
-    [localPlayerId, roomConnection.players]
-  );
+  const localPlayerRow = useMemo(() => {
+    if (!auth.user?.id) return null;
+    return roomConnection.players.find((player) => player.user_id === auth.user?.id) ?? null;
+  }, [auth.user?.id, roomConnection.players]);
+  const localPlayerId = localPlayerRow?.player_id ?? null;
   const localRole = localPlayerRow?.role_id ?? null;
   const isAdventureStarted = room?.status === 'in_progress';
   const isHost = Boolean(auth.user?.id && room?.host_user_id === auth.user.id);
@@ -104,41 +104,13 @@ export default function IndexScreen() {
     currentSceneTitle: roomStory.isReady && isAdventureStarted && localRole ? roomStory.currentScene.title : null,
   });
 
-  const connectedPlayersLabel = useMemo(() => {
-    if (!roomConnection.players.length) return 'waiting...';
-    return roomConnection.players
-      .map((player) => player.display_name ?? playerNameById[player.player_id])
-      .join(', ');
-  }, [roomConnection.players]);
-
   const isLobby = room?.status === 'lobby';
-  const localRoleLabel = localRole ? roles.find((role) => role.id === localRole)?.label ?? localRole : null;
   const localDisplayName =
     localPlayerId && playerDisplayNameById[localPlayerId] ? playerDisplayNameById[localPlayerId] : localPlayerId
       ? playerNameById[localPlayerId]
-      : 'Player';
+      : 'Adventurer';
 
-  useEffect(() => {
-    if (!room?.id || room.status !== 'in_progress') {
-      setIntroDismissed(false);
-    }
-  }, [room?.id, room?.status]);
-
-  useEffect(() => {
-    if (!roomStory.isReady) return;
-    if (roomStory.currentScene.id !== STORY_START_SCENE_ID) {
-      setIntroDismissed(true);
-    }
-  }, [roomStory.currentScene.id, roomStory.isReady]);
-
-  const showIntro =
-    isAdventureStarted &&
-    roomStory.isReady &&
-    roomStory.currentScene.id === STORY_START_SCENE_ID &&
-    Boolean(localRole) &&
-    !introDismissed;
-
-  const isStoryView = Boolean(!isLobby && isAdventureStarted && localRole && !showIntro);
+  const isStoryView = Boolean(!isLobby && isAdventureStarted && localRole);
 
   const partyStatusRows = useMemo(
     () =>
@@ -170,17 +142,22 @@ export default function IndexScreen() {
 
   const mainScroll = (
     <ScrollView
+      scrollEnabled={!isTitleScreen}
+      bounces={!isTitleScreen}
       contentContainerStyle={[
         styles.content,
+        !isStoryView && { paddingTop: 12 + insets.top, paddingBottom: 96 + insets.bottom },
+        isTitleScreen && styles.titleScreenContent,
+        isTitleScreen && { minHeight: windowHeight },
         isStoryView && styles.storyContent,
-        isStoryView && { paddingTop: headerHeight + 16, paddingBottom: 140 },
+        isStoryView && { paddingTop: storyHeaderInsetTop, paddingBottom: 140 + insets.bottom },
       ]}
     >
-      {!isStoryView ? <Text style={styles.title}>Questing Together</Text> : null}
+      {!isStoryView && !isTitleScreen && !isLobby ? <Text style={styles.title}>Questing Together</Text> : null}
 
       {localPlayerId ? (
         <>
-          {!isStoryView ? <Text style={styles.subtitle}>Signed in as {localDisplayName}</Text> : null}
+          {!isStoryView && !isTitleScreen && !isLobby ? <Text style={styles.subtitle}>Signed in as {localDisplayName}</Text> : null}
         </>
       ) : null}
 
@@ -188,18 +165,15 @@ export default function IndexScreen() {
         <Text style={styles.loadingText}>Signing in...</Text>
       ) : auth.authError ? (
         <Text style={styles.errorText}>Auth error: {auth.authError}</Text>
-      ) : !localPlayerId ? (
-        <PlayerIdentityCard selectedPlayerId={localPlayerId} onSelectPlayer={setLocalPlayerId} />
       ) : !room ? (
         <RoomConnectionCard
-          localPlayerName={localDisplayName}
           isBusy={roomConnection.isBusy}
           errorText={roomConnection.roomError}
           onCreateRoom={() => {
-            void roomConnection.createRoom(localPlayerId);
+            void roomConnection.createRoom();
           }}
           onJoinRoom={(code) => {
-            void roomConnection.joinRoom(code, localPlayerId);
+            void roomConnection.joinRoom(code);
           }}
         />
       ) : !roomStory.isReady ? (
@@ -208,7 +182,7 @@ export default function IndexScreen() {
         </>
       ) : (
         <>
-          {isLobby || !isAdventureStarted || showIntro ? (
+          {isLobby || !isAdventureStarted ? (
             <>
               {roomConnection.roomError ? <Text style={styles.errorText}>Room error: {roomConnection.roomError}</Text> : null}
               {roomStory.storyError ? <Text style={styles.errorText}>Story sync error: {roomStory.storyError}</Text> : null}
@@ -217,25 +191,52 @@ export default function IndexScreen() {
 
           {isLobby ? (
             <>
-              {room?.code ? <Text style={styles.roomCodeLobby}>Room code: {room.code}</Text> : null}
-              <PartyStatusCard title="Party Status" rows={partyStatusRows} />
-              <RoleOnboardingCard
-                localPlayerId={localPlayerId}
-                players={roomConnection.players.map((player) => ({
-                  playerId: player.player_id,
-                  roleId: player.role_id,
-                  displayName: player.display_name,
-                }))}
-                isHost={isHost}
-                isBusy={roomConnection.isBusy}
-                onSetDisplayName={(name) => void roomConnection.setDisplayName(name)}
-                onSelectRole={(roleId: RoleId) => {
-                  void roomConnection.selectRole(roleId);
-                }}
-                onStartAdventure={() => {
-                  void roomConnection.startAdventure();
-                }}
-              />
+              <View style={styles.lobbyPaperSurface}>
+                <Text style={[styles.title, styles.lobbyPaperTitle]}>{"À l'Aventure Compagnons"}</Text>
+                {localPlayerId ? (
+                  <Text style={[styles.subtitle, styles.lobbyPaperSubtitle]}>Signed in as {localDisplayName}</Text>
+                ) : null}
+                {room?.code ? <Text style={styles.roomCodeLobby}>Room code: {room.code}</Text> : null}
+                {localPlayerId ? (
+                  <RoleOnboardingCard
+                    localPlayerId={localPlayerId}
+                    players={roomConnection.players.map((player) => ({
+                      playerId: player.player_id,
+                      roleId: player.role_id,
+                      displayName: player.display_name,
+                    }))}
+                    isHost={isHost}
+                    isBusy={roomConnection.isBusy}
+                    onSetDisplayName={(name) => void roomConnection.setDisplayName(name)}
+                    onSelectRole={(roleId: RoleId) => {
+                      void roomConnection.selectRole(roleId);
+                    }}
+                    onStartAdventure={() => {
+                      void roomConnection.startAdventure();
+                    }}
+                  />
+                ) : (
+                  <Text style={styles.loadingText}>Syncing your player slot...</Text>
+                )}
+                <View style={styles.roomControls}>
+                  <Pressable
+                    disabled={roomConnection.isBusy}
+                    onPress={() => void roomConnection.leaveRoom()}
+                    style={[styles.leaveRoomButton, roomConnection.isBusy && styles.leaveRoomButtonDisabled]}>
+                    <Text style={styles.leaveRoomButtonText}>{roomConnection.isBusy ? 'Leaving...' : 'Leave Room'}</Text>
+                  </Pressable>
+                </View>
+              </View>
+            </>
+          ) : !localPlayerId ? (
+            <Text style={styles.loadingText}>Syncing your player slot...</Text>
+          ) : !isAdventureStarted || !localRole ? (
+            <>
+              <Text style={styles.loadingText}>
+                {!isAdventureStarted
+                  ? 'Waiting for adventure to start...'
+                  : 'This room is in progress but your role is not assigned.'}
+              </Text>
               <View style={styles.roomControls}>
                 <Pressable
                   disabled={roomConnection.isBusy}
@@ -244,13 +245,6 @@ export default function IndexScreen() {
                   <Text style={styles.leaveRoomButtonText}>{roomConnection.isBusy ? 'Leaving...' : 'Leave Room'}</Text>
                 </Pressable>
               </View>
-            </>
-          ) : !isAdventureStarted || !localRole ? (
-            <Text style={styles.loadingText}>Waiting for adventure to start...</Text>
-          ) : showIntro ? (
-            <>
-              <PartyStatusCard title="Party Status" rows={partyStatusRows} />
-              <AdventureIntroCard onContinue={() => setIntroDismissed(true)} />
             </>
           ) : (
             <>
@@ -271,6 +265,7 @@ export default function IndexScreen() {
                       phaseLabel={roomStory.phaseLabel}
                       statusText={roomStory.phaseStatusText}
                       actions={roomStory.availableActions}
+                      localSelectedActionId={roomStory.localSelectedActionId}
                       canAct={roomStory.canAct}
                       allowSkip={roomStory.allowSkip}
                       onTakeAction={roomStory.takeAction}
@@ -309,10 +304,28 @@ export default function IndexScreen() {
   );
 
   const storyHeaderOverlay = isStoryView ? (
-                <View style={[styles.storyHeader, { height: headerHeight, paddingTop: headerTopPadding }]}>
+    <View
+      onLayout={(event) => {
+        const measuredHeight = Math.ceil(event.nativeEvent.layout.height);
+        setResolvedHeaderHeight((previous) => (Math.abs(previous - measuredHeight) > 1 ? measuredHeight : previous));
+      }}
+      style={[
+        styles.storyHeader,
+        {
+          minHeight: headerMinHeight,
+        },
+      ]}>
       <Image source={headerTexture} style={styles.storyHeaderBg} resizeMode="stretch" />
       <Image source={headerBorderTexture} style={styles.storyHeaderBorder} resizeMode="stretch" />
-      <View style={styles.storyHeaderContent}>
+      <View
+        style={[
+          styles.storyHeaderContent,
+          {
+            paddingHorizontal: 18,
+            paddingTop: headerVerticalPadding + insets.top,
+            paddingBottom: headerVerticalPadding,
+          },
+        ]}>
         <View style={styles.headerControlsRow}>
           <Pressable style={styles.dotsButton} onPress={() => setShowStatusPanel((value) => !value)}>
             <Text style={styles.dotsButtonText}>...</Text>
@@ -329,7 +342,7 @@ export default function IndexScreen() {
     </View>
   ) : null;
 
-  const statusOverlayBottom = 24;
+  const statusOverlayBottom = 24 + insets.bottom;
   const statusOverlay =
     isStoryView && showStatusPanel ? (
       <View style={[styles.roomStatusOverlay, { bottom: statusOverlayBottom }]}>
@@ -366,13 +379,13 @@ export default function IndexScreen() {
     ) : null;
 
   return (
-    <SafeAreaView style={styles.container}>
-      {isStoryView ? (
+    <View style={styles.container}>
+      {isStoryView || isLobby ? (
         <View style={styles.storyBackground}>
           <TiledBackground source={paperTexture} />
-          {storyHeaderOverlay}
+          {isStoryView ? storyHeaderOverlay : null}
           {mainScroll}
-          {statusOverlay}
+          {isStoryView ? statusOverlay : null}
         </View>
       ) : (
         <>
@@ -401,7 +414,7 @@ export default function IndexScreen() {
           onSend={partyChat.sendChatMessage}
         />
       ) : null}
-    </SafeAreaView>
+    </View>
   );
 }
 
@@ -418,12 +431,18 @@ const styles = StyleSheet.create({
     ...StyleSheet.absoluteFillObject,
     flexDirection: 'row',
     flexWrap: 'wrap',
-    opacity: 0.4,
+    opacity: 1,
   },
   content: {
     padding: 12,
     gap: 14,
     paddingBottom: 96,
+    flexGrow: 1,
+  },
+  titleScreenContent: {
+    padding: 0,
+    gap: 0,
+    justifyContent: 'center',
     flexGrow: 1,
   },
   storyWide: {
@@ -440,21 +459,43 @@ const styles = StyleSheet.create({
     fontSize: 24,
     fontWeight: '700',
     color: '#f4ead7',
+    fontFamily: 'Besley',
+    textAlign: 'center',
   },
   loadingText: {
     fontSize: 14,
     color: '#d0c0a6',
+    fontFamily: 'Besley',
   },
   subtitle: {
     marginTop: -2,
     fontSize: 13,
     color: '#e3c792',
     fontWeight: '600',
+    fontFamily: 'Besley',
+    textAlign: 'center',
   },
   roomCodeLobby: {
     fontSize: 14,
     fontWeight: '700',
-    color: '#f4ead7',
+    color: '#4b3420',
+    fontFamily: 'Besley',
+  },
+  lobbyPaperSurface: {
+    marginHorizontal: -12,
+    marginTop: -2,
+    paddingHorizontal: 12,
+    paddingVertical: 14,
+    gap: 12,
+    borderRadius: 0,
+    overflow: 'hidden',
+    backgroundColor: '#f4ead700',
+  },
+  lobbyPaperTitle: {
+    color: '#4b3420',
+  },
+  lobbyPaperSubtitle: {
+    color: '#6b4a2a',
   },
   errorText: {
     fontSize: 13,
@@ -493,10 +534,6 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     overflow: 'visible',
-    paddingHorizontal: 18,
-    paddingTop: 12,
-    paddingBottom: 32,
-    gap: 12,
     zIndex: 5,
   },
   storyHeaderBg: {
@@ -504,7 +541,7 @@ const styles = StyleSheet.create({
     top: 0,
     left: 0,
     right: 0,
-    bottom: 0,
+    bottom: -18,
     opacity: 0.95,
   },
   storyHeaderBorder: {
@@ -516,12 +553,16 @@ const styles = StyleSheet.create({
   },
   storyHeaderContent: {
     flex: 1,
-    gap: 6,
     justifyContent: 'center',
   },
   headerControlsRow: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
     flexDirection: 'row',
     justifyContent: 'flex-end',
+    zIndex: 2,
   },
   dotsButton: {
     width: 28,

@@ -249,7 +249,7 @@ execute function public.set_updated_at();
 -- ----------------------------
 -- RPCs
 -- ----------------------------
-create or replace function public.create_room(p_player_id public.player_id default 'p1')
+create or replace function public.create_room(p_player_id public.player_id default null)
 returns table(room_id uuid, room_code text)
 language plpgsql
 security definer
@@ -260,6 +260,7 @@ declare
   v_room_id uuid;
   v_code text;
   v_attempts int := 0;
+  v_assigned_player_id public.player_id := 'p1';
 begin
   if v_user_id is null then
     raise exception 'Not authenticated';
@@ -279,13 +280,13 @@ begin
   returning id into v_room_id;
 
   insert into public.room_players (room_id, player_id, user_id)
-  values (v_room_id, p_player_id, v_user_id);
+  values (v_room_id, v_assigned_player_id, v_user_id);
 
   return query select v_room_id, v_code;
 end;
 $$;
 
-create or replace function public.join_room(p_code text, p_player_id public.player_id)
+create or replace function public.join_room(p_code text, p_player_id public.player_id default null)
 returns uuid
 language plpgsql
 security definer
@@ -294,6 +295,7 @@ as $$
 declare
   v_user_id uuid := auth.uid();
   v_room_id uuid;
+  v_assigned_player_id public.player_id;
 begin
   if v_user_id is null then
     raise exception 'Not authenticated';
@@ -303,7 +305,8 @@ begin
   into v_room_id
   from public.rooms r
   where r.code = upper(trim(p_code))
-    and r.status <> 'finished';
+    and r.status <> 'finished'
+  for update;
 
   if v_room_id is null then
     raise exception 'Room not found';
@@ -317,16 +320,29 @@ begin
     return v_room_id;
   end if;
 
-  if exists (
+  select slot.player_id
+  into v_assigned_player_id
+  from (
+    values ('p1'::public.player_id), ('p2'::public.player_id), ('p3'::public.player_id)
+  ) as slot(player_id)
+  where not exists (
     select 1 from public.room_players rp
     where rp.room_id = v_room_id
-      and rp.player_id = p_player_id
-  ) then
-    raise exception 'Player slot % is already taken in this room', p_player_id;
+      and rp.player_id = slot.player_id
+  )
+  order by case slot.player_id
+    when 'p1'::public.player_id then 1
+    when 'p2'::public.player_id then 2
+    else 3
+  end
+  limit 1;
+
+  if v_assigned_player_id is null then
+    raise exception 'Room is full';
   end if;
 
   insert into public.room_players (room_id, player_id, user_id)
-  values (v_room_id, p_player_id, v_user_id);
+  values (v_room_id, v_assigned_player_id, v_user_id);
 
   return v_room_id;
 end;

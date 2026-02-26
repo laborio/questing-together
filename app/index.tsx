@@ -534,6 +534,7 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     overflow: 'visible',
+    backgroundColor: '#2a1d14',
     zIndex: 5,
   },
   storyHeaderBg: {
@@ -541,8 +542,8 @@ const styles = StyleSheet.create({
     top: 0,
     left: 0,
     right: 0,
-    bottom: -18,
-    opacity: 0.95,
+    bottom: 0,
+    opacity: 1,
   },
   storyHeaderBorder: {
     position: 'absolute',

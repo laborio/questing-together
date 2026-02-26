@@ -118,6 +118,16 @@ body {
   font-size: 14px;
 }
 
+.mode-switch {
+  margin-top: 12px;
+  display: flex;
+  gap: 8px;
+}
+
+.mode-switch-hint {
+  margin-top: 6px;
+}
+
 .content {
   display: grid;
   grid-template-columns: minmax(320px, 1.2fr) minmax(320px, 1fr);

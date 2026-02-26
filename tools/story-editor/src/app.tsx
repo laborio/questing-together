@@ -827,6 +827,7 @@ export default function App() {
   const [storyJsonDraft, setStoryJsonDraft] = useState('');
   const [storyJsonDirty, setStoryJsonDirty] = useState(false);
   const [isDirty, setIsDirty] = useState(false);
+  const [editorMode, setEditorMode] = useState<'backbone' | 'detailed'>('detailed');
   const [theme, setTheme] = useState<'light' | 'dark'>('dark');
   const [newSceneType, setNewSceneType] = useState<'story' | 'combat' | 'timed' | 'ending'>('story');
   const [nodes, setNodes, onNodesChange] = useNodesState<Node>([]);
@@ -1448,6 +1449,7 @@ export default function App() {
 
   const endingsCount = story?.scenes.filter((scene) => scene.isEnding).length ?? 0;
   const scenesCount = story?.scenes.length ?? 0;
+  const isBackboneMode = editorMode === 'backbone';
   const selectedSceneType = selectedScene ? (selectedScene.isEnding ? 'ending' : selectedScene.mode ?? 'story') : 'story';
   const edgeTypes = useMemo(() => ({ tagged: TaggedEdge }), []);
   const nodeTypes = useMemo(() => ({ scene: SceneNode }), []);
@@ -1461,6 +1463,27 @@ export default function App() {
           <button className="secondary" onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}>
             {theme === 'dark' ? 'Switch to light' : 'Switch to dark'}
           </button>
+        </div>
+        <div className="mode-switch">
+          <button
+            className={isBackboneMode ? '' : 'secondary'}
+            onClick={() => setEditorMode('backbone')}
+            type="button"
+          >
+            Backbone
+          </button>
+          <button
+            className={isBackboneMode ? 'secondary' : ''}
+            onClick={() => setEditorMode('detailed')}
+            type="button"
+          >
+            Detailed
+          </button>
+        </div>
+        <div className="small mode-switch-hint">
+          {isBackboneMode
+            ? 'Backbone mode focuses on scene graph structure and route links.'
+            : 'Detailed mode includes full writing fields, actions, evidence, and route conditions.'}
         </div>
       </header>
       <div className="content">
@@ -1560,7 +1583,11 @@ export default function App() {
             ) : null}
           </div>
           <div className="panel-section">
-            <div className="small">Edge pills: A/B/C = option id. Hover a pill to see tag conditions.</div>
+            <div className="small">
+              {isBackboneMode
+                ? 'Backbone mode: focus on scene types, option labels, and links between nodes.'
+                : 'Edge pills: A/B/C = option id. Hover a pill to see tag conditions.'}
+            </div>
             <div className="row">
               <button onClick={saveStory} disabled={!story || validatorErrors.length > 0}>
                 Save to story-data.json
@@ -1568,9 +1595,11 @@ export default function App() {
               <button className="secondary" onClick={reloadStory}>
                 Reload from disk
               </button>
-              <button className="secondary" onClick={applyStoryJson} disabled={!storyJsonDirty}>
-                Apply Story JSON
-              </button>
+              {!isBackboneMode ? (
+                <button className="secondary" onClick={applyStoryJson} disabled={!storyJsonDirty}>
+                  Apply Story JSON
+                </button>
+              ) : null}
             </div>
             <div className="status">{isDirty ? 'Unsaved changes.' : 'All changes saved.'}</div>
             {status && <div className={`status ${status.type}`}>{status.text}</div>}
@@ -1602,7 +1631,7 @@ export default function App() {
               ) : null}
             </div>
           </div>
-          {story?.combat && selectedScene?.mode === 'combat' ? (
+          {!isBackboneMode && story?.combat && selectedScene?.mode === 'combat' ? (
             <div className="panel-section">
               <h2>Combat Defaults</h2>
               <div className="editor-grid">
@@ -1838,6 +1867,165 @@ export default function App() {
             <div className="panel-section">
               <div className="small">Select a scene to edit its content.</div>
             </div>
+          ) : isBackboneMode ? (
+            <>
+              <div className="panel-section">
+                <h2>Backbone Settings</h2>
+                <div className="editor-grid">
+                  <label>Scene id</label>
+                  <input value={selectedScene.id} disabled />
+                  <label>Scene type</label>
+                  <select
+                    value={selectedSceneType}
+                    onChange={(event) => updateSceneType(selectedScene.id, event.target.value as typeof selectedSceneType)}
+                  >
+                    <option value="story">Story</option>
+                    <option value="combat">Combat</option>
+                    <option value="timed">Timed</option>
+                    <option value="ending">Ending</option>
+                  </select>
+                  <label>Title</label>
+                  <input
+                    value={selectedScene.title ?? ''}
+                    onChange={(event) =>
+                      updateSelectedScene(
+                        (scene) => {
+                          scene.title = event.target.value;
+                        },
+                        { replaceHistory: true }
+                      )
+                    }
+                  />
+                </div>
+              </div>
+
+              <div className="panel-section">
+                <h2>Backbone Decisions</h2>
+                {selectedScene.options.map((option) => (
+                  <div key={`backbone-option-${option.id}`} className="editor-card">
+                    <div className="row">
+                      <span className="badge">Option {option.id}</span>
+                      <label className="checkbox-row">
+                        <input
+                          type="checkbox"
+                          checked={Boolean(option.defaultVisible)}
+                          onChange={() =>
+                            updateSelectedScene(
+                              (scene) => {
+                                scene.options.forEach((item) => {
+                                  item.defaultVisible = item.id === option.id;
+                                });
+                              },
+                              { replaceHistory: false }
+                            )
+                          }
+                        />
+                        Default
+                      </label>
+                      <label className="checkbox-row">
+                        <input
+                          type="checkbox"
+                          checked={Boolean(option.isRisky)}
+                          onChange={(event) =>
+                            updateSelectedScene(
+                              (scene) => {
+                                const target = scene.options.find((item) => item.id === option.id);
+                                if (!target) return;
+                                target.isRisky = event.target.checked;
+                              },
+                              { replaceHistory: true }
+                            )
+                          }
+                        />
+                        Risky
+                      </label>
+                    </div>
+                    <label>Option text</label>
+                    <input
+                      value={option.text}
+                      onChange={(event) =>
+                        updateSelectedScene(
+                          (scene) => {
+                            const target = scene.options.find((item) => item.id === option.id);
+                            if (!target) return;
+                            target.text = event.target.value;
+                          },
+                          { replaceHistory: true }
+                        )
+                      }
+                    />
+                    <div className="route-list">
+                      {option.next.map((route, routeIndex) => (
+                        <div key={`backbone-route-${option.id}-${routeIndex}`} className="route-card">
+                          <div className="row">
+                            <label>Next scene</label>
+                            <select
+                              value={route.to ?? ''}
+                              onChange={(event) =>
+                                updateSelectedScene(
+                                  (scene) => {
+                                    const target = scene.options.find((item) => item.id === option.id);
+                                    if (!target) return;
+                                    const nextRoute = target.next[routeIndex];
+                                    if (!nextRoute) return;
+                                    nextRoute.to = event.target.value ? event.target.value : null;
+                                  },
+                                  { replaceHistory: true }
+                                )
+                              }
+                            >
+                              <option value="">END</option>
+                              {story?.scenes.map((scene) => (
+                                <option key={scene.id} value={scene.id}>
+                                  {scene.id} — {scene.title}
+                                </option>
+                              ))}
+                            </select>
+                            <button
+                              className="danger"
+                              onClick={() =>
+                                updateSelectedScene(
+                                  (scene) => {
+                                    const target = scene.options.find((item) => item.id === option.id);
+                                    if (!target) return;
+                                    target.next = target.next.filter((_, idx) => idx !== routeIndex);
+                                  },
+                                  { replaceHistory: false }
+                                )
+                              }
+                            >
+                              Remove route
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                      <button
+                        className="secondary"
+                        onClick={() =>
+                          updateSelectedScene(
+                            (scene) => {
+                              const target = scene.options.find((item) => item.id === option.id);
+                              if (!target) return;
+                              target.next.push({ to: story?.startSceneId ?? null });
+                            },
+                            { replaceHistory: false }
+                          )
+                        }
+                      >
+                        Add route
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              <div className="panel-section">
+                <div className="small">
+                  Backbone mode edits story structure only. Switch to Detailed mode to write intro text, actions,
+                  evidence, route conditions, and outcomes.
+                </div>
+              </div>
+            </>
           ) : (
             <>
               <div className="panel-section">
@@ -3032,17 +3220,19 @@ export default function App() {
               </div>
             </>
           )}
-          <div className="panel-section">
-            <label>Story JSON (full)</label>
-            <textarea
-              className="json-panel"
-              value={storyJsonDraft}
-              onChange={(event) => {
-                setStoryJsonDraft(event.target.value);
-                setStoryJsonDirty(true);
-              }}
-            />
-          </div>
+          {!isBackboneMode ? (
+            <div className="panel-section">
+              <label>Story JSON (full)</label>
+              <textarea
+                className="json-panel"
+                value={storyJsonDraft}
+                onChange={(event) => {
+                  setStoryJsonDraft(event.target.value);
+                  setStoryJsonDirty(true);
+                }}
+              />
+            </div>
+          ) : null}
         </section>
       </div>
       <footer className="footer">

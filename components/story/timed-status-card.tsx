@@ -5,6 +5,10 @@ type TimedStatusCardProps = {
   label: string;
   endAt: string | null;
   statusText: string;
+  statusStyle?: 'default' | 'journal';
+  timePrefix?: string;
+  showTime?: boolean;
+  showFinishButton?: boolean;
   allowEarly: boolean;
   onFinishEarly: () => void;
   embedded?: boolean;
@@ -25,6 +29,10 @@ export function TimedStatusCard({
   label,
   endAt,
   statusText,
+  statusStyle = 'default',
+  timePrefix = 'Time remaining',
+  showTime = true,
+  showFinishButton = true,
   allowEarly,
   onFinishEarly,
   embedded = false,
@@ -46,17 +54,17 @@ export function TimedStatusCard({
   const isComplete = remainingMs !== null && remainingMs <= 0;
   const timeLabel =
     remainingMs === null
-      ? 'Waiting for the rest timer to begin.'
+      ? null
       : isComplete
         ? 'Rest period complete.'
-        : `Time remaining: ${formatRemaining(remainingMs)}`;
+        : `${timePrefix}: ${formatRemaining(remainingMs)}`;
 
   return (
     <View style={[styles.card, embedded && styles.embeddedCard]}>
       {!embedded ? <Text style={styles.sectionTitle}>{label}</Text> : null}
-      <Text style={styles.statusText}>{statusText}</Text>
-      <Text style={styles.timeText}>{timeLabel}</Text>
-      {allowEarly && remainingMs !== null && remainingMs > 0 ? (
+      <Text style={[styles.statusText, statusStyle === 'journal' && styles.statusTextJournal]}>{statusText}</Text>
+      {showTime && timeLabel ? <Text style={styles.timeText}>{timeLabel}</Text> : null}
+      {showFinishButton && allowEarly && remainingMs !== null && remainingMs > 0 ? (
         <Pressable onPress={onFinishEarly} style={styles.finishButton}>
           <Text style={styles.finishButtonText}>End rest early (testing)</Text>
         </Pressable>
@@ -87,12 +95,21 @@ const styles = StyleSheet.create({
   statusText: {
     fontSize: 12,
     color: '#d3c2a4',
+    fontFamily: 'Besley',
+  },
+  statusTextJournal: {
+    fontSize: 17,
+    lineHeight: 28,
+    color: '#413129',
+    fontWeight: '500',
+    fontFamily: 'Besley',
+    textAlign: 'center',
   },
   timeText: {
-    fontSize: 12,
+    fontSize: 16,
+    fontFamily: 'Besley',
     fontWeight: '700',
-    color: '#e0bf88',
-    textTransform: 'uppercase',
+    color: '#49240c',
   },
   finishButton: {
     borderRadius: 10,

@@ -161,7 +161,8 @@
         "kind": { "type": "string", "enum": ["rest", "travel", "wait"] },
         "durationSeconds": { "type": "number" },
         "allowEarly": { "type": "boolean" },
-        "statusText": { "type": "string" }
+        "statusText": { "type": "string" },
+        "restWaitingText": { "type": "string" }
       }
     },
     "sceneStep": {
@@ -233,6 +234,8 @@
       "properties": {
         "id": { "type": "string" },
         "title": { "type": "string" },
+        "journalTitle": { "type": "string" },
+        "intermissionText": { "type": "string" },
         "canonicalTruth": { "type": "string" },
         "intro": { "type": "string" },
         "mode": { "type": "string", "enum": ["story", "combat", "timed"] },

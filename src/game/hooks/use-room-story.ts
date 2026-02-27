@@ -93,7 +93,13 @@ type JournalEntry =
   | { id: string; kind: 'transition'; text: string }
   | { id: string; kind: 'narration'; text: string }
   | { id: string; kind: 'npc'; speaker: string; text: string; aside?: string; narration?: string }
-  | { id: string; kind: 'player'; speaker: string; lines: string[]; stage?: string; narration?: string };
+  | { id: string; kind: 'player'; speaker: string; lines: string[]; stage?: string; narration?: string }
+  | {
+      id: string;
+      kind: 'combat_summary';
+      combatState: CombatState;
+      combatLog: { id: string; text: string }[];
+    };
 
 type CombatOutcome = 'victory' | 'defeat' | 'escape';
 
@@ -143,6 +149,7 @@ type UseRoomStoryResult = {
   timedStatusText: string | null;
   timedEndsAt: string | null;
   timedAllowEarly: boolean;
+  timedWaitingText: string | null;
   phaseLabel: string;
   phaseStatusText: string;
   availableActions: Array<{ id: string; text: string; isDisabled?: boolean; hpDelta?: number; effectText?: string }>;
@@ -199,6 +206,15 @@ function cleanSceneTitle(title: string) {
     .replace(/^Scene\\s*\\d+:\\s*/i, '')
     .replace(/^Combat:\\s*/i, 'Combat — ')
     .replace(/^Rest:\\s*/i, 'Rest — ');
+}
+
+function getIntermissionText(scene: Scene) {
+  const sceneName = cleanSceneTitle(scene.title);
+  const customTemplate = scene.intermissionText?.trim();
+  if (!customTemplate) {
+    return `Later, you arrive at ${sceneName}.`;
+  }
+  return customTemplate.replace(/\{scene\}|<scene name>/gi, sceneName);
 }
 
 function isPlayerId(value: unknown): value is PlayerId {
@@ -823,7 +839,7 @@ export function useRoomStory({
         entries.push({
           id: `transition-${sceneId}-${index}`,
           kind: 'transition',
-          text: `Later, you arrive at ${cleanSceneTitle(scene.title)}.`,
+          text: getIntermissionText(scene),
         });
       }
 
@@ -858,16 +874,7 @@ export function useRoomStory({
       });
       sceneActionEvents.sort((a, b) => a.eventId - b.eventId);
 
-      if (scene.mode === 'combat' || scene.combat) {
-        const snapshot = combatSnapshots.combatStatesByScene[sceneId];
-        snapshot?.state.roundLog.forEach((entry, entryIndex) => {
-          entries.push({
-            id: `combat-${sceneId}-${index}-${entry.round}-${entryIndex}`,
-            kind: 'narration',
-            text: entry.summary,
-          });
-        });
-      } else {
+      if (!(scene.mode === 'combat' || scene.combat)) {
         const actionMetaMap = new Map<ActionId, { text: string; stage?: string; narration?: string }>();
         scene.steps.forEach((step) => {
           step.actions.forEach((action) => {
@@ -920,15 +927,17 @@ export function useRoomStory({
             });
           });
         });
-      }
-
-      if (reduced.timersByScene[sceneId]) {
-        const statusText = scene.timed?.statusText ?? 'The group is busy...';
-        if (statusText) {
+      } else {
+        const snapshot = combatSnapshots.combatStatesByScene[sceneId];
+        if (snapshot) {
           entries.push({
-            id: `timed-${sceneId}-${index}`,
-            kind: 'narration',
-            text: statusText,
+            id: `combat-summary-${sceneId}-${index}`,
+            kind: 'combat_summary',
+            combatState: snapshot.state,
+            combatLog: snapshot.state.roundLog.map((entry, entryIndex) => ({
+              id: `combat-summary-${sceneId}-${entry.round}-${entryIndex}`,
+              text: entry.summary,
+            })),
           });
         }
       }
@@ -954,7 +963,6 @@ export function useRoomStory({
     reduced.actionsBySceneStep,
     reduced.resolvedOptionByScene,
     reduced.sceneSequence,
-    reduced.timersByScene,
   ]);
 
   const tagState = useMemo(() => {
@@ -990,6 +998,11 @@ export function useRoomStory({
   const currentSceneTags = tagState.sceneTagsByScene[currentScene.id] ?? new Set<string>();
   const currentTimer = reduced.timersByScene[currentScene.id] ?? null;
   const timedEndsAt = currentTimer?.endAt ?? null;
+  const timedWaitingText = isTimedScene
+    ? currentTimer
+      ? (timedConfig?.restWaitingText?.trim() || 'Le groupe attend....')
+      : timedConfig?.statusText?.trim() || 'Le groupe attend....'
+    : null;
   const timedStatusText =
     isTimedScene && currentStepCompleted ? timedConfig?.statusText ?? 'The group is busy...' : null;
 
@@ -1399,6 +1412,12 @@ export function useRoomStory({
   }, [currentScene.id, isStoryEnded, localHasContinued, resolvedOption, roomId]);
 
   useEffect(() => {
+    if (!isCombatScene) return;
+    if (!resolvedOption || isStoryEnded || localHasContinued) return;
+    void continueToNextScene();
+  }, [continueToNextScene, isCombatScene, isStoryEnded, localHasContinued, resolvedOption]);
+
+  useEffect(() => {
     if (isCombatScene || isTimedScene) return;
     if (!resolvedOption || isStoryEnded || localHasContinued || !localConfirmedOption) return;
     void continueToNextScene();
@@ -1434,6 +1453,7 @@ export function useRoomStory({
     timedStatusText,
     timedEndsAt,
     timedAllowEarly: Boolean(timedConfig?.allowEarly),
+    timedWaitingText,
     phaseLabel,
     phaseStatusText,
     availableActions,

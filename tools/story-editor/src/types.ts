@@ -106,11 +106,14 @@ export type TimedSceneConfig = {
   durationSeconds: number;
   allowEarly?: boolean;
   statusText?: string;
+  restWaitingText?: string;
 };
 
 export type Scene = {
   id: string;
   title: string;
+  journalTitle?: string;
+  intermissionText?: string;
   canonicalTruth: string;
   intro: string;
   introDialogue?: DialogueLine[];

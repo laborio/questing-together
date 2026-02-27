@@ -5,7 +5,6 @@ import {
   Image,
   NativeScrollEvent,
   NativeSyntheticEvent,
-  Pressable,
   ScrollView,
   StyleSheet,
   Text,
@@ -13,6 +12,8 @@ import {
   View,
   StyleProp,
 } from 'react-native';
+
+import { CombatStatusCard } from '@/components/story/combat-status-card';
 
 const dividerLarge = require('../../assets/images/T_Divider_L.png');
 const dividerSmall = require('../../assets/images/T_Divider_S.png');
@@ -28,7 +29,22 @@ type JournalEntry =
   | { id: string; kind: 'transition'; text: string }
   | { id: string; kind: 'narration'; text: string }
   | { id: string; kind: 'npc'; speaker: string; text: string; aside?: string; narration?: string }
-  | { id: string; kind: 'player'; speaker: string; lines: string[]; stage?: string; narration?: string };
+  | { id: string; kind: 'player'; speaker: string; lines: string[]; stage?: string; narration?: string }
+  | {
+      id: string;
+      kind: 'combat_summary';
+      combatState: {
+        partyHp: number;
+        partyHpMax: number;
+        enemyHp: number;
+        enemyHpMax: number;
+        enemyName: string;
+        round: number;
+        outcome: 'victory' | 'defeat' | 'escape' | null;
+        allowRun: boolean;
+      };
+      combatLog: { id: string; text: string }[];
+    };
 
 type SceneFeedCardProps = {
   sceneId?: string | null;
@@ -105,6 +121,10 @@ function getEntryAnimationUnits(item: JournalEntry): { key: string; text: string
     return [{ key: `${item.id}-narration`, text: item.text }];
   }
 
+  if (item.kind === 'combat_summary') {
+    return [];
+  }
+
   if (item.kind === 'npc') {
     const units: { key: string; text: string }[] = [{ key: `${item.id}-speaker`, text: item.speaker }];
     if (item.aside) {
@@ -134,12 +154,11 @@ export function SceneFeedCard({
   sceneId,
   sceneTitle,
   journalEntries,
-  sceneHistory,
+  sceneHistory: _sceneHistory,
   header,
   footer,
   fullBleed = false,
 }: SceneFeedCardProps) {
-  const [showHistory, setShowHistory] = React.useState(false);
   const scrollRef = useRef<ScrollView>(null);
   const autoScrollRef = useRef(true);
   const [animateFromIndex, setAnimateFromIndex] = useState<number | null>(null);
@@ -230,7 +249,7 @@ export function SceneFeedCard({
       <View style={[styles.bookSheet, fullBleed && styles.bookSheetFull]}>
         {header ? <View style={styles.headerBlock}>{header}</View> : null}
         <Text style={styles.sectionTitle}>
-          {`*Story Journal — ${sceneTitle ?? 'Scene'}*`}
+          {`*${sceneTitle ?? 'Scene'}*`}
         </Text>
         <ScrollView
           ref={scrollRef}
@@ -274,6 +293,20 @@ export function SceneFeedCard({
                     style={styles.narrativeText}
                     animate={shouldAnimate}
                     startDelay={getStartDelay(`${item.id}-narration`)}
+                  />
+                </View>
+              );
+            }
+
+            if (item.kind === 'combat_summary') {
+              return (
+                <View key={item.id} style={styles.combatSummaryWrap}>
+                  <CombatStatusCard
+                    combatState={item.combatState}
+                    combatLog={item.combatLog}
+                    resolvedOption={null}
+                    showResolutionStatus={false}
+                    embedded
                   />
                 </View>
               );
@@ -354,24 +387,6 @@ export function SceneFeedCard({
           </Animated.View>
         ) : null}
 
-        {sceneHistory.length ? (
-          <View style={styles.historyCard}>
-            <Image source={dividerLarge} style={styles.historyDivider} resizeMode="contain" />
-            <Pressable onPress={() => setShowHistory((value) => !value)} style={styles.historyToggle}>
-              <Text style={styles.historyTitle}>{showHistory ? 'Hide completed scenes' : 'Show completed scenes'}</Text>
-            </Pressable>
-            {showHistory
-              ? sceneHistory.map((entry) => (
-                  <View key={entry.sceneId} style={styles.historyRow}>
-                    <Text style={styles.historySceneLabel}>
-                      {entry.sceneTitle} · Option {entry.optionId}
-                    </Text>
-                    <Text style={styles.historyOutcomeText}>{entry.outcomeText}</Text>
-                  </View>
-                ))
-              : null}
-          </View>
-        ) : null}
       </View>
     </View>
   );
@@ -469,6 +484,11 @@ const styles = StyleSheet.create({
   dialoguePlayer: {
     marginLeft: 28,
   },
+  combatSummaryWrap: {
+    marginLeft: 28,
+    marginTop: 6,
+    marginBottom: 6,
+  },
   dialogueSpeaker: {
     fontSize: 14,
     fontWeight: '600',
@@ -515,51 +535,11 @@ const styles = StyleSheet.create({
     aspectRatio: 400 / 22,
     alignSelf: 'center',
   },
-  historyCard: {
-    marginTop: 2,
-    paddingTop: 8,
-    gap: 7,
-  },
-  historyDivider: {
-    width: '100%',
-    aspectRatio: 400 / 22,
-    alignSelf: 'center',
-  },
   actionDivider: {
     width: '50%',
     alignSelf: 'center',
     aspectRatio: 400 / 22,
     opacity: 0.75,
     marginVertical: 2,
-  },
-  historyToggle: {
-    alignSelf: 'flex-start',
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#b48a54',
-    backgroundColor: '#e9d3ae',
-    paddingHorizontal: 8,
-    paddingVertical: 5,
-  },
-  historyTitle: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: '#5f4325',
-    fontFamily: 'Besley',
-  },
-  historyRow: {
-    gap: 3,
-  },
-  historySceneLabel: {
-    fontSize: 12,
-    color: '#4b3420',
-    fontWeight: '700',
-    fontFamily: 'Besley',
-  },
-  historyOutcomeText: {
-    fontSize: 12,
-    lineHeight: 17,
-    color: '#5f4325',
-    fontFamily: 'Besley',
   },
 });

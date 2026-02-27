@@ -41,13 +41,18 @@ type TaggedEdgeData = {
 
 const OPTION_IDS = ['A', 'B', 'C'] as const;
 const ROLE_OPTIONS = ['warrior', 'sage', 'ranger', 'any'] as const;
+const COMBAT_OPTION_LABELS: Record<(typeof OPTION_IDS)[number], string> = {
+  A: 'Win',
+  B: 'Lose',
+  C: 'Run',
+};
 
 type SceneNodeData = {
   id: string;
   title: string;
   typeLabel: string;
   isEnding?: boolean;
-  optionIds: typeof OPTION_IDS;
+  optionIds: ReadonlyArray<(typeof OPTION_IDS)[number]>;
   onTitleChange?: (sceneId: string, nextTitle: string) => void;
 };
 
@@ -117,6 +122,15 @@ function formatConditionLines(condition?: TagCondition): string[] {
   if (condition.any?.length) lines.push(`any: ${condition.any.join(', ')}`);
   if (condition.none?.length) lines.push(`none: ${condition.none.join(', ')}`);
   return lines;
+}
+
+function isCombatSceneEditor(scene: Scene | null | undefined): boolean {
+  return Boolean(scene) && (scene?.mode === 'combat' || Boolean(scene?.combat));
+}
+
+function formatSceneOptionLabel(optionId: (typeof OPTION_IDS)[number], scene: Scene | null | undefined): string {
+  if (!isCombatSceneEditor(scene)) return `Option ${optionId}`;
+  return `${COMBAT_OPTION_LABELS[optionId]} (${optionId})`;
 }
 
 function TaggedEdge({
@@ -240,7 +254,7 @@ function buildGraph(
         title: scene.title || scene.id,
         typeLabel: getSceneTypeLabel(scene),
         isEnding: scene.isEnding,
-        optionIds: OPTION_IDS,
+        optionIds: scene.isEnding ? [] : OPTION_IDS,
         onTitleChange
       },
       position: savedPosition ?? { x: 0, y: index * 80 },
@@ -793,7 +807,13 @@ function createSceneTemplate(sceneId: string, type: 'story' | 'combat' | 'timed'
 
   if (type === 'timed') {
     base.mode = 'timed';
-    base.timed = { kind: 'rest', durationSeconds: 3600, allowEarly: true, statusText: 'Le groupe attend.' };
+    base.timed = {
+      kind: 'rest',
+      durationSeconds: 3600,
+      allowEarly: true,
+      statusText: 'Le groupe attend.',
+      restWaitingText: 'Le groupe attend....',
+    };
     base.steps = [createStoryStep(sceneId)];
     return base;
   }
@@ -1294,7 +1314,13 @@ export default function App() {
           scene.timed = undefined;
           scene.steps = [];
         } else if (type === 'timed') {
-          scene.timed = scene.timed ?? { kind: 'rest', durationSeconds: 3600, allowEarly: true, statusText: 'Le groupe attend.' };
+          scene.timed = scene.timed ?? {
+            kind: 'rest',
+            durationSeconds: 3600,
+            allowEarly: true,
+            statusText: 'Le groupe attend.',
+            restWaitingText: 'Le groupe attend....',
+          };
           scene.combat = undefined;
           if (!scene.steps.length) {
             scene.steps = [createStoryStep(scene.id)];
@@ -1451,6 +1477,7 @@ export default function App() {
   const scenesCount = story?.scenes.length ?? 0;
   const isBackboneMode = editorMode === 'backbone';
   const selectedSceneType = selectedScene ? (selectedScene.isEnding ? 'ending' : selectedScene.mode ?? 'story') : 'story';
+  const selectedSceneIsEnding = Boolean(selectedScene?.isEnding);
   const edgeTypes = useMemo(() => ({ tagged: TaggedEdge }), []);
   const nodeTypes = useMemo(() => ({ scene: SceneNode }), []);
 
@@ -1896,128 +1923,165 @@ export default function App() {
                       )
                     }
                   />
+                  <label>Journal title</label>
+                  <input
+                    value={selectedScene.journalTitle ?? ''}
+                    onChange={(event) =>
+                      updateSelectedScene(
+                        (scene) => {
+                          const nextTitle = event.target.value;
+                          scene.journalTitle = nextTitle ? nextTitle : undefined;
+                        },
+                        { replaceHistory: true }
+                      )
+                    }
+                  />
+                  <label>Intermission text</label>
+                  <input
+                    value={selectedScene.intermissionText ?? ''}
+                    placeholder="Later, you arrive at {scene}."
+                    onChange={(event) =>
+                      updateSelectedScene(
+                        (scene) => {
+                          const nextText = event.target.value;
+                          scene.intermissionText = nextText ? nextText : undefined;
+                        },
+                        { replaceHistory: true }
+                      )
+                    }
+                  />
                 </div>
               </div>
 
-              <div className="panel-section">
-                <h2>Backbone Decisions</h2>
-                {selectedScene.options.map((option) => (
-                  <div key={`backbone-option-${option.id}`} className="editor-card">
-                    <div className="row">
-                      <span className="badge">Option {option.id}</span>
-                      <label className="checkbox-row">
-                        <input
-                          type="checkbox"
-                          checked={Boolean(option.defaultVisible)}
-                          onChange={() =>
-                            updateSelectedScene(
-                              (scene) => {
-                                scene.options.forEach((item) => {
-                                  item.defaultVisible = item.id === option.id;
-                                });
-                              },
-                              { replaceHistory: false }
-                            )
-                          }
-                        />
-                        Default
-                      </label>
-                      <label className="checkbox-row">
-                        <input
-                          type="checkbox"
-                          checked={Boolean(option.isRisky)}
-                          onChange={(event) =>
-                            updateSelectedScene(
-                              (scene) => {
-                                const target = scene.options.find((item) => item.id === option.id);
-                                if (!target) return;
-                                target.isRisky = event.target.checked;
-                              },
-                              { replaceHistory: true }
-                            )
-                          }
-                        />
-                        Risky
-                      </label>
-                    </div>
-                    <label>Option text</label>
-                    <input
-                      value={option.text}
-                      onChange={(event) =>
-                        updateSelectedScene(
-                          (scene) => {
-                            const target = scene.options.find((item) => item.id === option.id);
-                            if (!target) return;
-                            target.text = event.target.value;
-                          },
-                          { replaceHistory: true }
-                        )
-                      }
-                    />
-                    <div className="route-list">
-                      {option.next.map((route, routeIndex) => (
-                        <div key={`backbone-route-${option.id}-${routeIndex}`} className="route-card">
-                          <div className="row">
-                            <label>Next scene</label>
-                            <select
-                              value={route.to ?? ''}
-                              onChange={(event) =>
-                                updateSelectedScene(
-                                  (scene) => {
-                                    const target = scene.options.find((item) => item.id === option.id);
-                                    if (!target) return;
-                                    const nextRoute = target.next[routeIndex];
-                                    if (!nextRoute) return;
-                                    nextRoute.to = event.target.value ? event.target.value : null;
-                                  },
-                                  { replaceHistory: true }
-                                )
-                              }
-                            >
-                              <option value="">END</option>
-                              {story?.scenes.map((scene) => (
-                                <option key={scene.id} value={scene.id}>
-                                  {scene.id} — {scene.title}
-                                </option>
-                              ))}
-                            </select>
-                            <button
-                              className="danger"
-                              onClick={() =>
-                                updateSelectedScene(
-                                  (scene) => {
-                                    const target = scene.options.find((item) => item.id === option.id);
-                                    if (!target) return;
-                                    target.next = target.next.filter((_, idx) => idx !== routeIndex);
-                                  },
-                                  { replaceHistory: false }
-                                )
-                              }
-                            >
-                              Remove route
-                            </button>
-                          </div>
-                        </div>
-                      ))}
-                      <button
-                        className="secondary"
-                        onClick={() =>
+              {selectedSceneIsEnding ? (
+                <div className="panel-section">
+                  <h2>Ending Scene</h2>
+                  <div className="small">
+                    Ending scenes skip actions and decisions in game. Players only see &quot;Fin.&quot; and
+                    &quot;Recommencer l&apos;aventure&quot;.
+                  </div>
+                </div>
+              ) : (
+                <div className="panel-section">
+                  <h2>Backbone Decisions</h2>
+                  {selectedScene.options.map((option) => (
+                    <div key={`backbone-option-${option.id}`} className="editor-card">
+                      <div className="row">
+                        <span className="badge">{formatSceneOptionLabel(option.id, selectedScene)}</span>
+                        <label className="checkbox-row">
+                          <input
+                            type="checkbox"
+                            checked={Boolean(option.defaultVisible)}
+                            onChange={() =>
+                              updateSelectedScene(
+                                (scene) => {
+                                  scene.options.forEach((item) => {
+                                    item.defaultVisible = item.id === option.id;
+                                  });
+                                },
+                                { replaceHistory: false }
+                              )
+                            }
+                          />
+                          Default
+                        </label>
+                        <label className="checkbox-row">
+                          <input
+                            type="checkbox"
+                            checked={Boolean(option.isRisky)}
+                            onChange={(event) =>
+                              updateSelectedScene(
+                                (scene) => {
+                                  const target = scene.options.find((item) => item.id === option.id);
+                                  if (!target) return;
+                                  target.isRisky = event.target.checked;
+                                },
+                                { replaceHistory: true }
+                              )
+                            }
+                          />
+                          Risky
+                        </label>
+                      </div>
+                      <label>Option text</label>
+                      <input
+                        value={option.text}
+                        onChange={(event) =>
                           updateSelectedScene(
                             (scene) => {
                               const target = scene.options.find((item) => item.id === option.id);
                               if (!target) return;
-                              target.next.push({ to: story?.startSceneId ?? null });
+                              target.text = event.target.value;
                             },
-                            { replaceHistory: false }
+                            { replaceHistory: true }
                           )
                         }
-                      >
-                        Add route
-                      </button>
+                      />
+                      <div className="route-list">
+                        {option.next.map((route, routeIndex) => (
+                          <div key={`backbone-route-${option.id}-${routeIndex}`} className="route-card">
+                            <div className="row">
+                              <label>Next scene</label>
+                              <select
+                                value={route.to ?? ''}
+                                onChange={(event) =>
+                                  updateSelectedScene(
+                                    (scene) => {
+                                      const target = scene.options.find((item) => item.id === option.id);
+                                      if (!target) return;
+                                      const nextRoute = target.next[routeIndex];
+                                      if (!nextRoute) return;
+                                      nextRoute.to = event.target.value ? event.target.value : null;
+                                    },
+                                    { replaceHistory: true }
+                                  )
+                                }
+                              >
+                                <option value="">END</option>
+                                {story?.scenes.map((scene) => (
+                                  <option key={scene.id} value={scene.id}>
+                                    {scene.id} — {scene.title}
+                                  </option>
+                                ))}
+                              </select>
+                              <button
+                                className="danger"
+                                onClick={() =>
+                                  updateSelectedScene(
+                                    (scene) => {
+                                      const target = scene.options.find((item) => item.id === option.id);
+                                      if (!target) return;
+                                      target.next = target.next.filter((_, idx) => idx !== routeIndex);
+                                    },
+                                    { replaceHistory: false }
+                                  )
+                                }
+                              >
+                                Remove route
+                              </button>
+                            </div>
+                          </div>
+                        ))}
+                        <button
+                          className="secondary"
+                          onClick={() =>
+                            updateSelectedScene(
+                              (scene) => {
+                                const target = scene.options.find((item) => item.id === option.id);
+                                if (!target) return;
+                                target.next.push({ to: story?.startSceneId ?? null });
+                              },
+                              { replaceHistory: false }
+                            )
+                          }
+                        >
+                          Add route
+                        </button>
+                      </div>
                     </div>
-                  </div>
-                ))}
-              </div>
+                  ))}
+                </div>
+              )}
 
               <div className="panel-section">
                 <div className="small">
@@ -2053,6 +2117,33 @@ export default function App() {
                       )
                     }
                   />
+                  <label>Journal title</label>
+                  <input
+                    value={selectedScene.journalTitle ?? ''}
+                    onChange={(event) =>
+                      updateSelectedScene(
+                        (scene) => {
+                          const nextTitle = event.target.value;
+                          scene.journalTitle = nextTitle ? nextTitle : undefined;
+                        },
+                        { replaceHistory: true }
+                      )
+                    }
+                  />
+                  <label>Intermission text</label>
+                  <input
+                    value={selectedScene.intermissionText ?? ''}
+                    placeholder="Later, you arrive at {scene}."
+                    onChange={(event) =>
+                      updateSelectedScene(
+                        (scene) => {
+                          const nextText = event.target.value;
+                          scene.intermissionText = nextText ? nextText : undefined;
+                        },
+                        { replaceHistory: true }
+                      )
+                    }
+                  />
                   <label>Intro</label>
                   <textarea
                     value={selectedScene.intro ?? ''}
@@ -2079,6 +2170,16 @@ export default function App() {
                   />
                 </div>
               </div>
+
+              {selectedSceneIsEnding ? (
+                <div className="panel-section">
+                  <h2>Ending Scene</h2>
+                  <div className="small">
+                    Ending scenes now skip actions and decisions. The in-game footer shows a centered &quot;Fin.&quot;
+                    and a restart button (&quot;Recommencer l&apos;aventure&quot;).
+                  </div>
+                </div>
+              ) : null}
 
               {selectedScene.mode === 'combat' && selectedScene.combat ? (
                 <div className="panel-section">
@@ -2194,6 +2295,19 @@ export default function App() {
                         )
                       }
                     />
+                    <label>Waiting text (after timer starts)</label>
+                    <input
+                      value={selectedScene.timed.restWaitingText ?? ''}
+                      onChange={(event) =>
+                        updateSelectedScene(
+                          (scene) => {
+                            if (!scene.timed) return;
+                            scene.timed.restWaitingText = event.target.value;
+                          },
+                          { replaceHistory: true }
+                        )
+                      }
+                    />
                     <label>Allow early end</label>
                     <input
                       type="checkbox"
@@ -2232,7 +2346,7 @@ export default function App() {
                 {OPTION_IDS.map((optionId) => (
                   <div key={`intro-${optionId}`} className="editor-card">
                     <div className="row">
-                      <span className="badge">Option {optionId}</span>
+                      <span className="badge">{formatSceneOptionLabel(optionId, selectedScene)}</span>
                     </div>
                     <textarea
                       className="compact"
@@ -2257,97 +2371,103 @@ export default function App() {
                 ))}
               </div>
 
-              <div className="panel-section">
-                <h2>Evidence</h2>
-                {selectedScene.evidence.map((evidence) => (
-                  <div key={evidence.id} className="editor-card">
-                    <div className="row">
+              {!selectedSceneIsEnding ? (
+                <div className="panel-section">
+                  <h2>Evidence</h2>
+                  {selectedScene.evidence.map((evidence) => (
+                    <div key={evidence.id} className="editor-card">
+                      <div className="row">
+                        <input
+                          className="inline-input"
+                          value={evidence.id}
+                          onChange={(event) => {
+                            const nextId = event.target.value.trim();
+                            if (!nextId || nextId === evidence.id) return;
+                            updateSelectedScene(
+                              (scene) => {
+                                if (scene.evidence.some((item) => item.id === nextId)) {
+                                  return;
+                                }
+                                renameEvidenceId(scene, evidence.id, nextId);
+                              },
+                              { replaceHistory: true }
+                            );
+                          }}
+                        />
+                        <button
+                          className="danger"
+                          onClick={() =>
+                            updateSelectedScene(
+                              (scene) => {
+                                removeEvidenceId(scene, evidence.id);
+                              },
+                              { replaceHistory: false }
+                            )
+                          }
+                        >
+                          Delete
+                        </button>
+                      </div>
+                      <label>Label</label>
                       <input
-                        className="inline-input"
-                        value={evidence.id}
-                        onChange={(event) => {
-                          const nextId = event.target.value.trim();
-                          if (!nextId || nextId === evidence.id) return;
+                        value={evidence.label}
+                        onChange={(event) =>
                           updateSelectedScene(
                             (scene) => {
-                              if (scene.evidence.some((item) => item.id === nextId)) {
-                                return;
-                              }
-                              renameEvidenceId(scene, evidence.id, nextId);
+                              const target = scene.evidence.find((item) => item.id === evidence.id);
+                              if (!target) return;
+                              target.label = event.target.value;
                             },
                             { replaceHistory: true }
-                          );
-                        }}
-                      />
-                      <button
-                        className="danger"
-                        onClick={() =>
-                          updateSelectedScene(
-                            (scene) => {
-                              removeEvidenceId(scene, evidence.id);
-                            },
-                            { replaceHistory: false }
                           )
                         }
-                      >
-                        Delete
-                      </button>
+                      />
+                      <label>Description</label>
+                      <textarea
+                        className="compact"
+                        value={evidence.description}
+                        onChange={(event) =>
+                          updateSelectedScene(
+                            (scene) => {
+                              const target = scene.evidence.find((item) => item.id === evidence.id);
+                              if (!target) return;
+                              target.description = event.target.value;
+                            },
+                            { replaceHistory: true }
+                          )
+                        }
+                      />
                     </div>
-                    <label>Label</label>
-                    <input
-                      value={evidence.label}
-                      onChange={(event) =>
+                  ))}
+                  <div className="row">
+                    <button
+                      className="secondary"
+                      onClick={() =>
                         updateSelectedScene(
                           (scene) => {
-                            const target = scene.evidence.find((item) => item.id === evidence.id);
-                            if (!target) return;
-                            target.label = event.target.value;
+                            const existing = new Set(scene.evidence.map((item) => item.id));
+                            const newId = getUniqueId(existing, `${scene.id}_evidence_`);
+                            scene.evidence.push({
+                              id: newId,
+                              label: 'Nouvel indice',
+                              description: ''
+                            });
                           },
-                          { replaceHistory: true }
+                          { replaceHistory: false }
                         )
                       }
-                    />
-                    <label>Description</label>
-                    <textarea
-                      className="compact"
-                      value={evidence.description}
-                      onChange={(event) =>
-                        updateSelectedScene(
-                          (scene) => {
-                            const target = scene.evidence.find((item) => item.id === evidence.id);
-                            if (!target) return;
-                            target.description = event.target.value;
-                          },
-                          { replaceHistory: true }
-                        )
-                      }
-                    />
+                    >
+                      Add evidence
+                    </button>
                   </div>
-                ))}
-                <div className="row">
-                  <button
-                    className="secondary"
-                    onClick={() =>
-                      updateSelectedScene(
-                        (scene) => {
-                          const existing = new Set(scene.evidence.map((item) => item.id));
-                          const newId = getUniqueId(existing, `${scene.id}_evidence_`);
-                          scene.evidence.push({
-                            id: newId,
-                            label: 'Nouvel indice',
-                            description: ''
-                          });
-                        },
-                        { replaceHistory: false }
-                      )
-                    }
-                  >
-                    Add evidence
-                  </button>
                 </div>
-              </div>
+              ) : null}
 
-              {selectedScene.mode === 'combat' ? (
+              {selectedSceneIsEnding ? (
+                <div className="panel-section">
+                  <div className="small">Ending scenes have no action choices or scene steps.</div>
+                </div>
+              ) : selectedScene.mode === 'combat' ? (
                 <div className="panel-section">
                   <div className="small">Combat scenes use shared combat actions instead of scene steps.</div>
                 </div>
@@ -2867,12 +2987,13 @@ export default function App() {
                 </div>
               )}
 
-              <div className="panel-section">
-                <h2>Decisions</h2>
+              {!selectedSceneIsEnding ? (
+                <div className="panel-section">
+                  <h2>Decisions</h2>
                 {selectedScene.options.map((option) => (
                   <div key={option.id} className="editor-card">
                     <div className="row">
-                      <span className="badge">Option {option.id}</span>
+                      <span className="badge">{formatSceneOptionLabel(option.id, selectedScene)}</span>
                       <label className="checkbox-row">
                         <input
                           type="checkbox"
@@ -3079,10 +3200,12 @@ export default function App() {
                     </div>
                   </div>
                 ))}
-              </div>
+                </div>
+              ) : null}
 
-              <div className="panel-section">
-                <h2>Unlock Rules</h2>
+              {!selectedSceneIsEnding ? (
+                <div className="panel-section">
+                  <h2>Unlock Rules</h2>
                 {selectedScene.unlockRules.map((rule, index) => (
                   <div key={`unlock-${index}`} className="editor-card">
                     <div className="row">
@@ -3101,7 +3224,7 @@ export default function App() {
                       >
                         {OPTION_IDS.map((optionId) => (
                           <option key={optionId} value={optionId}>
-                            Option {optionId}
+                            {formatSceneOptionLabel(optionId, selectedScene)}
                           </option>
                         ))}
                       </select>
@@ -3151,16 +3274,21 @@ export default function App() {
                     Add unlock rule
                   </button>
                 </div>
-              </div>
+                </div>
+              ) : null}
 
-              <div className="panel-section">
-                <h2>Decision Outcomes</h2>
+              {!selectedSceneIsEnding ? (
+                <div className="panel-section">
+                  <h2>Decision Outcomes</h2>
+                {isCombatSceneEditor(selectedScene) ? (
+                  <div className="small">Combat mapping: Win = A, Lose = B, Run = C.</div>
+                ) : null}
                 {OPTION_IDS.map((optionId) => {
                   const outcome = selectedScene.outcomeByOption[optionId] ?? { text: '' };
                   return (
                     <div key={`outcome-${optionId}`} className="editor-card">
                       <div className="row">
-                        <span className="badge">Option {optionId}</span>
+                        <span className="badge">{formatSceneOptionLabel(optionId, selectedScene)}</span>
                       </div>
                       <label>Outcome text</label>
                       <textarea
@@ -3200,7 +3328,8 @@ export default function App() {
                     </div>
                   );
                 })}
-              </div>
+                </div>
+              ) : null}
 
               <div className="panel-section">
                 <label>Scene JSON</label>

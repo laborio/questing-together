@@ -6,10 +6,12 @@ to keep GPT prompts small and consistent.
 
 Recommended workflow
 1) Update `world-brief.md` if the setting or tone changes.
-2) Update `story-map.json` to match your intended branching.
-3) Write or edit one scene at a time (see `scene-template.json`).
-4) Paste the resulting scene into the runtime JSON or build script (later).
-5) Run `npx tsx scripts/validate-story.ts`.
+2) Write or edit scene content (see `scene-template.json`).
+3) Update `src/story/story-data.json` (full story or scene-by-scene).
+4) Regenerate `story-map.json` from runtime data:
+   - `npx tsx scripts/generate-story-map.ts`
+5) Run validation:
+   - `npx tsx scripts/validate-story.ts`
 
 Generate the story map automatically:
 - `npx tsx scripts/generate-story-map.ts`
@@ -17,5 +19,5 @@ Generate the story map automatically:
 Notes
 - `world-brief.md`, `mechanics-brief.md`, and `style-guide.md` should always be
   included in GPT prompts.
-- For small edits, only include the target scene + `story-map.json` so GPT
-  can keep IDs consistent without reading the whole story.
+- For small edits, include target scene JSON + `story-map.json` + these briefs.
+- `story-map.json` is a planning view, not the runtime source of truth.

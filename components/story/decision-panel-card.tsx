@@ -20,6 +20,7 @@ type SceneActionChoice = {
 };
 
 type DecisionPanelCardProps = {
+  isEndingScene?: boolean;
   isCombatScene: boolean;
   isTimedScene: boolean;
   combatState: {
@@ -58,6 +59,7 @@ type DecisionPanelCardProps = {
   timedEndsAt: string | null;
   timedStatusText: string | null;
   timedAllowEarly: boolean;
+  timedWaitingText: string | null;
   onConfirmOption: (optionId: OptionId) => void;
   onContinueToNextScene: () => void;
   onFinishTimedScene: () => void;
@@ -69,6 +71,7 @@ type DecisionPanelCardProps = {
 type TabId = 'actions' | 'decisions';
 
 export function DecisionPanelCard({
+  isEndingScene = false,
   isCombatScene,
   isTimedScene,
   combatState,
@@ -98,6 +101,7 @@ export function DecisionPanelCard({
   timedEndsAt,
   timedStatusText,
   timedAllowEarly,
+  timedWaitingText,
   onConfirmOption,
   onContinueToNextScene,
   onFinishTimedScene,
@@ -134,37 +138,32 @@ export function DecisionPanelCard({
     }
   }, [isStoryEnded, isTimedScene, localConfirmedOption, resolvedOption]);
 
+  const endingContent = (
+    <View style={styles.endingWrap}>
+      <Text style={styles.endingText}>Fin.</Text>
+      {canResetStory ? (
+        <Pressable onPress={onResetStory} style={styles.textureButton}>
+          <ImageBackground
+            source={buttonTextureSelected}
+            style={styles.textureBg}
+            imageStyle={styles.textureImage}
+            resizeMode="stretch"
+          >
+            <Text style={styles.textureText}>Recommencer l&apos;aventure</Text>
+          </ImageBackground>
+        </Pressable>
+      ) : (
+        <Text style={styles.waitingText}>En attente de l&apos;hote pour recommencer.</Text>
+      )}
+    </View>
+  );
+
   if (embedded) {
+    if (isEndingScene) {
+      return <View style={styles.journalCard}>{endingContent}</View>;
+    }
     return (
       <View style={styles.journalCard}>
-        {isTimedScene ? (
-          <TimedStatusCard
-            label={phaseLabel}
-            endAt={timedEndsAt}
-            statusText={timedStatusText ?? statusText}
-            allowEarly={timedAllowEarly}
-            onFinishEarly={onFinishTimedScene}
-            embedded
-          />
-        ) : null}
-
-        {isCombatScene ? (
-          combatState ? (
-            <CombatStatusCard
-              combatState={combatState}
-              combatLog={combatLog}
-              resolvedOption={resolvedOption}
-              localHasContinued={localHasContinued}
-              continuedCount={continuedCount}
-              expectedPlayerCount={expectedPlayerCount}
-              onContinueToNextScene={onContinueToNextScene}
-              embedded
-            />
-          ) : (
-            <Text style={styles.loadingText}>Loading combat...</Text>
-          )
-        ) : null}
-
         <Text style={styles.journalPrompt}>What do you do?</Text>
         <View style={styles.buttonStack}>
           {actions.map((action) => {
@@ -214,77 +213,97 @@ export function DecisionPanelCard({
           ) : null}
         </View>
 
-        <View style={styles.promptSpacer} />
-        <Text style={styles.journalPrompt}>What does your party decide?</Text>
+        {isCombatScene ? null : isTimedScene ? (
+          <>
+            <View style={styles.promptSpacer} />
+            <TimedStatusCard
+              label={phaseLabel}
+              endAt={timedEndsAt}
+              statusText={timedWaitingText ?? 'Le groupe attend....'}
+              statusStyle="journal"
+              timePrefix="Temps restant"
+              showTime={false}
+              showFinishButton={false}
+              allowEarly={timedAllowEarly}
+              onFinishEarly={onFinishTimedScene}
+              embedded
+            />
+          </>
+        ) : (
+          <>
+            <View style={styles.promptSpacer} />
+            <Text style={styles.journalPrompt}>What does your party decide?</Text>
 
-        {!canVote ? <Text style={styles.voteLockedText}>{voteLockReason ?? 'Voting locked.'}</Text> : null}
+            {!canVote ? <Text style={styles.voteLockedText}>{voteLockReason ?? 'Voting locked.'}</Text> : null}
 
-        <View style={styles.buttonStack}>
-          {visibleOptions.map((option) => {
-            const isSelected = option.id === draftOptionId;
-            const isResolved = resolvedOption === option.id;
-            const isDisabled = Boolean(resolvedOption) || Boolean(localConfirmedOption) || !canVote;
+            <View style={styles.buttonStack}>
+              {visibleOptions.map((option) => {
+                const isSelected = option.id === draftOptionId;
+                const isResolved = resolvedOption === option.id;
+                const isDisabled = Boolean(resolvedOption) || Boolean(localConfirmedOption) || !canVote;
 
-            return (
+                return (
+                  <Pressable
+                    key={option.id}
+                    disabled={isDisabled}
+                    onPress={() => setDraftOptionId(option.id)}
+                    style={[
+                      styles.textureButton,
+                      isSelected && styles.textureButtonSelected,
+                      isResolved && styles.textureButtonResolved,
+                      isDisabled && !isResolved && styles.textureButtonDisabled,
+                    ]}>
+                    <ImageBackground
+                      source={isDisabled ? buttonTextureDisabled : isSelected || isResolved ? buttonTextureSelected : buttonTexture}
+                      style={styles.textureBg}
+                      imageStyle={styles.textureImage}
+                      resizeMode="stretch"
+                    >
+                      <Text style={styles.textureText}>{option.text}</Text>
+                    </ImageBackground>
+                  </Pressable>
+                );
+              })}
+              {Array.from({ length: hiddenOptionCount }).map((_, index) => (
+                <View key={`hidden-${index}`} style={[styles.textureButton, styles.textureButtonDisabled]}>
+                  <ImageBackground
+                    source={buttonTextureDisabled}
+                    style={styles.textureBg}
+                    imageStyle={styles.textureImage}
+                    resizeMode="stretch"
+                  >
+                    <Text style={styles.textureText}>????</Text>
+                  </ImageBackground>
+                </View>
+              ))}
+            </View>
+
+            <Text style={styles.confirmedVotesText}>
+              Confirmed votes: {confirmedVoteCount}/{expectedPlayerCount}
+            </Text>
+
+            {resolvedOption ? (
+              <Text style={styles.waitingText}>
+                Advancing when party confirmations are synced ({continuedCount}/{expectedPlayerCount}).
+              </Text>
+            ) : localConfirmedOption ? (
+              <Text style={styles.waitingText}>Vote locked. Waiting for other players to confirm.</Text>
+            ) : (
               <Pressable
-                key={option.id}
-                disabled={isDisabled}
-                onPress={() => setDraftOptionId(option.id)}
-                style={[
-                  styles.textureButton,
-                  isSelected && styles.textureButtonSelected,
-                  isResolved && styles.textureButtonResolved,
-                  isDisabled && !isResolved && styles.textureButtonDisabled,
-                ]}>
+                disabled={!draftOptionId || !canVote}
+                onPress={() => draftOptionId && onConfirmOption(draftOptionId)}
+                style={[styles.textureButton, (!draftOptionId || !canVote) && styles.textureButtonDisabled]}>
                 <ImageBackground
-                  source={isDisabled ? buttonTextureDisabled : isSelected || isResolved ? buttonTextureSelected : buttonTexture}
+                  source={!draftOptionId || !canVote ? buttonTextureDisabled : buttonTextureSelected}
                   style={styles.textureBg}
                   imageStyle={styles.textureImage}
                   resizeMode="stretch"
                 >
-                  <Text style={styles.textureText}>{option.text}</Text>
+                  <Text style={styles.textureText}>Confirm choice</Text>
                 </ImageBackground>
               </Pressable>
-            );
-          })}
-          {Array.from({ length: hiddenOptionCount }).map((_, index) => (
-            <View key={`hidden-${index}`} style={[styles.textureButton, styles.textureButtonDisabled]}>
-              <ImageBackground
-                source={buttonTextureDisabled}
-                style={styles.textureBg}
-                imageStyle={styles.textureImage}
-                resizeMode="stretch"
-              >
-                <Text style={styles.textureText}>????</Text>
-              </ImageBackground>
-            </View>
-          ))}
-        </View>
-
-        <Text style={styles.confirmedVotesText}>
-          Confirmed votes: {confirmedVoteCount}/{expectedPlayerCount}
-        </Text>
-
-        {resolvedOption ? (
-          <Text style={styles.waitingText}>
-            Advancing when party confirmations are synced ({continuedCount}/{expectedPlayerCount}).
-          </Text>
-        ) : localConfirmedOption ? (
-          <Text style={styles.waitingText}>Vote locked. Waiting for other players to confirm.</Text>
-        ) : (
-          <Pressable
-            disabled={!draftOptionId || !canVote}
-            onPress={() => draftOptionId && onConfirmOption(draftOptionId)}
-            style={[styles.textureButton, (!draftOptionId || !canVote) && styles.textureButtonDisabled]}>
-            <ImageBackground
-              source={!draftOptionId || !canVote ? buttonTextureDisabled : buttonTextureSelected}
-              style={styles.textureBg}
-              imageStyle={styles.textureImage}
-              resizeMode="stretch"
-            >
-              <Text style={styles.textureText}>Confirm choice</Text>
-            </ImageBackground>
-          </Pressable>
+            )}
+          </>
         )}
       </View>
     );
@@ -294,7 +313,7 @@ export function DecisionPanelCard({
     <View style={[styles.card, embedded && styles.embeddedCard]}>
       {!embedded ? <Text style={styles.sectionTitle}>Decision Panel</Text> : null}
 
-      {!isTimedScene ? (
+      {!isTimedScene && !isEndingScene ? (
         <View style={styles.tabsRow}>
           <Pressable
             onPress={() => setActiveTab('actions')}
@@ -312,7 +331,9 @@ export function DecisionPanelCard({
       ) : null}
 
       <View style={styles.content}>
-        {isTimedScene ? (
+        {isEndingScene ? (
+          endingContent
+        ) : isTimedScene ? (
           <>
           <SceneActionsCard
             phaseLabel={phaseLabel}
@@ -329,6 +350,8 @@ export function DecisionPanelCard({
             label={phaseLabel}
             endAt={timedEndsAt}
             statusText={timedStatusText ?? statusText}
+            showTime={false}
+            showFinishButton={false}
             allowEarly={timedAllowEarly}
             onFinishEarly={onFinishTimedScene}
             embedded={embedded}
@@ -352,10 +375,6 @@ export function DecisionPanelCard({
             combatState={combatState}
             combatLog={combatLog}
             resolvedOption={resolvedOption}
-            localHasContinued={localHasContinued}
-            continuedCount={continuedCount}
-            expectedPlayerCount={expectedPlayerCount}
-            onContinueToNextScene={onContinueToNextScene}
             embedded={embedded}
           />
         ) : (
@@ -447,6 +466,19 @@ const styles = StyleSheet.create({
   journalCard: {
     gap: 14,
     paddingTop: 6,
+  },
+  endingWrap: {
+    gap: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 10,
+  },
+  endingText: {
+    fontSize: 24,
+    color: '#47332a',
+    textAlign: 'center',
+    fontFamily: 'Besley',
+    fontWeight: '700',
   },
   journalPrompt: {
     fontSize: 16,

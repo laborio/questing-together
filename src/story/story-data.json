@@ -1,9 +1,9 @@
 {
-  "version": 3,
+  "version": 1,
   "startSceneId": "scene_1",
   "meta": {
-    "title": "Les Bannieres Noires",
-    "theme": "fantasy sombre, intrigue et choix moraux"
+    "title": "Le Serment de la Haute Citadelle",
+    "theme": "fantasy médiéval, thriller politique, menace extérieure et secret d'État"
   },
   "combat": {
     "partyHp": 30,
@@ -97,10 +97,35 @@
   "scenes": [
     {
       "id": "scene_1",
-      "title": "Scene 1 - La rencontre ",
-      "canonicalTruth": "Verite interne a definir.",
-      "intro": "Après avoir marché 4 heures dans la forêt, le groupe arrive à un embranchement. A la croisée des deux chemin, un homme attend, debout, l'air endormi. ",
-      "evidence": [],
+      "title": "Recrutement à Aurhélion",
+      "canonicalTruth": "Vous êtes recrutés comme gardes d'élite sous prétexte de guerre. Quelque chose est tenu secret.",
+      "meta": {
+        "eventType": "rencontre"
+      },
+      "intro": "Dans une salle froide du palais administratif, un capitaine en armure sombre vous observe comme on évalue des outils coûteux. Au dehors, des messagers courent: la frontière nord s'embrase. On vous propose un poste prestigieux à la Haute Citadelle, avec serment immédiat.",
+      "introDialogue": [
+        {
+          "speaker": "Capitaine Varos",
+          "text": "Vous vouliez servir? Parfait. Le royaume renforce la garde intérieure. Vous signez, vous montez, vous tenez votre poste."
+        },
+        {
+          "speaker": "Scribe",
+          "text": "Solde doublée. Hébergement. Et surtout… discrétion.",
+          "aside": "Le scribe évite votre regard."
+        }
+      ],
+      "evidence": [
+        {
+          "id": "ev_clause_confinement",
+          "label": "Clause 'confinement'",
+          "description": "Le contrat mentionne un confinement et un transfert. Ce n'est pas un simple poste de garde."
+        },
+        {
+          "id": "ev_observateur_gris",
+          "label": "Observateur en manteau gris",
+          "description": "Un inconnu surveille déjà vos premiers pas. Possible faction interne."
+        }
+      ],
       "steps": [
         {
           "id": "scene_1_step1",
@@ -108,68 +133,137 @@
             {
               "id": "scene_1_warrior_1",
               "role": "warrior",
-              "text": "Bordel, il est dégeulasse ce saucisson !",
-              "stage": "Jette son saucisson par terre, l'air énervé.",
-              "narration": "Le saucisson se fracasse contre les pierres du sentier. Un parasite répugnant s'en enfuit.",
-              "buttonText": "\"Bordel, il est dégeulasse ce saucisson !\""
-            },
-            {
-              "id": "scene_1_sage_1",
-              "role": "sage",
-              "text": "Action du sage.",
-              "stage": "observe et decide."
-            },
-            {
-              "id": "scene_1_ranger_1",
-              "role": "ranger",
-              "text": "Action du ranger.",
-              "stage": "se deplace en silence."
+              "text": "Accepter sans discuter.",
+              "stage": "Hoche la tête, pose sa main sur la garde de son épée.",
+              "narration": "Le capitaine note votre assurance."
             },
             {
               "id": "scene_1_warrior_2",
               "role": "warrior",
-              "text": "7 ! Enfin je crois....",
-              "stage": "Un air intéressé apparait sur le visage du guerrier.",
-              "buttonText": "Compter ses doigts de pied"
+              "text": "Exiger de savoir ce qu'on garde exactement.",
+              "stage": "Croise les bras, regard fixe.",
+              "narration": "Le silence s'étire. Vous venez de mettre un pied sur une ligne invisible.",
+              "buttonText": "Demander le vrai motif"
+            },
+            {
+              "id": "scene_1_warrior_3",
+              "role": "warrior",
+              "text": "Briser le sceau de cire sur le dossier posé sur la table.",
+              "stage": "Craque le sceau d'un geste sec.",
+              "narration": "Le scribe pâlit. Le capitaine plisse les yeux. Oui, c'était un sceau officiel. Non, vous n'aviez pas le droit."
+            },
+            {
+              "id": "scene_1_sage_1",
+              "role": "sage",
+              "text": "Observer les mots-clés et les omissions.",
+              "stage": "Lit entre les lignes, repère les termes juridiques.",
+              "narration": "Vous repérez une clause: 'transfert' et 'confinement'."
+            },
+            {
+              "id": "scene_1_ranger_1",
+              "role": "ranger",
+              "text": "Scanner la pièce: qui écoute?",
+              "stage": "Regarde les ombres, les portes, les gardes.",
+              "narration": "Vous repérez un homme en manteau gris qui vous observe… puis disparaît."
             }
           ],
           "outcomes": {
             "scene_1_warrior_1": {
-              "narration": "Fin de narration. ",
+              "narration": "Vous prêtez serment. Varos semble satisfait.",
               "dialogue": [
                 {
-                  "speaker": "Paladin Baldour",
-                  "text": "Je vous en prie soyez poli !",
-                  "aside": "Recule d'un pas.",
-                  "narration": "Les oiseaux dans les arbres aux alentours d'envolent."
+                  "speaker": "Capitaine Varos",
+                  "text": "Bien. Vous n'êtes pas ici pour penser à la place des officiers."
                 }
               ],
               "unlockOptionIds": [
-                "B"
-              ]
-            },
-            "scene_1_sage_1": {
-              "narration": "Le groupe enregistre ce choix."
-            },
-            "scene_1_ranger_1": {
-              "narration": "Le groupe enregistre ce choix.",
-              "unlockOptionIds": [
-                "C"
-              ]
+                "A"
+              ],
+              "tagsAdded": {
+                "global": [
+                  "loyalty_up"
+                ]
+              }
             },
             "scene_1_warrior_2": {
-              "narration": "Un froid glacial s'installe.",
+              "narration": "Varos retient un soupir. Le scribe gratte sa plume trop vite.",
               "dialogue": [
                 {
-                  "speaker": "Paladin Baldour",
-                  "text": "Ohlala, c'est pas brillant...",
-                  "aside": "Baille."
+                  "speaker": "Capitaine Varos",
+                  "text": "Ce que vous gardez n'a pas besoin de votre opinion. Seulement de votre présence."
+                },
+                {
+                  "speaker": "Scribe",
+                  "text": "Note: 'recrue… curieuse'.",
+                  "aside": "Chuchote en écrivant."
                 }
               ],
               "unlockOptionIds": [
+                "A"
+              ],
+              "tagsAdded": {
+                "global": [
+                  "suspicion_up"
+                ]
+              }
+            },
+            "scene_1_warrior_3": {
+              "narration": "Le dossier révèle un mot: 'CONTAINER'. Puis le capitaine referme violemment le dossier.",
+              "dialogue": [
+                {
+                  "speaker": "Capitaine Varos",
+                  "text": "Vous venez d'apprendre une chose: ici, on ne touche pas."
+                },
+                {
+                  "speaker": "Scribe",
+                  "text": "…je peux recoller le sceau? Non? D'accord.",
+                  "aside": "Il range sa cire, dépité."
+                }
+              ],
+              "unlockOptionIds": [
+                "A",
+                "C",
+                "B"
+              ],
+              "tagsAdded": {
+                "global": [
+                  "suspicion_up",
+                  "truth_hint"
+                ]
+              },
+              "hpDelta": -1
+            },
+            "scene_1_sage_1": {
+              "narration": "Vous captez 'transfert' et 'confinement' : ce n'est pas un simple trésor.",
+              "evidenceIds": [
+                "ev_clause_confinement"
+              ],
+              "unlockOptionIds": [
+                "A",
+                "B",
                 "C"
               ],
-              "hpDelta": -1
+              "tagsAdded": {
+                "global": [
+                  "truth_hint"
+                ]
+              }
+            },
+            "scene_1_ranger_1": {
+              "narration": "Quelqu'un vous surveille déjà. La Citadelle n'attend pas votre arrivée pour jouer.",
+              "evidenceIds": [
+                "ev_observateur_gris"
+              ],
+              "unlockOptionIds": [
+                "A",
+                "B",
+                "C"
+              ],
+              "tagsAdded": {
+                "global": [
+                  "faction_possible"
+                ]
+              }
             }
           }
         }
@@ -177,7 +271,7 @@
       "options": [
         {
           "id": "A",
-          "text": "Demander au paladin ce qu'il fait là.",
+          "text": "Monter vers la Haute Citadelle.",
           "defaultVisible": true,
           "next": [
             {
@@ -187,7 +281,2179 @@
         },
         {
           "id": "B",
-          "text": "Marcher un peu vite pour le semer.",
+          "text": "(Verrouillé) Tenter de refuser.",
+          "defaultVisible": false,
+          "isRisky": true,
+          "next": [
+            {
+              "to": "scene_fail_refus"
+            }
+          ]
+        },
+        {
+          "id": "C",
+          "text": "Traquer l'homme en manteau gris.",
+          "defaultVisible": false,
+          "next": [
+            {
+              "to": "scene_8",
+              "ifGlobal": {
+                "any": [
+                  "faction_possible"
+                ]
+              }
+            }
+          ],
+          "tagsAdded": {
+            "global": [
+              "faction_tracked"
+            ]
+          }
+        }
+      ],
+      "unlockRules": [],
+      "outcomeByOption": {
+        "A": {
+          "text": "Vous quittez la salle avec votre ordre de mission."
+        },
+        "B": {
+          "text": "Vous essayez de refuser. Mauvaise idée.",
+          "hpDelta": -2
+        },
+        "C": {
+          "text": "Vous décidez de garder un œil sur les ombres."
+        }
+      }
+    },
+    {
+      "id": "scene_2",
+      "title": "Route vers Aurhélion — montée à la Citadelle",
+      "canonicalTruth": "La menace de Varketh est réelle. Le voyage vous expose aux rumeurs et aux éclaireurs.",
+      "meta": {
+        "eventType": "repos/voyage"
+      },
+      "mode": "timed",
+      "timed": {
+        "kind": "travel",
+        "durationSeconds": 15,
+        "allowEarly": true,
+        "statusText": "Vous glandez.",
+        "restWaitingText": "Le groupe entame sa montée vers la citadelle et vous fera savoir quand il est arrivé..."
+      },
+      "intro": "Vous grimpez les lacets menant à la Haute Citadelle. En contrebas, la ville bruisse. Plus haut, le vent apporte une odeur de fumée lointaine. Un vétéran croise votre groupe et lâche, comme une blague trop vieille: « On ne garde pas une arme. On garde un silence. »",
+      "introDialogue": [
+        {
+          "speaker": "Vétéran",
+          "text": "Les nouveaux? Profitez du panorama. Après, vous ne regarderez plus que les portes.",
+          "aside": "Ricane sans joie."
+        }
+      ],
+      "evidence": [
+        {
+          "id": "ev_rumeur_silence",
+          "label": "Rumeur: 'on garde un silence'",
+          "description": "Un vétéran insinue que la mission cache quelque chose de non-dit."
+        },
+        {
+          "id": "ev_marque_varketh",
+          "label": "Marque de Varketh",
+          "description": "Un marquage ennemi sur des caisses confisquées. Varketh est déjà proche."
+        },
+        {
+          "id": "ev_eclaireurs",
+          "label": "Éclaireurs repérés",
+          "description": "Une présence furtive sur les toits: Varketh observe la Citadelle."
+        }
+      ],
+      "steps": [
+        {
+          "id": "scene_2_step1",
+          "actions": [
+            {
+              "id": "scene_2_warrior_1",
+              "role": "warrior",
+              "text": "Parler au vétéran et le pousser à préciser.",
+              "stage": "S'approche, ton ferme."
+            },
+            {
+              "id": "scene_2_sage_1",
+              "role": "sage",
+              "text": "Noter les sigles militaires sur les caisses qui montent aussi.",
+              "stage": "Observe les convois."
+            },
+            {
+              "id": "scene_2_ranger_1",
+              "role": "ranger",
+              "text": "Repérer les points d'embuscade sur la route.",
+              "stage": "Scrute les hauteurs et les toits."
+            }
+          ],
+          "outcomes": {
+            "scene_2_warrior_1": {
+              "narration": "Le vétéran hésite, puis lâche un morceau.",
+              "dialogue": [
+                {
+                  "speaker": "Vétéran",
+                  "text": "J'ai vu des gardes qui revenaient… sans souvenirs. Ou sans yeux. J'ai arrêté de poser des questions."
+                }
+              ],
+              "evidenceIds": [
+                "ev_rumeur_silence"
+              ],
+              "unlockOptionIds": [
+                "A",
+                "B"
+              ],
+              "tagsAdded": {
+                "global": [
+                  "external_pressure"
+                ]
+              }
+            },
+            "scene_2_sage_1": {
+              "narration": "Vous repérez un marquage de Varketh sur une caisse confisquée. L'ennemi est déjà proche.",
+              "evidenceIds": [
+                "ev_marque_varketh"
+              ],
+              "unlockOptionIds": [
+                "A",
+                "B"
+              ],
+              "tagsAdded": {
+                "global": [
+                  "external_pressure",
+                  "varketh_near"
+                ]
+              }
+            },
+            "scene_2_ranger_1": {
+              "narration": "Vous voyez un éclat métallique sur un toit… puis plus rien. Des éclaireurs.",
+              "evidenceIds": [
+                "ev_eclaireurs"
+              ],
+              "unlockOptionIds": [
+                "A",
+                "C"
+              ],
+              "tagsAdded": {
+                "global": [
+                  "scout_attack"
+                ]
+              }
+            }
+          }
+        }
+      ],
+      "options": [
+        {
+          "id": "A",
+          "text": "Continuer jusqu'à la porte intérieure.",
+          "defaultVisible": true,
+          "next": [
+            {
+              "to": "scene_3",
+              "ifGlobal": {
+                "any": [
+                  "scout_attack"
+                ]
+              }
+            },
+            {
+              "to": "scene_4"
+            }
+          ]
+        },
+        {
+          "id": "B",
+          "text": "Faire un détour par le dépôt militaire (prendre des infos).",
+          "defaultVisible": false,
+          "next": [
+            {
+              "to": "scene_4"
+            }
+          ],
+          "tagsAdded": {
+            "global": [
+              "logistics_seen"
+            ]
+          }
+        },
+        {
+          "id": "C",
+          "text": "Suivre discrètement l'ombre sur le toit.",
+          "defaultVisible": false,
+          "isRisky": true,
+          "next": [
+            {
+              "to": "scene_3"
+            }
+          ]
+        }
+      ],
+      "unlockRules": [],
+      "outcomeByOption": {
+        "A": {
+          "text": "Vous approchez des portes de la Citadelle."
+        },
+        "B": {
+          "text": "Vous prenez quelques minutes pour écouter les conversations des soldats."
+        },
+        "C": {
+          "text": "Vous changez de trajectoire, en mode chasse."
+        }
+      }
+    },
+    {
+      "id": "scene_3",
+      "title": "Embuscade d'éclaireurs",
+      "canonicalTruth": "Varketh teste vos défenses. L'attaque est petite mais révélatrice.",
+      "meta": {
+        "eventType": "combat"
+      },
+      "mode": "combat",
+      "combat": {
+        "enemyName": "Éclaireurs de Varketh",
+        "enemyHp": 18,
+        "enemyAttack": 5,
+        "allowRun": true
+      },
+      "intro": "Trois silhouettes surgissent dans la brume du matin. Trop disciplinées pour être des brigands. Un sifflement, puis une flèche se plante près de vos pieds: un avertissement… ou une provocation.",
+      "introDialogue": [
+        {
+          "speaker": "Chef éclaireur",
+          "text": "Aurhélion recrute vite. Ça sent la peur.",
+          "aside": "Il sourit comme s'il connaissait déjà la fin."
+        }
+      ],
+      "evidence": [
+        {
+          "id": "ev_methode_varketh",
+          "label": "Méthode de Varketh",
+          "description": "Ils testent les défenses plus qu'ils ne cherchent à piller."
+        },
+        {
+          "id": "ev_sortie_cachee",
+          "label": "Sortie cachée",
+          "description": "Un itinéraire discret existe en contrebas des remparts. Utile pour fuir ou infiltrer."
+        }
+      ],
+      "steps": [
+        {
+          "id": "scene_3_step1",
+          "actions": [
+            {
+              "id": "scene_3_warrior_1",
+              "role": "warrior",
+              "text": "Se mettre en avant pour protéger le groupe.",
+              "stage": "Bouclier haut, avance."
+            },
+            {
+              "id": "scene_3_sage_1",
+              "role": "sage",
+              "text": "Analyser leur tactique plutôt que leur bravoure.",
+              "stage": "Regarde les angles, les retraites."
+            },
+            {
+              "id": "scene_3_ranger_1",
+              "role": "ranger",
+              "text": "Chercher leur point de sortie.",
+              "stage": "Suit les traces et les regards."
+            }
+          ],
+          "outcomes": {
+            "scene_3_warrior_1": {
+              "narration": "Vous imposez votre présence. Ils hésitent une demi-seconde. C'est déjà gagné.",
+              "unlockOptionIds": [
+                "A"
+              ],
+              "tagsAdded": {
+                "global": [
+                  "morale_up"
+                ]
+              }
+            },
+            "scene_3_sage_1": {
+              "narration": "Ils ne veulent pas vous tuer. Ils veulent savoir qui garde la Citadelle.",
+              "evidenceIds": [
+                "ev_methode_varketh"
+              ],
+              "unlockOptionIds": [
+                "A"
+              ],
+              "tagsAdded": {
+                "global": [
+                  "varketh_goal_unknown"
+                ]
+              }
+            },
+            "scene_3_ranger_1": {
+              "narration": "Vous repérez leur itinéraire de fuite. Utile si tout tourne mal plus tard.",
+              "evidenceIds": [
+                "ev_sortie_cachee"
+              ],
+              "unlockOptionIds": [
+                "A"
+              ],
+              "tagsAdded": {
+                "global": [
+                  "escape_route"
+                ]
+              }
+            }
+          }
+        }
+      ],
+      "options": [
+        {
+          "id": "A",
+          "text": "Reprendre la route vers la Citadelle.",
+          "defaultVisible": true,
+          "next": [
+            {
+              "to": "scene_4"
+            }
+          ]
+        },
+        {
+          "id": "B",
+          "text": "(Verrouillé) Les poursuivre dans les ruelles.",
+          "defaultVisible": false,
+          "isRisky": true,
+          "next": [
+            {
+              "to": "scene_fail_poursuite"
+            }
+          ]
+        },
+        {
+          "id": "C",
+          "text": "(Verrouillé) Battre en retraite.",
+          "defaultVisible": false,
+          "next": [
+            {
+              "to": "scene_fail_retraite"
+            }
+          ]
+        }
+      ],
+      "unlockRules": [],
+      "outcomeByOption": {
+        "A": {
+          "text": "Le sang sèche, le devoir continue."
+        },
+        "B": {
+          "text": "Vous choisissez la poursuite."
+        },
+        "C": {
+          "text": "Vous reculez. La Citadelle n'aime pas les reculs."
+        }
+      },
+      "intermissionText": "{scene}"
+    },
+    {
+      "id": "scene_4",
+      "title": "La Chambre du Sceau",
+      "canonicalTruth": "L'artefact n'est pas un objet: c'est une prison consciente. Quelqu'un prépare un transfert.",
+      "meta": {
+        "eventType": "observation"
+      },
+      "intro": "La porte intérieure se referme derrière vous avec un bruit de tombe. Varos vous mène au cœur de la Citadelle: une salle circulaire, runes au sol, air froid, et au centre… une sphère noire suspendue, immobile, qui pulse comme un cœur lent.",
+      "introDialogue": [
+        {
+          "speaker": "Capitaine Varos",
+          "text": "Votre poste: ici. Vous voyez, vous entendez, vous oubliez."
+        },
+        {
+          "speaker": "Sage",
+          "text": "Elle… respire.",
+          "aside": "Un murmure qu'il regrette aussitôt."
+        }
+      ],
+      "evidence": [
+        {
+          "id": "ev_entite_consciente",
+          "label": "Entité consciente",
+          "description": "La sphère réagit à votre présence comme un être vivant."
+        },
+        {
+          "id": "ev_traces_sabotage",
+          "label": "Traces de sabotage",
+          "description": "Des marques récentes sur une rune: quelqu'un a gratté, puis recouvert."
+        },
+        {
+          "id": "ev_mot_transfert",
+          "label": "Le mot 'transfert'",
+          "description": "Un registre de garde mentionne un transfert non annoncé."
+        }
+      ],
+      "steps": [
+        {
+          "id": "scene_4_step1",
+          "actions": [
+            {
+              "id": "scene_4_warrior_1",
+              "role": "warrior",
+              "text": "Questionner Varos frontalement.",
+              "stage": "Se tourne vers lui, sans baisser la voix."
+            },
+            {
+              "id": "scene_4_warrior_2",
+              "role": "warrior",
+              "text": "Tapoter la sphère avec le pommeau (test stupide, donc tentant).",
+              "stage": "S'approche. Très près.",
+              "narration": "Un frisson vous traverse. La sphère pulse une fois, plus fort."
+            },
+            {
+              "id": "scene_4_sage_1",
+              "role": "sage",
+              "text": "Lire les runes et détecter leur fonction.",
+              "stage": "Genou au sol, doigts sur la pierre."
+            },
+            {
+              "id": "scene_4_ranger_1",
+              "role": "ranger",
+              "text": "Inspecter la salle: entrées, cachettes, traces.",
+              "stage": "Tourne autour, silencieux."
+            }
+          ],
+          "outcomes": {
+            "scene_4_warrior_1": {
+              "narration": "Varos ne répond pas tout de suite. Ça en dit long.",
+              "dialogue": [
+                {
+                  "speaker": "Capitaine Varos",
+                  "text": "Ce n'est pas une 'sphère'. C'est un problème ancien. Et vous êtes payés pour qu'il reste ancien."
+                }
+              ],
+              "unlockOptionIds": [
+                "A",
+                "B"
+              ],
+              "tagsAdded": {
+                "global": [
+                  "suspicion_up"
+                ]
+              }
+            },
+            "scene_4_warrior_2": {
+              "narration": "La sphère réagit. Votre arme se couvre de givre. Varos fait un pas vers vous.",
+              "dialogue": [
+                {
+                  "speaker": "Capitaine Varos",
+                  "text": "Ne. Touchez. Pas."
+                },
+                {
+                  "speaker": "Scribe de garde",
+                  "text": "Je… je note: 'contact non autorisé'.",
+                  "aside": "Panique."
+                }
+              ],
+              "evidenceIds": [
+                "ev_entite_consciente"
+              ],
+              "unlockOptionIds": [
+                "A",
+                "B"
+              ],
+              "tagsAdded": {
+                "global": [
+                  "seal_unstable",
+                  "suspicion_up"
+                ]
+              },
+              "hpDelta": -1
+            },
+            "scene_4_sage_1": {
+              "narration": "Les runes ne protègent pas le royaume. Elles protègent le royaume… de ce qu'il a enfermé.",
+              "evidenceIds": [
+                "ev_entite_consciente"
+              ],
+              "unlockOptionIds": [
+                "A",
+                "B",
+                "C"
+              ],
+              "tagsAdded": {
+                "global": [
+                  "truth_hint"
+                ]
+              }
+            },
+            "scene_4_ranger_1": {
+              "narration": "Une rune a été retouchée récemment. Sabotage discret.",
+              "evidenceIds": [
+                "ev_traces_sabotage",
+                "ev_mot_transfert"
+              ],
+              "unlockOptionIds": [
+                "A",
+                "C"
+              ],
+              "tagsAdded": {
+                "global": [
+                  "faction_possible"
+                ]
+              }
+            }
+          }
+        }
+      ],
+      "options": [
+        {
+          "id": "A",
+          "text": "Rester dans le cadre officiel et prendre le premier tour de garde.",
+          "defaultVisible": true,
+          "next": [
+            {
+              "to": "scene_6"
+            }
+          ],
+          "tagsAdded": {
+            "global": [
+              "on_duty"
+            ]
+          }
+        },
+        {
+          "id": "B",
+          "text": "Demander une audience privée avec Varos (pression).",
+          "defaultVisible": false,
+          "isRisky": true,
+          "next": [
+            {
+              "to": "scene_fail_arrest",
+              "ifGlobal": {
+                "any": [
+                  "suspicion_up"
+                ]
+              }
+            },
+            {
+              "to": "scene_5"
+            }
+          ]
+        },
+        {
+          "id": "C",
+          "text": "Chercher discrètement les archives et les couloirs interdits.",
+          "defaultVisible": false,
+          "next": [
+            {
+              "to": "scene_5"
+            }
+          ],
+          "tagsAdded": {
+            "global": [
+              "investigate_archives"
+            ]
+          }
+        }
+      ],
+      "unlockRules": [],
+      "outcomeByOption": {
+        "A": {
+          "text": "Vous prenez votre poste, officiellement."
+        },
+        "B": {
+          "text": "Vous tentez d'obtenir la vérité par la force sociale."
+        },
+        "C": {
+          "text": "Vous choisissez l'ombre plutôt que le protocole."
+        }
+      }
+    },
+    {
+      "id": "scene_5",
+      "title": "Archives interdites",
+      "canonicalTruth": "La Citadelle dissimule un traité ancien. La guerre avec Varketh est liée à l'entité.",
+      "meta": {
+        "eventType": "observation"
+      },
+      "intro": "Couloirs étroits, torches basses. Vous trouvez une porte sans poignée, juste une rune. Le Sage murmure un mot, la rune s'efface. À l'intérieur, des registres et des traités scellés. Dans l'ombre, l'homme au manteau gris vous attend comme s'il avait toujours su que vous viendriez.",
+      "introDialogue": [
+        {
+          "speaker": "Homme au manteau gris",
+          "text": "Vous êtes rapides. Ou imprudents. Parfois c'est la même chose.",
+          "aside": "Sourire sec."
+        }
+      ],
+      "evidence": [
+        {
+          "id": "ev_traite_fondation",
+          "label": "Traité de fondation",
+          "description": "Un accord ancien lie Aurhélion, Varketh et le 'Sceau'."
+        },
+        {
+          "id": "ev_crime_etat",
+          "label": "Crime d'État",
+          "description": "Un passage évoque un massacre et une falsification de l'histoire."
+        },
+        {
+          "id": "ev_entite_temoins",
+          "label": "L'entité est un témoin",
+          "description": "Le texte suggère que la prison empêche une vérité de sortir."
+        }
+      ],
+      "steps": [
+        {
+          "id": "scene_5_step1",
+          "actions": [
+            {
+              "id": "scene_5_warrior_1",
+              "role": "warrior",
+              "text": "Coincer l'homme gris et exiger qui il est.",
+              "stage": "Bloque la sortie, ton menaçant."
+            },
+            {
+              "id": "scene_5_sage_1",
+              "role": "sage",
+              "text": "Lire le traité et résumer l'essentiel.",
+              "stage": "Feuillette vite, prend des notes mentales."
+            },
+            {
+              "id": "scene_5_ranger_1",
+              "role": "ranger",
+              "text": "Surveiller les couloirs et éviter d'être pris.",
+              "stage": "Reste près de la porte, écoute."
+            },
+            {
+              "id": "scene_5_any_1",
+              "role": "any",
+              "text": "Voler un document scellé (risqué).",
+              "stage": "Arrache un feuillet et le glisse sous la tunique."
+            }
+          ],
+          "outcomes": {
+            "scene_5_warrior_1": {
+              "narration": "Il lève les mains. Calme. Trop calme.",
+              "dialogue": [
+                {
+                  "speaker": "Homme au manteau gris",
+                  "text": "Appelez-moi Mael. Je veux empêcher un transfert. Le reste… dépend de vous."
+                }
+              ],
+              "unlockOptionIds": [
+                "A",
+                "B"
+              ],
+              "tagsAdded": {
+                "global": [
+                  "faction_contact"
+                ]
+              }
+            },
+            "scene_5_sage_1": {
+              "narration": "Vous comprenez: Varketh attaque parce qu'un transfert romprait un ancien équilibre — ou révélerait un mensonge.",
+              "evidenceIds": [
+                "ev_traite_fondation",
+                "ev_entite_temoins"
+              ],
+              "unlockOptionIds": [
+                "A",
+                "B",
+                "C"
+              ],
+              "tagsAdded": {
+                "global": [
+                  "truth_known"
+                ]
+              }
+            },
+            "scene_5_ranger_1": {
+              "narration": "Pas de pas, pas de voix… puis un cliquetis. Une patrouille arrive.",
+              "dialogue": [
+                {
+                  "speaker": "Ranger",
+                  "text": "On a de la compagnie.",
+                  "aside": "Très mauvais timing."
+                }
+              ],
+              "unlockOptionIds": [
+                "A",
+                "C"
+              ],
+              "tagsAdded": {
+                "global": [
+                  "patrol_near"
+                ]
+              }
+            },
+            "scene_5_any_1": {
+              "narration": "Le feuillet déchiré crisse. La rune de la porte se rallume: alarme silencieuse.",
+              "evidenceIds": [
+                "ev_crime_etat"
+              ],
+              "unlockOptionIds": [
+                "A"
+              ],
+              "tagsAdded": {
+                "global": [
+                  "suspicion_high",
+                  "truth_known"
+                ]
+              },
+              "hpDelta": -1
+            }
+          }
+        }
+      ],
+      "options": [
+        {
+          "id": "A",
+          "text": "Revenir au poste avant d'être repérés.",
+          "defaultVisible": true,
+          "next": [
+            {
+              "to": "scene_fail_arrest",
+              "ifGlobal": {
+                "any": [
+                  "suspicion_high",
+                  "patrol_near"
+                ]
+              }
+            },
+            {
+              "to": "scene_6"
+            }
+          ]
+        },
+        {
+          "id": "B",
+          "text": "Parler à Mael et accepter un contact pour plus tard.",
+          "defaultVisible": false,
+          "next": [
+            {
+              "to": "scene_6"
+            }
+          ],
+          "tagsAdded": {
+            "global": [
+              "faction_allied"
+            ]
+          }
+        },
+        {
+          "id": "C",
+          "text": "Se cacher et laisser passer la patrouille.",
+          "defaultVisible": false,
+          "next": [
+            {
+              "to": "scene_6"
+            }
+          ],
+          "tagsAdded": {
+            "global": [
+              "avoided_patrol"
+            ]
+          }
+        }
+      ],
+      "unlockRules": [],
+      "outcomeByOption": {
+        "A": {
+          "text": "Vous quittez les archives en retenant votre souffle."
+        },
+        "B": {
+          "text": "Vous acceptez un fil tendu dans l'ombre. Ça peut sauver… ou pendre."
+        },
+        "C": {
+          "text": "Vous faites corps avec la pierre jusqu'à ce que le danger passe."
+        }
+      }
+    },
+    {
+      "id": "scene_6",
+      "title": "Nuit de garde",
+      "canonicalTruth": "La nuit, la Citadelle craque. Sabotage et attaque approchent. Le transfert est imminent.",
+      "meta": {
+        "eventType": "repos/voyage"
+      },
+      "mode": "timed",
+      "timed": {
+        "kind": "rest",
+        "durationSeconds": 90,
+        "allowEarly": true,
+        "statusText": "Nuit de garde… la sphère pulse, la Citadelle grince, les ordres changent."
+      },
+      "intro": "La salle du Sceau est plus froide la nuit. La sphère pulse un peu plus fort, comme si elle comptait les minutes. Au loin, des cornes de guerre: Varketh se rapproche. Varos reçoit un message scellé, pâlit à peine, puis vous regarde.",
+      "introDialogue": [
+        {
+          "speaker": "Capitaine Varos",
+          "text": "Ordre du haut commandement: transfert à l'aube. Pas de débat.",
+          "aside": "Sa mâchoire se serre."
+        }
+      ],
+      "evidence": [
+        {
+          "id": "ev_ordre_transfert",
+          "label": "Ordre de transfert",
+          "description": "Le transfert est officiel et urgent. Il change la mission."
+        }
+      ],
+      "steps": [
+        {
+          "id": "scene_6_step1",
+          "actions": [
+            {
+              "id": "scene_6_warrior_1",
+              "role": "warrior",
+              "text": "Insister pour rester près de la sphère (priorité sécurité).",
+              "stage": "Reste à portée, posture de garde."
+            },
+            {
+              "id": "scene_6_sage_1",
+              "role": "sage",
+              "text": "Tester la stabilité des runes sans alerter Varos.",
+              "stage": "Fait semblant d'ajuster une torche, trace un signe."
+            },
+            {
+              "id": "scene_6_ranger_1",
+              "role": "ranger",
+              "text": "Monter sur les remparts vérifier l'approche ennemie.",
+              "stage": "S'éclipse par une porte latérale."
+            }
+          ],
+          "outcomes": {
+            "scene_6_warrior_1": {
+              "narration": "Vous ne quittez pas la salle. Si quelqu'un veut toucher au sceau, il passera par vous.",
+              "evidenceIds": [
+                "ev_ordre_transfert"
+              ],
+              "unlockOptionIds": [
+                "A"
+              ],
+              "tagsAdded": {
+                "global": [
+                  "guarding_artifact"
+                ]
+              }
+            },
+            "scene_6_sage_1": {
+              "narration": "Les runes sont fatiguées. Un petit choc suffira à fissurer le sceau.",
+              "evidenceIds": [
+                "ev_ordre_transfert"
+              ],
+              "unlockOptionIds": [
+                "A"
+              ],
+              "tagsAdded": {
+                "global": [
+                  "seal_weak"
+                ]
+              }
+            },
+            "scene_6_ranger_1": {
+              "narration": "Vous voyez des feux au nord. Trop proches. Ce n'est pas une rumeur: c'est une marche.",
+              "evidenceIds": [
+                "ev_ordre_transfert"
+              ],
+              "unlockOptionIds": [
+                "A"
+              ],
+              "tagsAdded": {
+                "global": [
+                  "varketh_at_gates"
+                ]
+              }
+            }
+          }
+        }
+      ],
+      "options": [
+        {
+          "id": "A",
+          "text": "Tenir jusqu'à l'aube.",
+          "defaultVisible": true,
+          "next": [
+            {
+              "to": "scene_7"
+            }
+          ]
+        },
+        {
+          "id": "B",
+          "text": "(Verrouillé) Saboter le transfert discrètement.",
+          "defaultVisible": false,
+          "isRisky": true,
+          "next": [
+            {
+              "to": "scene_fail_seal"
+            }
+          ],
+          "tagsAdded": {
+            "global": [
+              "sabotage_attempt"
+            ]
+          }
+        },
+        {
+          "id": "C",
+          "text": "(Verrouillé) Chercher Mael / la faction dans l'ombre.",
+          "defaultVisible": false,
+          "next": [
+            {
+              "to": "scene_7"
+            }
+          ],
+          "tagsAdded": {
+            "global": [
+              "contacted_faction_night"
+            ]
+          }
+        }
+      ],
+      "unlockRules": [
+        {
+          "optionId": "C",
+          "evidenceIds": [
+            "ev_ordre_transfert"
+          ]
+        }
+      ],
+      "outcomeByOption": {
+        "A": {
+          "text": "La nuit s'étire. L'aube arrive avec des ordres."
+        },
+        "B": {
+          "text": "Vous jouez avec un sceau ancien. Les sceaux n'aiment pas qu'on joue.",
+          "hpDelta": -2
+        },
+        "C": {
+          "text": "Vous tendez une main dans l'obscurité. Quelque chose la saisit."
+        }
+      }
+    },
+    {
+      "id": "scene_7",
+      "title": "L'Aube du Transfert",
+      "canonicalTruth": "Un incident éclate: attaque de Varketh et sabotage interne. Vous devez choisir.",
+      "meta": {
+        "eventType": "rencontre"
+      },
+      "intro": "À l'aube, les cornes sonnent. Les remparts tremblent: Varketh lance une attaque coordonnée. Dans la Chambre du Sceau, une rune se fissure — comme si quelqu'un l'avait grattée pendant la nuit. La sphère pulse, puis… une voix, faible mais nette, résonne dans vos os.",
+      "introDialogue": [
+        {
+          "speaker": "La Sphère",
+          "text": "Je n'ai jamais été votre ennemie."
+        },
+        {
+          "speaker": "Capitaine Varos",
+          "text": "Tenez le sceau! Le convoi part dans dix minutes. Et quelqu'un ici a trahi.",
+          "aside": "Son regard balaie vos visages."
+        }
+      ],
+      "evidence": [
+        {
+          "id": "ev_voix_entite",
+          "label": "La voix de l'entité",
+          "description": "L'entité affirme ne pas être l'ennemie. Elle semble consciente et lucide."
+        },
+        {
+          "id": "ev_trace_garde",
+          "label": "Poussière de rune",
+          "description": "Un garde porte de la poussière de rune fraîche: indice de sabotage."
+        }
+      ],
+      "steps": [
+        {
+          "id": "scene_7_step1",
+          "actions": [
+            {
+              "id": "scene_7_warrior_1",
+              "role": "warrior",
+              "text": "Se placer devant Varos: protéger le protocole coûte que coûte.",
+              "stage": "Se campe entre la sphère et toute main imprudente."
+            },
+            {
+              "id": "scene_7_sage_1",
+              "role": "sage",
+              "text": "Parler à l'entité (calmement) et demander la vérité.",
+              "stage": "Pose une question simple, sans menace."
+            },
+            {
+              "id": "scene_7_ranger_1",
+              "role": "ranger",
+              "text": "Identifier le saboteur (regards, poussière, traces).",
+              "stage": "Cherche le détail qui trahit."
+            }
+          ],
+          "outcomes": {
+            "scene_7_warrior_1": {
+              "narration": "Vous verrouillez la pièce par votre seule présence. Varos se détend d'un millimètre.",
+              "dialogue": [
+                {
+                  "speaker": "Capitaine Varos",
+                  "text": "Enfin quelqu'un de fiable."
+                }
+              ],
+              "unlockOptionIds": [
+                "A"
+              ],
+              "tagsAdded": {
+                "global": [
+                  "loyal_path"
+                ]
+              }
+            },
+            "scene_7_sage_1": {
+              "narration": "La voix répond dans un souffle.",
+              "dialogue": [
+                {
+                  "speaker": "La Sphère",
+                  "text": "Le transfert brisera un pacte. Ou révélera un mensonge. Les deux vous coûteront.",
+                  "aside": "La pierre vibre."
+                }
+              ],
+              "evidenceIds": [
+                "ev_voix_entite"
+              ],
+              "unlockOptionIds": [
+                "A",
+                "B",
+                "C"
+              ],
+              "tagsAdded": {
+                "global": [
+                  "heard_entity"
+                ]
+              }
+            },
+            "scene_7_ranger_1": {
+              "narration": "Vous repérez de la poussière de rune sur une botte de garde. Pas Varos. Un autre.",
+              "evidenceIds": [
+                "ev_trace_garde"
+              ],
+              "unlockOptionIds": [
+                "A",
+                "C"
+              ],
+              "tagsAdded": {
+                "global": [
+                  "saboteur_identified"
+                ]
+              }
+            }
+          }
+        }
+      ],
+      "options": [
+        {
+          "id": "A",
+          "text": "Maintenir le sceau et aider le transfert (repousser Varketh si nécessaire).",
+          "defaultVisible": true,
+          "next": [
+            {
+              "to": "scene_end_1"
+            }
+          ],
+          "tagsAdded": {
+            "global": [
+              "chose_weaponization"
+            ]
+          }
+        },
+        {
+          "id": "B",
+          "text": "Briser le sceau et laisser l'entité parler au royaume.",
+          "defaultVisible": false,
+          "isRisky": true,
+          "next": [
+            {
+              "to": "scene_end_2",
+              "ifGlobal": {
+                "any": [
+                  "truth_known"
+                ]
+              }
+            },
+            {
+              "to": "scene_end_2",
+              "ifActions": {
+                "any": [
+                  "scene_7_sage_1"
+                ]
+              }
+            },
+            {
+              "to": "scene_fail_cataclysm"
+            }
+          ],
+          "tagsAdded": {
+            "global": [
+              "chose_truth"
+            ]
+          }
+        },
+        {
+          "id": "C",
+          "text": "Négocier un pacte et simuler un 'accident' pour empêcher le transfert.",
+          "defaultVisible": false,
+          "next": [
+            {
+              "to": "scene_end_3",
+              "ifGlobal": {
+                "any": [
+                  "faction_allied"
+                ]
+              }
+            },
+            {
+              "to": "scene_end_3",
+              "ifGlobal": {
+                "any": [
+                  "truth_known"
+                ]
+              }
+            },
+            {
+              "to": "scene_fail_citadel_falls"
+            }
+          ],
+          "tagsAdded": {
+            "global": [
+              "chose_pact"
+            ]
+          }
+        }
+      ],
+      "unlockRules": [
+        {
+          "optionId": "B",
+          "evidenceIds": [
+            "ev_voix_entite"
+          ]
+        },
+        {
+          "optionId": "C",
+          "evidenceIds": [
+            "ev_trace_garde"
+          ]
+        }
+      ],
+      "outcomeByOption": {
+        "A": {
+          "text": "Vous choisissez la stabilité et la victoire militaire."
+        },
+        "B": {
+          "text": "Vous choisissez la vérité. Elle ne vient jamais sans prix.",
+          "hpDelta": -2
+        },
+        "C": {
+          "text": "Vous choisissez l'équilibre fragile."
+        }
+      }
+    },
+    {
+      "id": "scene_end_1",
+      "title": "FIN — L'Arme du Royaume",
+      "canonicalTruth": "Vous stabilisez le sceau et acceptez d'utiliser l'entité comme atout militaire. Victoire, dépendance, malaise.",
+      "meta": {
+        "eventType": "rencontre"
+      },
+      "intro": "Vous tenez la ligne. Varos ordonne l'activation du sceau secondaire. La sphère pulse, résiste, puis cède. Une onde de puissance traverse la Citadelle et frappe les lignes de Varketh. L'attaque se brise comme une vague sur un roc.",
+      "introDialogue": [
+        {
+          "speaker": "La Sphère",
+          "text": "Encore…",
+          "aside": "Une fatigue infinie dans un seul mot."
+        },
+        {
+          "speaker": "Capitaine Varos",
+          "text": "Le royaume se souviendra de votre loyauté."
+        }
+      ],
+      "evidence": [],
+      "steps": [
+        {
+          "id": "scene_end_1_step1",
+          "actions": [
+            {
+              "id": "scene_end_1_any_1",
+              "role": "any",
+              "text": "Regarder la sphère après la victoire.",
+              "stage": "Un silence lourd."
+            },
+            {
+              "id": "scene_end_1_any_2",
+              "role": "any",
+              "text": "Accepter la récompense sans poser de questions.",
+              "stage": "Incline la tête."
+            }
+          ],
+          "outcomes": {
+            "scene_end_1_any_1": {
+              "narration": "La sphère pulse plus lentement. Comme un cœur épuisé. Vous comprenez: on vous le demandera encore.",
+              "dialogue": [
+                {
+                  "speaker": "Sage",
+                  "text": "On a gagné… et on vient de signer pour la prochaine fois.",
+                  "aside": "Pas vraiment un compliment."
+                }
+              ]
+            },
+            "scene_end_1_any_2": {
+              "narration": "Vous recevez vos insignes. La Citadelle applaudit. Quelque chose, au centre, se tait."
+            }
+          }
+        }
+      ],
+      "options": [
+        {
+          "id": "A",
+          "text": "Terminer.",
+          "defaultVisible": true,
+          "next": [
+            {
+              "to": null
+            }
+          ]
+        },
+        {
+          "id": "B",
+          "text": "",
+          "defaultVisible": false,
+          "next": [
+            {
+              "to": null
+            }
+          ]
+        },
+        {
+          "id": "C",
+          "text": "",
+          "defaultVisible": false,
+          "next": [
+            {
+              "to": null
+            }
+          ]
+        }
+      ],
+      "unlockRules": [],
+      "outcomeByOption": {
+        "A": {
+          "text": "Fin."
+        },
+        "B": {
+          "text": "Fin."
+        },
+        "C": {
+          "text": "Fin."
+        }
+      },
+      "isEnding": true
+    },
+    {
+      "id": "scene_end_2",
+      "title": "FIN — La Vérité Libérée",
+      "canonicalTruth": "Vous brisez le sceau. L'entité expose le mensonge d'État. La guerre cesse, le pouvoir vacille.",
+      "meta": {
+        "eventType": "rencontre"
+      },
+      "intro": "La rune cède sous vos mains. Le froid se brise. La sphère se fissure, puis s'ouvre comme une paupière. Une forme lumineuse s'élève, non monstrueuse — simplement ancienne. Sa voix roule au-dessus des toits, jusque dans les rues de la capitale.",
+      "introDialogue": [
+        {
+          "speaker": "L'Entité",
+          "text": "Aurhélion a bâti sa paix sur un massacre. Voici les noms. Voici les dates."
+        },
+        {
+          "speaker": "Foule (au loin)",
+          "text": "Quoi…?",
+          "aside": "Un grondement monte, puis des cris.",
+          "narration": "La ville change de visage en une minute."
+        }
+      ],
+      "evidence": [],
+      "steps": [
+        {
+          "id": "scene_end_2_step1",
+          "actions": [
+            {
+              "id": "scene_end_2_any_1",
+              "role": "any",
+              "text": "Fuir pendant que la Citadelle se déchire.",
+              "stage": "S'élance vers une sortie."
+            },
+            {
+              "id": "scene_end_2_any_2",
+              "role": "any",
+              "text": "Rester et affronter Varos.",
+              "stage": "Fait face, sans reculer."
+            }
+          ],
+          "outcomes": {
+            "scene_end_2_any_1": {
+              "narration": "Vous disparaissez dans le chaos. La guerre ralentit — mais votre tête a un prix.",
+              "dialogue": [
+                {
+                  "speaker": "Ranger",
+                  "text": "On vient de sauver le royaume… et de perdre notre lit.",
+                  "aside": "Priorités."
+                }
+              ]
+            },
+            "scene_end_2_any_2": {
+              "narration": "Varos vous regarde comme on regarde un incendie: avec haine et fascination.",
+              "dialogue": [
+                {
+                  "speaker": "Capitaine Varos",
+                  "text": "Vous n'avez aucune idée de ce que vous venez de déclencher."
+                },
+                {
+                  "speaker": "Sage",
+                  "text": "Si. On a juste décidé d'arrêter de mentir."
+                }
+              ],
+              "hpDelta": -1
+            }
+          }
+        }
+      ],
+      "options": [
+        {
+          "id": "A",
+          "text": "Terminer.",
+          "defaultVisible": true,
+          "next": [
+            {
+              "to": null
+            }
+          ]
+        },
+        {
+          "id": "B",
+          "text": "",
+          "defaultVisible": false,
+          "next": [
+            {
+              "to": null
+            }
+          ]
+        },
+        {
+          "id": "C",
+          "text": "",
+          "defaultVisible": false,
+          "next": [
+            {
+              "to": null
+            }
+          ]
+        }
+      ],
+      "unlockRules": [],
+      "outcomeByOption": {
+        "A": {
+          "text": "Fin."
+        },
+        "B": {
+          "text": "Fin."
+        },
+        "C": {
+          "text": "Fin."
+        }
+      },
+      "isEnding": true
+    },
+    {
+      "id": "scene_end_3",
+      "title": "FIN — Le Pacte Silencieux",
+      "canonicalTruth": "Vous orchestrez un faux incident pour empêcher le transfert. L'entité disparaît. Paix fragile, suspicion durable.",
+      "meta": {
+        "eventType": "rencontre"
+      },
+      "intro": "Vous ne brisez pas le sceau. Vous le trompez. Une fausse instabilité, un effondrement contrôlé, assez de fumée pour aveugler un conseil de guerre. Dans l'ombre d'un couloir oublié, Mael vous attend. La sphère glisse, silencieuse, vers un sanctuaire qui n'existe sur aucune carte.",
+      "introDialogue": [
+        {
+          "speaker": "Mael",
+          "text": "Officiellement, vous venez d'échouer. C'est parfait.",
+          "aside": "Un sourire qui n'avoue rien."
+        },
+        {
+          "speaker": "La Sphère",
+          "text": "Je tiendrai le pacte… tant que vous tiendrez le vôtre."
+        }
+      ],
+      "evidence": [],
+      "steps": [
+        {
+          "id": "scene_end_3_step1",
+          "actions": [
+            {
+              "id": "scene_end_3_any_1",
+              "role": "any",
+              "text": "Regarder la Citadelle derrière vous.",
+              "stage": "Un dernier regard."
+            },
+            {
+              "id": "scene_end_3_any_2",
+              "role": "any",
+              "text": "Demander à Mael ce qu'il veut vraiment.",
+              "stage": "Un soupçon dans la voix."
+            }
+          ],
+          "outcomes": {
+            "scene_end_3_any_1": {
+              "narration": "Au loin, les feux de Varketh s'éloignent. La guerre n'est pas finie, mais elle respire.",
+              "dialogue": [
+                {
+                  "speaker": "Ranger",
+                  "text": "Ça sent la suite.",
+                  "aside": "Toujours les meilleurs mots pour dire 'on n'a pas fini'."
+                }
+              ]
+            },
+            "scene_end_3_any_2": {
+              "narration": "Mael ne répond pas tout de suite.",
+              "dialogue": [
+                {
+                  "speaker": "Mael",
+                  "text": "Je veux que la vérité survive… même si elle ne sort pas aujourd'hui."
+                }
+              ]
+            }
+          }
+        }
+      ],
+      "options": [
+        {
+          "id": "A",
+          "text": "Terminer.",
+          "defaultVisible": true,
+          "next": [
+            {
+              "to": null
+            }
+          ]
+        },
+        {
+          "id": "B",
+          "text": "",
+          "defaultVisible": false,
+          "next": [
+            {
+              "to": null
+            }
+          ]
+        },
+        {
+          "id": "C",
+          "text": "",
+          "defaultVisible": false,
+          "next": [
+            {
+              "to": null
+            }
+          ]
+        }
+      ],
+      "unlockRules": [],
+      "outcomeByOption": {
+        "A": {
+          "text": "Fin."
+        },
+        "B": {
+          "text": "Fin."
+        },
+        "C": {
+          "text": "Fin."
+        }
+      },
+      "isEnding": true
+    },
+    {
+      "id": "scene_fail_refus",
+      "title": "ÉCHEC — Refus impossible",
+      "canonicalTruth": "Refuser le serment a un coût immédiat. Le royaume n'aime pas perdre la face.",
+      "meta": {
+        "eventType": "rencontre"
+      },
+      "intro": "Vous tentez de refuser. Le scribe s'arrête d'écrire. Varos ne hausse même pas la voix.",
+      "introDialogue": [
+        {
+          "speaker": "Capitaine Varos",
+          "text": "Personne ne refuse ce serment. Vous venez de vous rendre… intéressant."
+        }
+      ],
+      "evidence": [],
+      "steps": [
+        {
+          "id": "scene_fail_refus_step1",
+          "actions": [
+            {
+              "id": "scene_fail_refus_any_1",
+              "role": "any",
+              "text": "Se raviser et signer.",
+              "stage": "Ravale sa fierté."
+            },
+            {
+              "id": "scene_fail_refus_any_2",
+              "role": "any",
+              "text": "Insister.",
+              "stage": "Tient bon, mauvaise idée."
+            }
+          ],
+          "outcomes": {
+            "scene_fail_refus_any_1": {
+              "narration": "Vous signez. Varos note votre faiblesse.",
+              "unlockOptionIds": [
+                "A"
+              ],
+              "tagsAdded": {
+                "global": [
+                  "suspicion_up"
+                ]
+              }
+            },
+            "scene_fail_refus_any_2": {
+              "narration": "On vous escorte dehors. Brutalement.",
+              "unlockOptionIds": [
+                "B"
+              ],
+              "hpDelta": -5
+            }
+          }
+        }
+      ],
+      "options": [
+        {
+          "id": "A",
+          "text": "Reprendre la mission malgré tout.",
+          "defaultVisible": true,
+          "next": [
+            {
+              "to": "scene_2"
+            }
+          ]
+        },
+        {
+          "id": "B",
+          "text": "Terminer.",
+          "defaultVisible": false,
+          "next": [
+            {
+              "to": null
+            }
+          ]
+        },
+        {
+          "id": "C",
+          "text": "",
+          "defaultVisible": false,
+          "next": [
+            {
+              "to": null
+            }
+          ]
+        }
+      ],
+      "unlockRules": [],
+      "outcomeByOption": {
+        "A": {
+          "text": "Vous ravalez et avancez."
+        },
+        "B": {
+          "text": "Échec."
+        },
+        "C": {
+          "text": "Échec."
+        }
+      },
+      "isEnding": false
+    },
+    {
+      "id": "scene_fail_poursuite",
+      "title": "ÉCHEC — Poursuite dans le mauvais sens",
+      "canonicalTruth": "Vous poursuivez les éclaireurs et tombez sur un piège. Vous perdez du temps et de la santé.",
+      "meta": {
+        "eventType": "combat"
+      },
+      "intro": "Vous courez après eux… et ils vous laissent les suivre. Une ruelle se referme. Des traits sifflent.",
+      "introDialogue": [
+        {
+          "speaker": "Chef éclaireur",
+          "text": "Trop prévisibles.",
+          "aside": "Il disparaît."
+        }
+      ],
+      "mode": "combat",
+      "combat": {
+        "enemyName": "Piège d'éclaireurs",
+        "enemyHp": 14,
+        "enemyAttack": 6,
+        "allowRun": true
+      },
+      "evidence": [],
+      "steps": [
+        {
+          "id": "scene_fail_poursuite_step1",
+          "actions": [
+            {
+              "id": "scene_fail_poursuite_any_1",
+              "role": "any",
+              "text": "Se dégager et retourner à la Citadelle.",
+              "stage": "Souffle court."
+            }
+          ],
+          "outcomes": {
+            "scene_fail_poursuite_any_1": {
+              "narration": "Vous vous en sortez, mais vous arrivez avec du retard.",
+              "unlockOptionIds": [
+                "A"
+              ],
+              "tagsAdded": {
+                "global": [
+                  "external_pressure",
+                  "wounded"
+                ]
+              },
+              "hpDelta": -2
+            }
+          }
+        }
+      ],
+      "options": [
+        {
+          "id": "A",
+          "text": "Retourner à la route principale.",
+          "defaultVisible": true,
+          "next": [
+            {
+              "to": "scene_4"
+            }
+          ]
+        },
+        {
+          "id": "B",
+          "text": "",
+          "defaultVisible": false,
+          "next": [
+            {
+              "to": null
+            }
+          ]
+        },
+        {
+          "id": "C",
+          "text": "",
+          "defaultVisible": false,
+          "next": [
+            {
+              "to": null
+            }
+          ]
+        }
+      ],
+      "unlockRules": [],
+      "outcomeByOption": {
+        "A": {
+          "text": "Vous reprenez votre souffle et continuez."
+        },
+        "B": {
+          "text": ""
+        },
+        "C": {
+          "text": ""
+        }
+      }
+    },
+    {
+      "id": "scene_fail_retraite",
+      "title": "ÉCHEC — Recul",
+      "canonicalTruth": "Vous battez en retraite. La Citadelle vous marque.",
+      "meta": {
+        "eventType": "rencontre"
+      },
+      "intro": "Vous choisissez de reculer. Les éclaireurs rient et disparaissent. Quand vous arrivez, Varos a déjà entendu.",
+      "introDialogue": [
+        {
+          "speaker": "Capitaine Varos",
+          "text": "J'espère que vous courrez aussi vite quand il faudra mourir."
+        }
+      ],
+      "evidence": [],
+      "steps": [
+        {
+          "id": "scene_fail_retraite_step1",
+          "actions": [
+            {
+              "id": "scene_fail_retraite_any_1",
+              "role": "any",
+              "text": "Accepter la sanction.",
+              "stage": "Baisse les yeux."
+            }
+          ],
+          "outcomes": {
+            "scene_fail_retraite_any_1": {
+              "narration": "Vous êtes rétrogradés et renvoyés. La Citadelle n'a pas besoin de vous.",
+              "unlockOptionIds": [
+                "A"
+              ],
+              "hpDelta": -5
+            }
+          }
+        }
+      ],
+      "options": [
+        {
+          "id": "A",
+          "text": "Terminer.",
+          "defaultVisible": true,
+          "next": [
+            {
+              "to": null
+            }
+          ]
+        },
+        {
+          "id": "B",
+          "text": "",
+          "defaultVisible": false,
+          "next": [
+            {
+              "to": null
+            }
+          ]
+        },
+        {
+          "id": "C",
+          "text": "",
+          "defaultVisible": false,
+          "next": [
+            {
+              "to": null
+            }
+          ]
+        }
+      ],
+      "unlockRules": [],
+      "outcomeByOption": {
+        "A": {
+          "text": "Échec."
+        },
+        "B": {
+          "text": "Échec."
+        },
+        "C": {
+          "text": "Échec."
+        }
+      },
+      "isEnding": true
+    },
+    {
+      "id": "scene_fail_arrest",
+      "title": "Détention",
+      "canonicalTruth": "Votre curiosité déclenche une arrestation. Vous pouvez encore rebondir… à un prix.",
+      "meta": {
+        "eventType": "rencontre"
+      },
+      "intro": "Une patrouille vous coupe la route. Pas de cris. Juste des menottes. Varos a choisi la méthode propre.",
+      "introDialogue": [
+        {
+          "speaker": "Garde",
+          "text": "Ordre du capitaine. Vous venez avec nous."
+        },
+        {
+          "speaker": "Sage",
+          "text": "On dirait que la Citadelle n'aime pas les lecteurs.",
+          "aside": "Ironie noire."
+        }
+      ],
+      "evidence": [],
+      "steps": [
+        {
+          "id": "scene_fail_arrest_step1",
+          "actions": [
+            {
+              "id": "scene_fail_arrest_warrior_1",
+              "role": "warrior",
+              "text": "Forcer la porte de la cellule.",
+              "stage": "Épaules contre le métal.",
+              "narration": "Ça grince. Ça cède."
+            },
+            {
+              "id": "scene_fail_arrest_sage_1",
+              "role": "sage",
+              "text": "Convaincre un garde que vous êtes utiles.",
+              "stage": "Voix posée, arguments."
+            },
+            {
+              "id": "scene_fail_arrest_ranger_1",
+              "role": "ranger",
+              "text": "S'évader discrètement par les conduits.",
+              "stage": "Dévisse une grille, disparaît."
+            }
+          ],
+          "outcomes": {
+            "scene_fail_arrest_warrior_1": {
+              "narration": "Vous vous évadez. Bruyamment. Toute la Citadelle le saura.",
+              "unlockOptionIds": [
+                "A"
+              ],
+              "tagsAdded": {
+                "global": [
+                  "escaped",
+                  "suspicion_high"
+                ]
+              },
+              "hpDelta": -1
+            },
+            "scene_fail_arrest_sage_1": {
+              "narration": "Le garde hésite… puis ouvre. 'Une seule chance.'",
+              "unlockOptionIds": [
+                "B"
+              ],
+              "tagsAdded": {
+                "global": [
+                  "released",
+                  "loyalty_up"
+                ]
+              }
+            },
+            "scene_fail_arrest_ranger_1": {
+              "narration": "Vous sortez comme une ombre. Les couloirs sont à vous.",
+              "unlockOptionIds": [
+                "A"
+              ],
+              "tagsAdded": {
+                "global": [
+                  "escaped"
+                ]
+              }
+            }
+          }
+        }
+      ],
+      "options": [
+        {
+          "id": "A",
+          "text": "Revenir au poste (en douce).",
+          "defaultVisible": false,
+          "next": [
+            {
+              "to": "scene_6"
+            }
+          ]
+        },
+        {
+          "id": "B",
+          "text": "Accepter un 'marché' et retourner sous contrôle.",
+          "defaultVisible": false,
+          "next": [
+            {
+              "to": "scene_6"
+            }
+          ],
+          "tagsAdded": {
+            "global": [
+              "under_watch"
+            ]
+          }
+        },
+        {
+          "id": "C",
+          "text": "Rester enfermé (abandon).",
+          "defaultVisible": true,
+          "next": [
+            {
+              "to": null
+            }
+          ]
+        }
+      ],
+      "unlockRules": [],
+      "outcomeByOption": {
+        "A": {
+          "text": "Vous revenez, mais tout le monde vous cherche."
+        },
+        "B": {
+          "text": "On vous relâche… mais on vous tient."
+        },
+        "C": {
+          "text": "Vous laissez l'histoire continuer sans vous.",
+          "hpDelta": -5
+        }
+      }
+    },
+    {
+      "id": "scene_fail_seal",
+      "title": "ÉCHEC — Le Sceau se retourne",
+      "canonicalTruth": "Le sabotage déstabilise la prison. Un fragment se manifeste: catastrophe.",
+      "meta": {
+        "eventType": "combat"
+      },
+      "mode": "combat",
+      "combat": {
+        "enemyName": "Fragment de l'Entité",
+        "enemyHp": 22,
+        "enemyAttack": 7,
+        "allowRun": true
+      },
+      "intro": "Vous touchez une rune. Elle répond comme une bête piquée. La sphère pulse trop fort, trop vite. Une fissure crache de la lumière froide.",
+      "introDialogue": [
+        {
+          "speaker": "La Sphère",
+          "text": "Non… pas comme ça."
+        }
+      ],
+      "evidence": [],
+      "steps": [
+        {
+          "id": "scene_fail_seal_step1",
+          "actions": [
+            {
+              "id": "scene_fail_seal_any_1",
+              "role": "any",
+              "text": "Survivre et tenter de stabiliser.",
+              "stage": "Serre les dents."
+            }
+          ],
+          "outcomes": {
+            "scene_fail_seal_any_1": {
+              "narration": "Vous survivez, mais la Citadelle perd le contrôle. Les événements se précipitent.",
+              "unlockOptionIds": [
+                "A"
+              ],
+              "tagsAdded": {
+                "global": [
+                  "seal_unstable",
+                  "panic"
+                ]
+              },
+              "hpDelta": -3
+            }
+          }
+        }
+      ],
+      "options": [
+        {
+          "id": "A",
+          "text": "Retourner à l'aube du transfert (dans le chaos).",
+          "defaultVisible": true,
+          "next": [
+            {
+              "to": "scene_7"
+            }
+          ]
+        },
+        {
+          "id": "B",
+          "text": "",
+          "defaultVisible": false,
+          "next": [
+            {
+              "to": null
+            }
+          ]
+        },
+        {
+          "id": "C",
+          "text": "",
+          "defaultVisible": false,
+          "next": [
+            {
+              "to": null
+            }
+          ]
+        }
+      ],
+      "unlockRules": [],
+      "outcomeByOption": {
+        "A": {
+          "text": "Vous retombez sur les rails… en feu."
+        },
+        "B": {
+          "text": ""
+        },
+        "C": {
+          "text": ""
+        }
+      },
+      "isEnding": false
+    },
+    {
+      "id": "scene_fail_cataclysm",
+      "title": "ÉCHEC — Cataclysme",
+      "canonicalTruth": "Sans préparation, briser le sceau déclenche une brèche. Fin.",
+      "meta": {
+        "eventType": "combat"
+      },
+      "intro": "Vous brisez le sceau sans avoir compris ce qu'il tenait aussi 'ailleurs'. La salle se déchire. L'air se plie. Un cri qui n'est pas humain remplit tout.",
+      "introDialogue": [
+        {
+          "speaker": "Sage",
+          "text": "On a ouvert… autre chose.",
+          "aside": "Trop tard."
+        }
+      ],
+      "evidence": [],
+      "steps": [
+        {
+          "id": "scene_fail_cataclysm_step1",
+          "actions": [
+            {
+              "id": "scene_fail_cataclysm_any_1",
+              "role": "any",
+              "text": "Courir.",
+              "stage": "Ça ne sert à rien."
+            }
+          ],
+          "outcomes": {
+            "scene_fail_cataclysm_any_1": {
+              "narration": "La brèche avale la Citadelle. Et votre histoire avec.",
+              "unlockOptionIds": [
+                "A"
+              ],
+              "hpDelta": -30
+            }
+          }
+        }
+      ],
+      "options": [
+        {
+          "id": "A",
+          "text": "Terminer.",
+          "defaultVisible": true,
+          "next": [
+            {
+              "to": null
+            }
+          ]
+        },
+        {
+          "id": "B",
+          "text": "",
+          "defaultVisible": false,
+          "next": [
+            {
+              "to": null
+            }
+          ]
+        },
+        {
+          "id": "C",
+          "text": "",
+          "defaultVisible": false,
+          "next": [
+            {
+              "to": null
+            }
+          ]
+        }
+      ],
+      "unlockRules": [],
+      "outcomeByOption": {
+        "A": {
+          "text": "Échec."
+        },
+        "B": {
+          "text": "Échec."
+        },
+        "C": {
+          "text": "Échec."
+        }
+      },
+      "isEnding": true
+    },
+    {
+      "id": "scene_fail_citadel_falls",
+      "title": "ÉCHEC — La Citadelle tombe",
+      "canonicalTruth": "Votre tentative de pacte échoue sans levier. Varketh prend l'avantage. Fin sombre.",
+      "meta": {
+        "eventType": "rencontre"
+      },
+      "intro": "Vous tentez de jouer sur deux tableaux sans carte en main. Varos vous coupe. Le convoi part. À l'extérieur, la porte cède. Les bannières de Varketh montent.",
+      "introDialogue": [
+        {
+          "speaker": "Capitaine Varos",
+          "text": "Vous avez voulu être malins. Vous avez juste été lents."
+        },
+        {
+          "speaker": "Chef de Varketh",
+          "text": "Merci pour le cadeau.",
+          "aside": "Il ne vous regarde même pas."
+        }
+      ],
+      "evidence": [],
+      "steps": [
+        {
+          "id": "scene_fail_citadel_falls_step1",
+          "actions": [
+            {
+              "id": "scene_fail_citadel_falls_any_1",
+              "role": "any",
+              "text": "Tenir jusqu'au bout.",
+              "stage": "Dos au mur."
+            }
+          ],
+          "outcomes": {
+            "scene_fail_citadel_falls_any_1": {
+              "narration": "L'artefact est capturé. La guerre change de visage. Vous survivez… dans le mauvais monde.",
+              "unlockOptionIds": [
+                "A"
+              ],
+              "hpDelta": -5
+            }
+          }
+        }
+      ],
+      "options": [
+        {
+          "id": "A",
+          "text": "Terminer.",
+          "defaultVisible": true,
+          "next": [
+            {
+              "to": null
+            }
+          ]
+        },
+        {
+          "id": "B",
+          "text": "",
+          "defaultVisible": false,
+          "next": [
+            {
+              "to": null
+            }
+          ]
+        },
+        {
+          "id": "C",
+          "text": "",
+          "defaultVisible": false,
+          "next": [
+            {
+              "to": null
+            }
+          ]
+        }
+      ],
+      "unlockRules": [],
+      "outcomeByOption": {
+        "A": {
+          "text": "Échec."
+        },
+        "B": {
+          "text": "Échec."
+        },
+        "C": {
+          "text": "Échec."
+        }
+      },
+      "isEnding": true
+    },
+    {
+      "id": "scene_8",
+      "title": "Le couroux divin",
+      "canonicalTruth": "Verite interne a definir.",
+      "intro": "Une nouvelle scene commence. Votre groupe observe.",
+      "evidence": [],
+      "steps": [],
+      "options": [
+        {
+          "id": "A",
+          "text": "Choix par defaut.",
           "defaultVisible": false,
           "next": [
             {
@@ -196,12 +2462,22 @@
           ]
         },
         {
+          "id": "B",
+          "text": "Choix B.",
+          "defaultVisible": true,
+          "next": [
+            {
+              "to": "scene_9"
+            }
+          ]
+        },
+        {
           "id": "C",
-          "text": "Lui lancer un freezbi.",
+          "text": "Choix C.",
           "defaultVisible": false,
           "next": [
             {
-              "to": "scene_2"
+              "to": "scene_9"
             }
           ]
         }
@@ -212,57 +2488,61 @@
           "text": "La suite se dessine."
         },
         "B": {
-          "text": "La suite se dessine."
+          "text": "Un dernière éclair lancé par la divinité achève les derniers signes de vie de votre misérable groupe. "
         },
         "C": {
           "text": "La suite se dessine."
         }
       },
-      "introDialogue": [
-        {
-          "speaker": "Paladin Baldour",
-          "text": "Hola... J'ai fini ma salade.",
-          "aside": "Tire sur sa pipe remplie d'herbe de la comté."
-        }
-      ]
+      "isEnding": false,
+      "mode": "combat",
+      "combat": {
+        "enemyName": "Dieu de la souffrance Laborix",
+        "enemyHp": 200,
+        "enemyAttack": 15,
+        "allowRun": false
+      }
     },
     {
-      "id": "scene_2",
-      "title": "Le trepas du baldoche.",
+      "id": "scene_9",
+      "title": "Scene fail",
       "canonicalTruth": "Verite interne a definir.",
-      "intro": "Le baldoche est pris d'un long baillement. Tout cet excercie l'a épuisé. ",
+      "intro": "Vos corps applatis sous cents tones de furreur divine font peine à voir. Les villageois s'empressent de nettoyer à la pelle les petits tas de chaires informes.",
       "evidence": [],
       "steps": [
         {
-          "id": "scene_2_step1",
+          "id": "scene_9_step1",
           "actions": [
             {
-              "id": "scene_2_warrior_1",
+              "id": "scene_9_warrior_1",
               "role": "warrior",
+              "buttonText": "Action du guerrier.",
               "text": "Action du guerrier.",
               "stage": "agit avec prudence."
             },
             {
-              "id": "scene_2_sage_1",
+              "id": "scene_9_sage_1",
               "role": "sage",
+              "buttonText": "Action du sage.",
               "text": "Action du sage.",
               "stage": "observe et decide."
             },
             {
-              "id": "scene_2_ranger_1",
+              "id": "scene_9_ranger_1",
               "role": "ranger",
+              "buttonText": "Action du ranger.",
               "text": "Action du ranger.",
               "stage": "se deplace en silence."
             }
           ],
           "outcomes": {
-            "scene_2_warrior_1": {
+            "scene_9_warrior_1": {
               "narration": "Le groupe enregistre ce choix."
             },
-            "scene_2_sage_1": {
+            "scene_9_sage_1": {
               "narration": "Le groupe enregistre ce choix."
             },
-            "scene_2_ranger_1": {
+            "scene_9_ranger_1": {
               "narration": "Le groupe enregistre ce choix."
             }
           }
@@ -275,7 +2555,7 @@
           "defaultVisible": true,
           "next": [
             {
-              "to": "scene_2"
+              "to": null
             }
           ]
         },
@@ -285,7 +2565,7 @@
           "defaultVisible": false,
           "next": [
             {
-              "to": "scene_2"
+              "to": null
             }
           ]
         },
@@ -295,7 +2575,7 @@
           "defaultVisible": false,
           "next": [
             {
-              "to": "scene_2"
+              "to": null
             }
           ]
         }
@@ -312,23 +2592,8 @@
           "text": "La suite se dessine."
         }
       },
-      "meta": {
-        "graph": {
-          "position": {
-            "x": 399.083732639068,
-            "y": 29.088077039727256
-          }
-        }
-      },
       "isEnding": true,
-      "mode": "story",
-      "introDialogue": [
-        {
-          "speaker": "Paladin Baldoche",
-          "text": "J'ai fini ma salade... c'est l'heure d'aller se coucher.",
-          "aside": "Le paladin traine ses pieds avec lenteur."
-        }
-      ]
+      "mode": "story"
     }
   ]
 }

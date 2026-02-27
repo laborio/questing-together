@@ -114,6 +114,12 @@ function validateStoryData(raw: unknown): string[] {
     }
 
     if (typeof scene.title !== 'string') errors.push(`scenes[${sceneIndex}].title must be string`);
+    if (scene.journalTitle !== undefined && typeof scene.journalTitle !== 'string') {
+      errors.push(`scenes[${sceneIndex}].journalTitle must be string`);
+    }
+    if (scene.intermissionText !== undefined && typeof scene.intermissionText !== 'string') {
+      errors.push(`scenes[${sceneIndex}].intermissionText must be string`);
+    }
     if (typeof scene.intro !== 'string') errors.push(`scenes[${sceneIndex}].intro must be string`);
     if (typeof scene.canonicalTruth !== 'string') {
       errors.push(`scenes[${sceneIndex}].canonicalTruth must be string`);
@@ -159,6 +165,9 @@ function validateStoryData(raw: unknown): string[] {
         }
         if (timed.statusText !== undefined && typeof timed.statusText !== 'string') {
           errors.push(`scenes[${sceneIndex}].timed.statusText must be string`);
+        }
+        if (timed.restWaitingText !== undefined && typeof timed.restWaitingText !== 'string') {
+          errors.push(`scenes[${sceneIndex}].timed.restWaitingText must be string`);
         }
       }
     }

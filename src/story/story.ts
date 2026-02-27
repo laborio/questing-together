@@ -97,6 +97,7 @@ export type TimedSceneConfig = {
   durationSeconds: number;
   allowEarly?: boolean;
   statusText?: string;
+  restWaitingText?: string;
 };
 
 export type SceneActionOutcome = {
@@ -118,6 +119,8 @@ export type SceneStep = {
 export type Scene = {
   id: SceneId;
   title: string;
+  journalTitle?: string;
+  intermissionText?: string;
   canonicalTruth: string;
   intro: string;
   introDialogue?: DialogueLine[];
@@ -266,6 +269,12 @@ function assertStoryData(raw: unknown): StoryData {
       }
 
       if (typeof scene.title !== 'string') errors.push(`scenes[${sceneIndex}].title must be string`);
+      if (scene.journalTitle !== undefined && typeof scene.journalTitle !== 'string') {
+        errors.push(`scenes[${sceneIndex}].journalTitle must be string`);
+      }
+      if (scene.intermissionText !== undefined && typeof scene.intermissionText !== 'string') {
+        errors.push(`scenes[${sceneIndex}].intermissionText must be string`);
+      }
       if (typeof scene.intro !== 'string') errors.push(`scenes[${sceneIndex}].intro must be string`);
       if (typeof scene.canonicalTruth !== 'string') {
         errors.push(`scenes[${sceneIndex}].canonicalTruth must be string`);
@@ -313,6 +322,9 @@ function assertStoryData(raw: unknown): StoryData {
           }
           if (timed.statusText !== undefined && typeof timed.statusText !== 'string') {
             errors.push(`scenes[${sceneIndex}].timed.statusText must be string`);
+          }
+          if (timed.restWaitingText !== undefined && typeof timed.restWaitingText !== 'string') {
+            errors.push(`scenes[${sceneIndex}].timed.restWaitingText must be string`);
           }
         }
       }

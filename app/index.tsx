@@ -252,12 +252,13 @@ export default function IndexScreen() {
                 <SceneFeedCard
                   fullBleed
                   sceneId={roomStory.currentScene.id}
-                  sceneTitle={roomStory.currentScene.title}
+                  sceneTitle={roomStory.currentScene.journalTitle ?? roomStory.currentScene.title}
                   journalEntries={roomStory.journalEntries}
                   sceneHistory={roomStory.sceneHistory}
                   footer={
                     <DecisionPanelCard
                       embedded
+                      isEndingScene={Boolean(roomStory.currentScene.isEnding)}
                       isCombatScene={roomStory.isCombatScene}
                       isTimedScene={roomStory.isTimedScene}
                       combatState={roomStory.combatState}
@@ -287,6 +288,7 @@ export default function IndexScreen() {
                       timedEndsAt={roomStory.timedEndsAt}
                       timedStatusText={roomStory.timedStatusText}
                       timedAllowEarly={roomStory.timedAllowEarly}
+                      timedWaitingText={roomStory.timedWaitingText}
                       onConfirmOption={roomStory.confirmOption}
                       onContinueToNextScene={roomStory.continueToNextScene}
                       onFinishTimedScene={() => roomStory.finishTimedScene(true)}
@@ -326,7 +328,15 @@ export default function IndexScreen() {
             paddingBottom: headerVerticalPadding,
           },
         ]}>
-        <View style={styles.headerControlsRow}>
+        <View
+          style={[
+            styles.headerControlsRow,
+            {
+              top: Math.max(4, insets.top),
+              paddingLeft: 18 + insets.left,
+              paddingRight: 18 + insets.right,
+            },
+          ]}>
           <Pressable style={styles.dotsButton} onPress={() => setShowStatusPanel((value) => !value)}>
             <Text style={styles.dotsButtonText}>...</Text>
             {hasTechAlert ? <View style={styles.dotsAlert} /> : null}
@@ -558,7 +568,6 @@ const styles = StyleSheet.create({
   },
   headerControlsRow: {
     position: 'absolute',
-    top: 0,
     left: 0,
     right: 0,
     flexDirection: 'row',

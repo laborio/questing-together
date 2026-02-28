@@ -37,6 +37,7 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#e8d7bf',
     textTransform: 'uppercase',
+    fontFamily: 'Besley',
   },
   bar: {
     height: 8,
@@ -51,5 +52,6 @@ const styles = StyleSheet.create({
   value: {
     fontSize: 11,
     color: '#d3c2a4',
+    fontFamily: 'Besley',
   },
 });

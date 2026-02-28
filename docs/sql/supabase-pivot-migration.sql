@@ -63,12 +63,39 @@ alter table public.room_players
   check (display_name is null or display_name ~ '^[^\\s]+$');
 alter table if exists public.room_messages add column if not exists scene_id text;
 
+create table if not exists public.push_subscriptions (
+  user_id uuid primary key references auth.users(id) on delete cascade,
+  expo_push_token text not null,
+  platform text,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  constraint push_subscriptions_token_format check (
+    expo_push_token like 'ExponentPushToken[%'
+    or expo_push_token like 'ExpoPushToken[%'
+  )
+);
+
+create table if not exists public.push_notification_dispatches (
+  event_id bigint primary key,
+  room_id uuid not null references public.rooms(id) on delete cascade,
+  scene_id text not null,
+  created_at timestamptz not null default now()
+);
+
 drop index if exists uq_room_players_room_curse;
 create unique index if not exists uq_room_players_room_role
 on public.room_players (room_id, role_id)
 where role_id is not null;
 create index if not exists idx_room_messages_room_scene_player_created
 on public.room_messages(room_id, scene_id, player_id, created_at desc);
+create unique index if not exists uq_push_subscriptions_token on public.push_subscriptions(expo_push_token);
+create index if not exists idx_push_dispatches_room_created on public.push_notification_dispatches(room_id, created_at desc);
+
+drop trigger if exists trg_push_subscriptions_updated_at on public.push_subscriptions;
+create trigger trg_push_subscriptions_updated_at
+before update on public.push_subscriptions
+for each row
+execute function public.set_updated_at();
 
 -- ----------------------------
 -- Room RPCs (refresh for pivot schema)
@@ -1351,6 +1378,47 @@ begin
 end;
 $$;
 
+create or replace function public.set_push_subscription(
+  p_token text,
+  p_platform text default null
+)
+returns boolean
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_user_id uuid := auth.uid();
+  v_token text := trim(coalesce(p_token, ''));
+begin
+  if v_user_id is null then
+    raise exception 'Not authenticated';
+  end if;
+
+  if v_token = '' then
+    raise exception 'Push token is required';
+  end if;
+
+  if v_token not like 'ExponentPushToken[%' and v_token not like 'ExpoPushToken[%' then
+    raise exception 'Invalid Expo push token';
+  end if;
+
+  delete from public.push_subscriptions
+  where expo_push_token = v_token
+    and user_id <> v_user_id;
+
+  insert into public.push_subscriptions (user_id, expo_push_token, platform)
+  values (v_user_id, v_token, nullif(trim(coalesce(p_platform, '')), ''))
+  on conflict (user_id)
+  do update set
+    expo_push_token = excluded.expo_push_token,
+    platform = excluded.platform,
+    updated_at = now();
+
+  return true;
+end;
+$$;
+
 grant execute on function public.story_select_role(uuid, public.role_id) to authenticated;
 grant execute on function public.story_set_display_name(uuid, text) to authenticated;
 grant execute on function public.story_start_adventure(uuid, text) to authenticated;
@@ -1365,6 +1433,7 @@ grant execute on function public.create_room(public.player_id) to authenticated;
 grant execute on function public.join_room(text, public.player_id) to authenticated;
 grant execute on function public.leave_room(uuid) to authenticated;
 grant execute on function public.send_room_message(uuid, text, text) to authenticated;
+grant execute on function public.set_push_subscription(text, text) to authenticated;
 
 -- ----------------------------
 -- Lock down direct room_events writes
@@ -1375,6 +1444,41 @@ drop policy if exists room_events_insert_member on public.room_events;
 grant select on public.room_events to authenticated;
 revoke insert on public.room_events from authenticated;
 revoke update on public.room_players from authenticated;
+
+alter table public.push_subscriptions enable row level security;
+alter table public.push_notification_dispatches enable row level security;
+
+drop policy if exists push_subscriptions_select_self on public.push_subscriptions;
+create policy push_subscriptions_select_self
+on public.push_subscriptions
+for select
+to authenticated
+using (user_id = auth.uid());
+
+drop policy if exists push_subscriptions_insert_self on public.push_subscriptions;
+create policy push_subscriptions_insert_self
+on public.push_subscriptions
+for insert
+to authenticated
+with check (user_id = auth.uid());
+
+drop policy if exists push_subscriptions_update_self on public.push_subscriptions;
+create policy push_subscriptions_update_self
+on public.push_subscriptions
+for update
+to authenticated
+using (user_id = auth.uid())
+with check (user_id = auth.uid());
+
+drop policy if exists push_subscriptions_delete_self on public.push_subscriptions;
+create policy push_subscriptions_delete_self
+on public.push_subscriptions
+for delete
+to authenticated
+using (user_id = auth.uid());
+
+revoke all on public.push_subscriptions from authenticated;
+revoke all on public.push_notification_dispatches from authenticated;
 
 -- ----------------------------
 -- Drop legacy enum types only when unreferenced

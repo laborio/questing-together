@@ -60,6 +60,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '700',
     color: '#5a3612',
+    fontFamily: 'Besley',
   },
   titleParchment: {
     color: '#000000',
@@ -74,6 +75,7 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '700',
     color: '#554011',
+    fontFamily: 'Besley',
   },
   nameParchment: {
     color: '#f4ead7',
@@ -81,6 +83,7 @@ const styles = StyleSheet.create({
   role: {
     fontSize: 11,
     color: '#d3c2a4',
+    fontFamily: 'Besley',
   },
   roleParchment: {
     color: '#e9dcc6',
@@ -96,6 +99,7 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#f3e8d0',
     textTransform: 'uppercase',
+    fontFamily: 'Besley',
   },
   statusTextParchment: {
     color: '#3b2a1d',

@@ -42,11 +42,13 @@ const styles = StyleSheet.create({
     fontSize: 17,
     fontWeight: '700',
     color: '#e2e8f0',
+    fontFamily: 'Besley',
   },
   body: {
     fontSize: 13,
     lineHeight: 18,
     color: '#cbd5e1',
+    fontFamily: 'Besley',
   },
   tipBlock: {
     borderRadius: 10,
@@ -61,11 +63,13 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#bae6fd',
     textTransform: 'uppercase',
+    fontFamily: 'Besley',
   },
   tipLine: {
     fontSize: 12,
     color: '#94a3b8',
     lineHeight: 16,
+    fontFamily: 'Besley',
   },
   continueButton: {
     borderRadius: 10,
@@ -77,5 +81,6 @@ const styles = StyleSheet.create({
     color: '#ffffff',
     fontSize: 13,
     fontWeight: '700',
+    fontFamily: 'Besley',
   },
 });

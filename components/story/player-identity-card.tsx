@@ -47,10 +47,12 @@ const styles = StyleSheet.create({
     fontSize: 17,
     fontWeight: '700',
     color: '#e2e8f0',
+    fontFamily: 'Besley',
   },
   subtitle: {
     fontSize: 13,
     color: '#94a3b8',
+    fontFamily: 'Besley',
   },
   playerList: {
     gap: 8,
@@ -71,6 +73,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '700',
     color: '#e2e8f0',
+    fontFamily: 'Besley',
   },
   playerButtonTextSelected: {
     color: '#e0f2fe',

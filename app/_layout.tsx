@@ -6,7 +6,6 @@ import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect, useState } from 'react';
 import 'react-native-reanimated';
-import { Text } from 'react-native';
 
 import { useColorScheme } from '@/hooks/use-color-scheme';
 
@@ -72,10 +71,6 @@ export default function RootLayout() {
   if (!appReady) {
     return null;
   }
-
-  const TextAny = Text as unknown as { defaultProps?: { style?: any } };
-  TextAny.defaultProps = TextAny.defaultProps ?? {};
-  TextAny.defaultProps.style = [TextAny.defaultProps.style, { fontFamily: 'Besley', fontWeight: '400' }];
 
   return (
     <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>

@@ -121,6 +121,7 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '700',
     color: '#e2e8f0',
+    fontFamily: 'Besley',
   },
   chatPanelCloseButton: {
     width: 30,
@@ -136,21 +137,25 @@ const styles = StyleSheet.create({
     color: '#cbd5e1',
     fontSize: 12,
     fontWeight: '700',
+    fontFamily: 'Besley',
   },
   chatRuleText: {
     fontSize: 12,
     color: '#93c5fd',
+    fontFamily: 'Besley',
   },
   chatBudgetText: {
     fontSize: 12,
     color: '#94a3b8',
     marginTop: 2,
     marginBottom: 8,
+    fontFamily: 'Besley',
   },
   chatErrorText: {
     fontSize: 12,
     color: '#fca5a5',
     marginBottom: 8,
+    fontFamily: 'Besley',
   },
   chatPanelMessages: {
     flex: 1,
@@ -170,6 +175,7 @@ const styles = StyleSheet.create({
     borderRadius: 999,
     paddingHorizontal: 10,
     paddingVertical: 4,
+    fontFamily: 'Besley',
   },
   messageRow: {
     flexDirection: 'row',
@@ -199,11 +205,13 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '700',
     color: '#93c5fd',
+    fontFamily: 'Besley',
   },
   chatText: {
     fontSize: 14,
     color: '#e2e8f0',
     lineHeight: 18,
+    fontFamily: 'Besley',
   },
   chatInputRow: {
     flexDirection: 'row',
@@ -221,6 +229,7 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     fontSize: 14,
     color: '#e2e8f0',
+    fontFamily: 'Besley',
   },
   sendButton: {
     borderRadius: 10,
@@ -235,11 +244,13 @@ const styles = StyleSheet.create({
     color: '#ffffff',
     fontSize: 13,
     fontWeight: '700',
+    fontFamily: 'Besley',
   },
   chatCounterText: {
     marginTop: 6,
     fontSize: 11,
     color: '#94a3b8',
     textAlign: 'right',
+    fontFamily: 'Besley',
   },
 });

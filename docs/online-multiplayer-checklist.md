@@ -39,6 +39,8 @@ You need:
   - includes `role_id` (nullable in lobby, required before start)
 - `room_messages` (mind-bond chat)
 - `room_events` (scene/action/vote event stream)
+- `push_subscriptions` (one Expo push token per user/device session)
+- `push_notification_dispatches` (dedupe marker for timed-scene push sends)
 
 ## 4) Event stream contract (`room_events`)
 
@@ -51,6 +53,7 @@ Client action RPCs write these event types server-side:
 - `story_resolve_combat(p_room_id, p_scene_id, p_option_id, p_next_scene_id)`
 - `story_start_timer(p_room_id, p_scene_id, p_step_id, p_duration_seconds)`
 - `story_resolve_timed_scene(p_room_id, p_scene_id, p_option_id, p_next_scene_id, p_force)`
+- `set_push_subscription(p_token, p_platform)`
 - `story_reset(p_room_id)`
 
 Generated events:
@@ -73,3 +76,5 @@ Client reduces events in order to derive current state.
 - Apply `docs/sql/supabase-schema.sql` for fresh setup.
 - If migrating from old schema, apply `docs/sql/supabase-pivot-migration.sql`.
 - Confirm Realtime publication includes: `rooms`, `room_players`, `room_messages`, `room_events`.
+- Deploy edge function `timed-scene-notify` (`supabase/functions/timed-scene-notify/index.ts`), request body `{ roomId, sceneId }`.
+- Install notifications package on client (`npx expo install expo-notifications`) and add `"expo-notifications"` to `app.json` plugins.

@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "624576479133",
+    "project_id": "questing-together",
+    "storage_bucket": "questing-together.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:624576479133:android:25c2d6c4fc97252b5af974",
+        "android_client_info": {
+          "package_name": "com.xavierlaborie.questingtogether"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDwB6xjQtAh2tXcZtdzfIZvM3j-ZTZeNDU"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

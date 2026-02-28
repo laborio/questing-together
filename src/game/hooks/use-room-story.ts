@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { EVIDENCE_CONFIRMATION_COUNT, playerNameById, players } from '@/src/game/constants';
 import { PlayerId, RoleId } from '@/src/game/types';
@@ -1379,6 +1379,38 @@ export function useRoomStory({
     },
     [currentActionIds, currentScene, currentSceneTags, isTimedScene, resolvedOption, roomId, tagState.globalTags, timedConfig]
   );
+
+  const latestResolvedTimedSceneId = useMemo<SceneId | null>(() => {
+    let latestSceneId: SceneId | null = null;
+    reduced.sceneSequence.forEach((sceneId) => {
+      const resolved = reduced.resolvedOptionByScene[sceneId];
+      const mode = reduced.resolutionModeByScene[sceneId];
+      if (resolved && mode === 'timed') {
+        latestSceneId = sceneId;
+      }
+    });
+    return latestSceneId;
+  }, [reduced.resolutionModeByScene, reduced.resolvedOptionByScene, reduced.sceneSequence]);
+
+  const lastNotifiedTimedSceneIdRef = useRef<SceneId | null>(null);
+  useEffect(() => {
+    if (!roomId || !latestResolvedTimedSceneId) return;
+    if (lastNotifiedTimedSceneIdRef.current === latestResolvedTimedSceneId) return;
+    lastNotifiedTimedSceneIdRef.current = latestResolvedTimedSceneId;
+
+    void supabase.functions
+      .invoke('timed-scene-notify', {
+        body: {
+          roomId,
+          sceneId: latestResolvedTimedSceneId,
+        },
+      })
+      .then(({ error }) => {
+        if (error) {
+          console.warn('[push] Timed scene notification failed:', error.message);
+        }
+      });
+  }, [latestResolvedTimedSceneId, roomId]);
 
   useEffect(() => {
     if (!isTimedScene || !timedEndsAt || resolvedOption) return;

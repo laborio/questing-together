@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 
 import { EVIDENCE_CONFIRMATION_COUNT, playerNameById, players } from '@/src/game/constants';
 import { PlayerId, RoleId } from '@/src/game/types';
@@ -875,10 +875,15 @@ export function useRoomStory({
       sceneActionEvents.sort((a, b) => a.eventId - b.eventId);
 
       if (!(scene.mode === 'combat' || scene.combat)) {
-        const actionMetaMap = new Map<ActionId, { text: string; stage?: string; narration?: string }>();
+        const actionMetaMap = new Map<ActionId, { text: string; buttonText?: string; stage?: string; narration?: string }>();
         scene.steps.forEach((step) => {
           step.actions.forEach((action) => {
-            actionMetaMap.set(action.id, { text: action.text, stage: action.stage, narration: action.narration });
+            actionMetaMap.set(action.id, {
+              text: action.text,
+              buttonText: action.buttonText,
+              stage: action.stage,
+              narration: action.narration,
+            });
           });
         });
 
@@ -889,14 +894,17 @@ export function useRoomStory({
           const actionText = meta?.text ?? '(unlisted action)';
           const stageLineRaw = meta?.stage;
           const stageLine = stageLineRaw ? `${stageLineRaw.charAt(0).toUpperCase()}${stageLineRaw.slice(1)}` : undefined;
+          const hasSilentButtonLabel = Boolean(meta?.buttonText) && extractQuotedLines(actionText).length === 0;
           const spokenLines =
-            action.actionId === NO_REACTION_ACTION_ID ? [] : extractQuotedLines(meta?.text ?? actionText);
+            action.actionId === NO_REACTION_ACTION_ID ? [] : extractQuotedLines(actionText);
           const bubbleLines =
             action.actionId === NO_REACTION_ACTION_ID
               ? []
               : spokenLines.length > 0
                 ? spokenLines
-                : [actionText];
+                : hasSilentButtonLabel
+                  ? []
+                  : [actionText];
           const playerName = playerDisplayNameById[action.playerId] ?? playerNameById[action.playerId];
           const roleId = playerRoleById[action.playerId] ?? null;
           const roleLabel = roleId ? roleLabelById[roleId] : 'Adventurer';
@@ -1379,38 +1387,6 @@ export function useRoomStory({
     },
     [currentActionIds, currentScene, currentSceneTags, isTimedScene, resolvedOption, roomId, tagState.globalTags, timedConfig]
   );
-
-  const latestResolvedTimedSceneId = useMemo<SceneId | null>(() => {
-    let latestSceneId: SceneId | null = null;
-    reduced.sceneSequence.forEach((sceneId) => {
-      const resolved = reduced.resolvedOptionByScene[sceneId];
-      const mode = reduced.resolutionModeByScene[sceneId];
-      if (resolved && mode === 'timed') {
-        latestSceneId = sceneId;
-      }
-    });
-    return latestSceneId;
-  }, [reduced.resolutionModeByScene, reduced.resolvedOptionByScene, reduced.sceneSequence]);
-
-  const lastNotifiedTimedSceneIdRef = useRef<SceneId | null>(null);
-  useEffect(() => {
-    if (!roomId || !latestResolvedTimedSceneId) return;
-    if (lastNotifiedTimedSceneIdRef.current === latestResolvedTimedSceneId) return;
-    lastNotifiedTimedSceneIdRef.current = latestResolvedTimedSceneId;
-
-    void supabase.functions
-      .invoke('timed-scene-notify', {
-        body: {
-          roomId,
-          sceneId: latestResolvedTimedSceneId,
-        },
-      })
-      .then(({ error }) => {
-        if (error) {
-          console.warn('[push] Timed scene notification failed:', error.message);
-        }
-      });
-  }, [latestResolvedTimedSceneId, roomId]);
 
   useEffect(() => {
     if (!isTimedScene || !timedEndsAt || resolvedOption) return;

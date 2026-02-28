@@ -14,7 +14,6 @@ import { usePartyChat } from '@/src/game/hooks/use-party-chat';
 import { useRoomStory } from '@/src/game/hooks/use-room-story';
 import { PlayerId, RoleId } from '@/src/game/types';
 import { useAnonymousAuth } from '@/src/online/hooks/use-anonymous-auth';
-import { usePushRegistration } from '@/src/online/hooks/use-push-registration';
 import { useRoomConnection } from '@/src/online/hooks/use-room-connection';
 
 const paperTexture = require('../assets/images/T_Background_Paper.png');
@@ -45,7 +44,6 @@ function TiledBackground({ source }: { source: number }) {
 
 export default function IndexScreen() {
   const auth = useAnonymousAuth();
-  usePushRegistration({ enabled: auth.isAuthReady, userId: auth.user?.id });
   const roomConnection = useRoomConnection();
   const [showStatusPanel, setShowStatusPanel] = useState(false);
   const [resolvedHeaderHeight, setResolvedHeaderHeight] = useState(0);

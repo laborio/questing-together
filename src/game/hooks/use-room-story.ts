@@ -10,13 +10,11 @@ import {
   OptionId,
   Scene,
   SceneId,
-  SCENE_BY_ID,
-  SCENE_ID_SET,
-  STORY_DATA,
-  STORY_SCENES,
-  STORY_START_SCENE_ID,
   applyTagSet,
-  getDefaultNextSceneId,
+  getStoryRuntime,
+  isCombatActionAvailable,
+  matchesTagCondition,
+  resolveCombatActionEffect,
   resolveNextSceneId,
 } from '@/src/story/story';
 
@@ -140,7 +138,7 @@ type UseRoomStoryResult = {
   storyError: string | null;
   currentScene: Scene;
   journalEntries: JournalEntry[];
-  combatLog: Array<{ id: string; text: string }>;
+  combatLog: { id: string; text: string }[];
   combatState: CombatState | null;
   isCombatScene: boolean;
   isTimedScene: boolean;
@@ -152,7 +150,7 @@ type UseRoomStoryResult = {
   timedWaitingText: string | null;
   phaseLabel: string;
   phaseStatusText: string;
-  availableActions: Array<{ id: string; text: string; isDisabled?: boolean; hpDelta?: number; effectText?: string }>;
+  availableActions: { id: string; text: string; isDisabled?: boolean; hpDelta?: number; effectText?: string }[];
   localSelectedActionId: string | null;
   canAct: boolean;
   allowSkip: boolean;
@@ -250,8 +248,8 @@ function isPlayerId(value: unknown): value is PlayerId {
   return value === 'p1' || value === 'p2' || value === 'p3';
 }
 
-function isSceneId(value: unknown): value is SceneId {
-  return typeof value === 'string' && SCENE_ID_SET.has(value as SceneId);
+function isSceneId(value: unknown, sceneIdSet: Set<SceneId>): value is SceneId {
+  return typeof value === 'string' && sceneIdSet.has(value as SceneId);
 }
 
 function isOptionId(value: unknown): value is OptionId {
@@ -266,11 +264,11 @@ function parseCombatRound(stepId: string): number | null {
   return round;
 }
 
-function parseSceneActionPayload(eventId: number, payload: unknown): SceneActionPayload | null {
+function parseSceneActionPayload(eventId: number, payload: unknown, sceneIdSet: Set<SceneId>): SceneActionPayload | null {
   if (!payload || typeof payload !== 'object') return null;
 
   const candidate = payload as Record<string, unknown>;
-  if (!isSceneId(candidate.sceneId)) return null;
+  if (!isSceneId(candidate.sceneId, sceneIdSet)) return null;
   if (typeof candidate.stepId !== 'string' || !candidate.stepId) return null;
   if (typeof candidate.actionId !== 'string' || !candidate.actionId) return null;
   if (!isPlayerId(candidate.playerId)) return null;
@@ -284,10 +282,10 @@ function parseSceneActionPayload(eventId: number, payload: unknown): SceneAction
   };
 }
 
-function parseSceneTimerPayload(payload: unknown): SceneTimerPayload | null {
+function parseSceneTimerPayload(payload: unknown, sceneIdSet: Set<SceneId>): SceneTimerPayload | null {
   if (!payload || typeof payload !== 'object') return null;
   const candidate = payload as Record<string, unknown>;
-  if (!isSceneId(candidate.sceneId)) return null;
+  if (!isSceneId(candidate.sceneId, sceneIdSet)) return null;
   if (typeof candidate.stepId !== 'string' || !candidate.stepId) return null;
   if (typeof candidate.endAt !== 'string' || !candidate.endAt) return null;
   if (typeof candidate.durationSeconds !== 'number' || !Number.isFinite(candidate.durationSeconds)) return null;
@@ -300,15 +298,15 @@ function parseSceneTimerPayload(payload: unknown): SceneTimerPayload | null {
   };
 }
 
-function parseOptionConfirmPayload(payload: unknown): OptionConfirmPayload | null {
+function parseOptionConfirmPayload(payload: unknown, sceneIdSet: Set<SceneId>): OptionConfirmPayload | null {
   if (!payload || typeof payload !== 'object') return null;
 
   const candidate = payload as Record<string, unknown>;
-  if (!isSceneId(candidate.sceneId)) return null;
+  if (!isSceneId(candidate.sceneId, sceneIdSet)) return null;
   if (!isOptionId(candidate.optionId)) return null;
   if (!isPlayerId(candidate.playerId)) return null;
   const nextSceneId = candidate.nextSceneId;
-  if (nextSceneId !== null && nextSceneId !== undefined && !isSceneId(nextSceneId)) return null;
+  if (nextSceneId !== null && nextSceneId !== undefined && !isSceneId(nextSceneId, sceneIdSet)) return null;
 
   return {
     sceneId: candidate.sceneId,
@@ -318,16 +316,16 @@ function parseOptionConfirmPayload(payload: unknown): OptionConfirmPayload | nul
   };
 }
 
-function parseSceneResolvePayload(payload: unknown): SceneResolvePayload | null {
+function parseSceneResolvePayload(payload: unknown, sceneIdSet: Set<SceneId>): SceneResolvePayload | null {
   if (!payload || typeof payload !== 'object') return null;
 
   const candidate = payload as Record<string, unknown>;
-  if (!isSceneId(candidate.sceneId)) return null;
+  if (!isSceneId(candidate.sceneId, sceneIdSet)) return null;
   if (!isOptionId(candidate.optionId)) return null;
   const mode = candidate.mode;
   if (mode !== 'majority' && mode !== 'random' && mode !== 'combat') return null;
   const nextSceneId = candidate.nextSceneId;
-  if (nextSceneId !== null && nextSceneId !== undefined && !isSceneId(nextSceneId)) return null;
+  if (nextSceneId !== null && nextSceneId !== undefined && !isSceneId(nextSceneId, sceneIdSet)) return null;
 
   return {
     sceneId: candidate.sceneId,
@@ -337,11 +335,11 @@ function parseSceneResolvePayload(payload: unknown): SceneResolvePayload | null 
   };
 }
 
-function parseSceneContinuePayload(payload: unknown): SceneContinuePayload | null {
+function parseSceneContinuePayload(payload: unknown, sceneIdSet: Set<SceneId>): SceneContinuePayload | null {
   if (!payload || typeof payload !== 'object') return null;
 
   const candidate = payload as Record<string, unknown>;
-  if (!isSceneId(candidate.sceneId)) return null;
+  if (!isSceneId(candidate.sceneId, sceneIdSet)) return null;
   if (!isPlayerId(candidate.playerId)) return null;
 
   return {
@@ -350,14 +348,14 @@ function parseSceneContinuePayload(payload: unknown): SceneContinuePayload | nul
   };
 }
 
-function parseSceneAdvancePayload(payload: unknown): SceneAdvancePayload | null {
+function parseSceneAdvancePayload(payload: unknown, sceneIdSet: Set<SceneId>): SceneAdvancePayload | null {
   if (!payload || typeof payload !== 'object') return null;
 
   const candidate = payload as Record<string, unknown>;
-  if (!isSceneId(candidate.sceneId)) return null;
+  if (!isSceneId(candidate.sceneId, sceneIdSet)) return null;
   if (!isOptionId(candidate.optionId)) return null;
   const nextSceneId = candidate.nextSceneId;
-  if (nextSceneId !== null && nextSceneId !== undefined && !isSceneId(nextSceneId)) return null;
+  if (nextSceneId !== null && nextSceneId !== undefined && !isSceneId(nextSceneId, sceneIdSet)) return null;
 
   return {
     sceneId: candidate.sceneId,
@@ -380,12 +378,14 @@ function computeCombatResolution({
   expectedPlayerCount,
   partyHpStart,
   combatActionById,
+  globalTags,
 }: {
   scene: Scene;
   actionsByStep: SceneActionsByStep;
   expectedPlayerCount: number;
   partyHpStart: number;
   combatActionById: Map<string, CombatAction>;
+  globalTags: Set<string>;
 }): {
   state: CombatState;
   currentRoundIndex: number;
@@ -418,7 +418,9 @@ function computeCombatResolution({
     lastResolvedRound = round;
     const allowRun = scene.combat.allowRun !== false;
     const runVotes = actions.reduce((count, action) => {
-      const effect = combatActionById.get(action.actionId)?.effect;
+      const actionMeta = combatActionById.get(action.actionId);
+      if (!actionMeta || !isCombatActionAvailable(actionMeta, globalTags)) return count;
+      const effect = resolveCombatActionEffect(actionMeta, globalTags);
       return effect?.run ? count + 1 : count;
     }, 0);
 
@@ -441,7 +443,9 @@ function computeCombatResolution({
     let enemyAttackDelta = 0;
 
     actions.forEach((action) => {
-      const effect = combatActionById.get(action.actionId)?.effect;
+      const actionMeta = combatActionById.get(action.actionId);
+      if (!actionMeta || !isCombatActionAvailable(actionMeta, globalTags)) return;
+      const effect = resolveCombatActionEffect(actionMeta, globalTags);
       if (!effect) return;
       totalDamage += effect.damage ?? 0;
       totalBlock += effect.block ?? 0;
@@ -510,15 +514,23 @@ function computeCombatResolution({
   };
 }
 
-function reduceStory(events: RoomEventRow[]): StoryReduction {
+function reduceStory(
+  events: RoomEventRow[],
+  storyRuntime: {
+    startSceneId: SceneId;
+    sceneById: Record<SceneId, Scene>;
+    sceneIdSet: Set<SceneId>;
+    getDefaultNextSceneId: (sceneId: SceneId) => SceneId | null;
+  }
+): StoryReduction {
   const sortedEvents = [...events].sort((a, b) => {
     if (a.id === b.id) return 0;
     return a.id < b.id ? -1 : 1;
   });
 
   const state: StoryReduction = {
-    currentSceneId: STORY_START_SCENE_ID,
-    sceneSequence: [STORY_START_SCENE_ID],
+    currentSceneId: storyRuntime.startSceneId,
+    sceneSequence: [storyRuntime.startSceneId],
     actionsBySceneStep: {},
     confirmedVotesByScene: {},
     resolvedOptionByScene: {},
@@ -529,8 +541,8 @@ function reduceStory(events: RoomEventRow[]): StoryReduction {
 
   sortedEvents.forEach((event) => {
     if (event.type === 'story_reset') {
-      state.currentSceneId = STORY_START_SCENE_ID;
-      state.sceneSequence = [STORY_START_SCENE_ID];
+      state.currentSceneId = storyRuntime.startSceneId;
+      state.sceneSequence = [storyRuntime.startSceneId];
       state.actionsBySceneStep = {};
       state.confirmedVotesByScene = {};
       state.resolvedOptionByScene = {};
@@ -541,7 +553,7 @@ function reduceStory(events: RoomEventRow[]): StoryReduction {
     }
 
     if (event.type === 'scene_action') {
-      const payload = parseSceneActionPayload(event.id, event.payload_json);
+      const payload = parseSceneActionPayload(event.id, event.payload_json, storyRuntime.sceneIdSet);
       if (!payload) return;
       if (state.resolvedOptionByScene[payload.sceneId]) return;
 
@@ -554,7 +566,7 @@ function reduceStory(events: RoomEventRow[]): StoryReduction {
     }
 
     if (event.type === 'scene_timer_started') {
-      const payload = parseSceneTimerPayload(event.payload_json);
+      const payload = parseSceneTimerPayload(event.payload_json, storyRuntime.sceneIdSet);
       if (!payload) return;
       if (state.timersByScene[payload.sceneId]) return;
       state.timersByScene[payload.sceneId] = payload;
@@ -562,7 +574,7 @@ function reduceStory(events: RoomEventRow[]): StoryReduction {
     }
 
     if (event.type === 'option_confirm') {
-      const payload = parseOptionConfirmPayload(event.payload_json);
+      const payload = parseOptionConfirmPayload(event.payload_json, storyRuntime.sceneIdSet);
       if (!payload) return;
 
       if (payload.sceneId !== state.currentSceneId) return;
@@ -576,7 +588,7 @@ function reduceStory(events: RoomEventRow[]): StoryReduction {
     }
 
     if (event.type === 'scene_resolve') {
-      const payload = parseSceneResolvePayload(event.payload_json);
+      const payload = parseSceneResolvePayload(event.payload_json, storyRuntime.sceneIdSet);
       if (!payload) return;
 
       if (payload.sceneId !== state.currentSceneId) return;
@@ -588,7 +600,7 @@ function reduceStory(events: RoomEventRow[]): StoryReduction {
     }
 
     if (event.type === 'scene_continue') {
-      const payload = parseSceneContinuePayload(event.payload_json);
+      const payload = parseSceneContinuePayload(event.payload_json, storyRuntime.sceneIdSet);
       if (!payload) return;
 
       if (payload.sceneId !== state.currentSceneId) return;
@@ -601,18 +613,18 @@ function reduceStory(events: RoomEventRow[]): StoryReduction {
     }
 
     if (event.type === 'scene_advance') {
-      const payload = parseSceneAdvancePayload(event.payload_json);
+      const payload = parseSceneAdvancePayload(event.payload_json, storyRuntime.sceneIdSet);
       if (!payload) return;
 
       if (payload.sceneId !== state.currentSceneId) return;
 
       if (!state.resolvedOptionByScene[payload.sceneId]) {
         state.resolvedOptionByScene[payload.sceneId] = payload.optionId;
-        const scene = SCENE_BY_ID[payload.sceneId];
+        const scene = storyRuntime.sceneById[payload.sceneId];
         state.resolutionModeByScene[payload.sceneId] = scene?.mode === 'timed' || scene?.timed ? 'timed' : 'majority';
       }
 
-      const fallbackNextSceneId = payload.nextSceneId ?? getDefaultNextSceneId(payload.sceneId);
+      const fallbackNextSceneId = payload.nextSceneId ?? storyRuntime.getDefaultNextSceneId(payload.sceneId);
       if (fallbackNextSceneId) {
         state.currentSceneId = fallbackNextSceneId;
         const lastSceneId = state.sceneSequence[state.sceneSequence.length - 1];
@@ -713,9 +725,11 @@ export function useRoomStory({
     };
   }, [roomId]);
 
-  const reduced = useMemo(() => reduceStory(events), [events]);
+  const storyRuntime = useMemo(() => getStoryRuntime(roomId ?? 'local-default'), [roomId]);
 
-  const combatConfig = STORY_DATA.combat ?? DEFAULT_COMBAT_CONFIG;
+  const reduced = useMemo(() => reduceStory(events, storyRuntime), [events, storyRuntime]);
+
+  const combatConfig = storyRuntime.data.combat ?? DEFAULT_COMBAT_CONFIG;
   const combatActionById = useMemo(() => {
     const map = new Map<string, CombatAction>();
     combatConfig.actions.forEach((action) => {
@@ -724,17 +738,21 @@ export function useRoomStory({
     return map;
   }, [combatConfig.actions]);
 
-  const currentScene = SCENE_BY_ID[reduced.currentSceneId] ?? STORY_SCENES[0];
+  const currentScene = storyRuntime.sceneById[reduced.currentSceneId] ?? storyRuntime.scenes[0]!;
 
   const isCombatScene = currentScene.mode === 'combat' || Boolean(currentScene.combat);
   const isTimedScene = currentScene.mode === 'timed' || Boolean(currentScene.timed);
   const timedConfig = currentScene.timed ?? null;
 
-  const actionsByStep = reduced.actionsBySceneStep[currentScene.id] ?? {};
+  const actionsByStep = useMemo(
+    () => reduced.actionsBySceneStep[currentScene.id] ?? {},
+    [currentScene.id, reduced.actionsBySceneStep]
+  );
   const expectedPlayerCount = Math.max(1, playerCount ?? players.length);
 
   const combatSnapshots = useMemo(() => {
     let partyHp = combatConfig.partyHp;
+    const globalTags = new Set<string>();
     const combatStatesByScene: Partial<
       Record<
         SceneId,
@@ -752,8 +770,9 @@ export function useRoomStory({
     };
 
     reduced.sceneSequence.forEach((sceneId) => {
-      const scene = SCENE_BY_ID[sceneId];
+      const scene = storyRuntime.sceneById[sceneId];
       if (!scene) return;
+      const sceneTags = new Set<string>();
 
       if (scene.combat) {
         const sceneActionsByStep = reduced.actionsBySceneStep[sceneId] ?? {};
@@ -763,6 +782,7 @@ export function useRoomStory({
           expectedPlayerCount,
           partyHpStart: partyHp,
           combatActionById,
+          globalTags,
         });
         if (resolution) {
           combatStatesByScene[sceneId] = {
@@ -775,6 +795,11 @@ export function useRoomStory({
           };
           partyHp = resolution.state.partyHp;
         }
+        const resolvedOption = reduced.resolvedOptionByScene[sceneId];
+        if (resolvedOption) {
+          const option = scene.options.find((item) => item.id === resolvedOption);
+          applyTagSet(option?.tagsAdded, globalTags, sceneTags);
+        }
         return;
       }
 
@@ -784,6 +809,7 @@ export function useRoomStory({
           const outcome =
             scene.steps.map((step) => step.outcomes[action.actionId]).find((value) => Boolean(value)) ?? null;
           applyHpDelta(outcome?.hpDelta);
+          applyTagSet(outcome?.tagsAdded, globalTags, sceneTags);
         });
       });
 
@@ -791,6 +817,8 @@ export function useRoomStory({
       if (resolvedOption) {
         const outcome = scene.outcomeByOption[resolvedOption];
         applyHpDelta(outcome?.hpDelta);
+        const option = scene.options.find((item) => item.id === resolvedOption);
+        applyTagSet(option?.tagsAdded, globalTags, sceneTags);
       }
     });
 
@@ -802,6 +830,7 @@ export function useRoomStory({
     reduced.actionsBySceneStep,
     reduced.resolvedOptionByScene,
     reduced.sceneSequence,
+    storyRuntime.sceneById,
   ]);
 
   const combatSnapshot = isCombatScene ? combatSnapshots.combatStatesByScene[currentScene.id] ?? null : null;
@@ -809,25 +838,30 @@ export function useRoomStory({
   const partyHp = combatSnapshots.partyHp;
   const partyHpMax = combatConfig.partyHp;
 
-  const stepStatuses = !isCombatScene
-    ? currentScene.steps.map((step) => {
-        const actions = actionsByStep[step.id] ?? [];
-        const uniquePlayers = new Set(actions.map((action) => action.playerId));
-        return {
-          step,
-          actions,
-          completed: uniquePlayers.size >= expectedPlayerCount,
-        };
-      })
-    : [];
+  const stepStatuses = useMemo(
+    () =>
+      !isCombatScene
+        ? currentScene.steps.map((step) => {
+            const actions = actionsByStep[step.id] ?? [];
+            const uniquePlayers = new Set(actions.map((action) => action.playerId));
+            return {
+              step,
+              actions,
+              completed: uniquePlayers.size >= expectedPlayerCount,
+            };
+          })
+        : [],
+    [actionsByStep, currentScene.steps, expectedPlayerCount, isCombatScene]
+  );
 
   const firstIncompleteIndex = !isCombatScene ? stepStatuses.findIndex((item) => !item.completed) : -1;
   const currentStepIndex =
     !isCombatScene && stepStatuses.length > 0 ? (firstIncompleteIndex === -1 ? stepStatuses.length - 1 : firstIncompleteIndex) : 0;
   const currentStep = !isCombatScene && stepStatuses.length > 0 ? stepStatuses[currentStepIndex]?.step ?? currentScene.steps[0] : null;
-  const currentStepActions = isCombatScene
-    ? combatSnapshot?.currentRoundActions ?? []
-    : stepStatuses[currentStepIndex]?.actions ?? [];
+  const currentStepActions = useMemo(
+    () => (isCombatScene ? combatSnapshot?.currentRoundActions ?? [] : stepStatuses[currentStepIndex]?.actions ?? []),
+    [combatSnapshot?.currentRoundActions, currentStepIndex, isCombatScene, stepStatuses]
+  );
   const currentStepCompleted = isCombatScene
     ? new Set(currentStepActions.map((action) => action.playerId)).size >= expectedPlayerCount
     : stepStatuses[currentStepIndex]?.completed ?? false;
@@ -882,7 +916,7 @@ export function useRoomStory({
     const sequence = reduced.sceneSequence;
 
     sequence.forEach((sceneId, index) => {
-      const scene = SCENE_BY_ID[sceneId];
+      const scene = storyRuntime.sceneById[sceneId];
       if (!scene) return;
 
       if (index > 0) {
@@ -916,6 +950,16 @@ export function useRoomStory({
           aside: line.aside,
         });
       });
+
+      const roleLabel = localRole ? roleLabelById[localRole] : null;
+      const roleClue = localRole ? scene.roleClues?.[localRole] : null;
+      if (roleClue && roleLabel) {
+        entries.push({
+          id: `role-clue-${sceneId}-${index}-${localRole}`,
+          kind: 'narration',
+          text: `Indice personnel (${roleLabel}): ${roleClue}`,
+        });
+      }
 
       const sceneActionsByStep = reduced.actionsBySceneStep[sceneId] ?? {};
       const sceneActionEvents: SceneActionPayload[] = [];
@@ -1016,11 +1060,13 @@ export function useRoomStory({
     return entries;
   }, [
     combatSnapshots.combatStatesByScene,
+    localRole,
     playerDisplayNameById,
     playerRoleById,
     reduced.actionsBySceneStep,
     reduced.resolvedOptionByScene,
     reduced.sceneSequence,
+    storyRuntime.sceneById,
   ]);
 
   const tagState = useMemo(() => {
@@ -1028,7 +1074,7 @@ export function useRoomStory({
     const sceneTagsByScene: Partial<Record<SceneId, Set<string>>> = {};
 
     reduced.sceneSequence.forEach((sceneId) => {
-      const scene = SCENE_BY_ID[sceneId];
+      const scene = storyRuntime.sceneById[sceneId];
       if (!scene) return;
       const sceneTags = new Set<string>();
       const sceneActions = reduced.actionsBySceneStep[sceneId] ?? {};
@@ -1051,9 +1097,12 @@ export function useRoomStory({
     });
 
     return { globalTags, sceneTagsByScene };
-  }, [reduced.actionsBySceneStep, reduced.resolvedOptionByScene, reduced.sceneSequence]);
+  }, [reduced.actionsBySceneStep, reduced.resolvedOptionByScene, reduced.sceneSequence, storyRuntime.sceneById]);
 
-  const currentSceneTags = tagState.sceneTagsByScene[currentScene.id] ?? new Set<string>();
+  const currentSceneTags = useMemo(
+    () => tagState.sceneTagsByScene[currentScene.id] ?? new Set<string>(),
+    [currentScene.id, tagState.sceneTagsByScene]
+  );
   const currentTimer = reduced.timersByScene[currentScene.id] ?? null;
   const timedEndsAt = currentTimer?.endAt ?? null;
   const timedWaitingText = isTimedScene
@@ -1214,7 +1263,7 @@ export function useRoomStory({
     const history: SceneHistoryItem[] = [];
 
     reduced.sceneSequence.forEach((sceneId) => {
-      const scene = SCENE_BY_ID[sceneId];
+      const scene = storyRuntime.sceneById[sceneId];
       const optionId = reduced.resolvedOptionByScene[sceneId];
       if (!scene || !optionId) return;
 
@@ -1227,7 +1276,7 @@ export function useRoomStory({
     });
 
     return history;
-  }, [reduced.resolvedOptionByScene, reduced.sceneSequence]);
+  }, [reduced.resolvedOptionByScene, reduced.sceneSequence, storyRuntime.sceneById]);
 
   const playersActed = new Set(currentStepActions.map((action) => action.playerId));
   const localHasActed = playersActed.has(localPlayerId);
@@ -1281,18 +1330,23 @@ export function useRoomStory({
     if (isCombatScene) {
       return combatConfig.actions
         .filter((action) => action.role === localRole || action.role === 'any')
-        .filter((action) => (action.effect.run ? combatState?.allowRun !== false : true))
+        .filter((action) => isCombatActionAvailable(action, tagState.globalTags))
         .map((action) => ({
+          action,
+          effect: resolveCombatActionEffect(action, tagState.globalTags),
+        }))
+        .filter(({ effect }) => (effect.run ? combatState?.allowRun !== false : true))
+        .map(({ action, effect }) => ({
           id: action.id,
           text: action.text,
           isDisabled: false,
           effectText: [
-            action.effect.damage ? `+${action.effect.damage} dmg` : null,
-            action.effect.block ? `+${action.effect.block} block` : null,
-            action.effect.enemyAttackDelta
-              ? `${action.effect.enemyAttackDelta > 0 ? '+' : ''}${action.effect.enemyAttackDelta} enemy atk`
+            effect.damage ? `+${effect.damage} dmg` : null,
+            effect.block ? `+${effect.block} block` : null,
+            effect.enemyAttackDelta
+              ? `${effect.enemyAttackDelta > 0 ? '+' : ''}${effect.enemyAttackDelta} enemy atk`
               : null,
-            action.effect.run ? 'run' : null,
+            effect.run ? 'run' : null,
           ]
             .filter(Boolean)
             .join(', '),
@@ -1301,13 +1355,15 @@ export function useRoomStory({
     if (!currentStep) return [];
     return currentStep.actions
       .filter((action) => action.role === localRole || action.role === 'any')
+      .filter((action) => matchesTagCondition(tagState.globalTags, action.ifGlobal))
       .map((action) => ({
         id: action.id,
         text: action.buttonText ?? action.text,
         isDisabled: disabledActionIds.has(action.id),
         hpDelta: currentStep.outcomes[action.id]?.hpDelta,
       }));
-  }, [combatConfig.actions, combatState?.allowRun, currentStep, disabledActionIds, isCombatScene, localRole]);
+  }, [combatConfig.actions, combatState?.allowRun, currentStep, disabledActionIds, isCombatScene, localRole, tagState.globalTags]);
+  const availableActionIdSet = useMemo(() => new Set(availableActions.map((action) => action.id)), [availableActions]);
 
   const canVote = !isCombatScene && !isTimedScene && currentStepCompleted && !resolvedOption && !isStoryEnded;
   const voteLockReason = isCombatScene
@@ -1335,6 +1391,7 @@ export function useRoomStory({
     async (actionId: string) => {
       if (!roomId || !canAct || !currentStepId) return;
       if (disabledActionIds.has(actionId)) return;
+      if (!availableActionIdSet.has(actionId)) return;
 
       const { error } = await supabase.rpc('story_take_action', {
         p_room_id: roomId,
@@ -1350,7 +1407,7 @@ export function useRoomStory({
 
       setStoryError(null);
     },
-    [canAct, currentScene.id, currentStepId, disabledActionIds, roomId]
+    [availableActionIdSet, canAct, currentScene.id, currentStepId, disabledActionIds, roomId]
   );
 
   const skipAction = useCallback(async () => {
@@ -1418,7 +1475,7 @@ export function useRoomStory({
       const optionId: OptionId = 'A';
       const nextSceneId =
         resolveNextSceneId(currentScene, optionId, tagState.globalTags, currentSceneTags, currentActionIds) ??
-        getDefaultNextSceneId(currentScene.id);
+        storyRuntime.getDefaultNextSceneId(currentScene.id);
 
       const { error } = await supabase.rpc('story_resolve_timed_scene', {
         p_room_id: roomId,
@@ -1435,7 +1492,7 @@ export function useRoomStory({
 
       setStoryError(null);
     },
-    [currentActionIds, currentScene, currentSceneTags, isTimedScene, resolvedOption, roomId, tagState.globalTags, timedConfig]
+    [currentActionIds, currentScene, currentSceneTags, isTimedScene, resolvedOption, roomId, storyRuntime, tagState.globalTags, timedConfig]
   );
 
   useEffect(() => {
@@ -1486,7 +1543,7 @@ export function useRoomStory({
 
     const { error } = await supabase.rpc('story_reset', {
       p_room_id: roomId,
-      p_start_scene_id: STORY_START_SCENE_ID,
+      p_start_scene_id: storyRuntime.startSceneId,
     });
 
     if (error) {
@@ -1495,7 +1552,7 @@ export function useRoomStory({
     }
 
     setStoryError(null);
-  }, [isHost, roomId]);
+  }, [isHost, roomId, storyRuntime.startSceneId]);
 
   return {
     isReady,

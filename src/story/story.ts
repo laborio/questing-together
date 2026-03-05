@@ -1,6 +1,7 @@
 import { RoleId } from '@/src/game/types';
 
 import rawStoryData from './story-data.json';
+import { generateProceduralStoryData } from './procedural-story';
 
 export type SceneId = string;
 export type OptionId = 'A' | 'B' | 'C';
@@ -64,6 +65,7 @@ export type SceneAction = {
   buttonText?: string;
   stage?: string;
   narration?: string;
+  ifGlobal?: TagCondition;
 };
 
 export type CombatActionEffect = {
@@ -73,11 +75,21 @@ export type CombatActionEffect = {
   run?: boolean;
 };
 
+export type CombatActionModifier = {
+  ifGlobal?: TagCondition;
+  damageDelta?: number;
+  blockDelta?: number;
+  enemyAttackDelta?: number;
+  run?: boolean;
+};
+
 export type CombatAction = {
   id: ActionId;
   role: RoleId | 'any';
   text: string;
   effect: CombatActionEffect;
+  ifGlobal?: TagCondition;
+  modifiers?: CombatActionModifier[];
 };
 
 export type CombatConfig = {
@@ -125,6 +137,7 @@ export type Scene = {
   intro: string;
   introDialogue?: DialogueLine[];
   introByPreviousOption?: Partial<Record<OptionId, string>>;
+  roleClues?: Partial<Record<RoleId, string>>;
   mode?: SceneMode;
   combat?: CombatSceneConfig;
   timed?: TimedSceneConfig;
@@ -143,6 +156,15 @@ export type StoryData = {
   scenes: Scene[];
   combat?: CombatConfig;
   meta?: Record<string, unknown>;
+};
+
+export type StoryRuntime = {
+  data: StoryData;
+  scenes: Scene[];
+  startSceneId: SceneId;
+  sceneIdSet: Set<SceneId>;
+  sceneById: Record<SceneId, Scene>;
+  getDefaultNextSceneId: (sceneId: SceneId) => SceneId | null;
 };
 
 export const NO_REACTION_ACTION_ID = 'no_reaction';
@@ -198,7 +220,7 @@ function assertStoryData(raw: unknown): StoryData {
   const combatActionIds = new Set<string>();
   const combatScenes: string[] = [];
 
-  const pendingRoutes: Array<{ sceneId: string; optionId: OptionId; to: unknown }> = [];
+  const pendingRoutes: { sceneId: string; optionId: OptionId; to: unknown }[] = [];
 
   if (combat !== undefined) {
     if (!isObject(combat)) {
@@ -230,6 +252,9 @@ function assertStoryData(raw: unknown): StoryData {
           if (typeof action.text !== 'string') {
             errors.push(`combat.actions[${actionIndex}].text must be a string`);
           }
+          if (action.ifGlobal !== undefined && !isTagCondition(action.ifGlobal)) {
+            errors.push(`combat.actions[${actionIndex}].ifGlobal must be a valid tag condition`);
+          }
           if (!isObject(action.effect)) {
             errors.push(`combat.actions[${actionIndex}].effect must be an object`);
           } else {
@@ -245,6 +270,33 @@ function assertStoryData(raw: unknown): StoryData {
             }
             if (effect.run !== undefined && typeof effect.run !== 'boolean') {
               errors.push(`combat.actions[${actionIndex}].effect.run must be a boolean`);
+            }
+          }
+          if (action.modifiers !== undefined) {
+            if (!Array.isArray(action.modifiers)) {
+              errors.push(`combat.actions[${actionIndex}].modifiers must be an array`);
+            } else {
+              action.modifiers.forEach((modifier: unknown, modifierIndex: number) => {
+                if (!isObject(modifier)) {
+                  errors.push(`combat.actions[${actionIndex}].modifiers[${modifierIndex}] must be an object`);
+                  return;
+                }
+                if (modifier.ifGlobal !== undefined && !isTagCondition(modifier.ifGlobal)) {
+                  errors.push(`combat.actions[${actionIndex}].modifiers[${modifierIndex}].ifGlobal must be valid`);
+                }
+                if (modifier.damageDelta !== undefined && !isFiniteNumber(modifier.damageDelta)) {
+                  errors.push(`combat.actions[${actionIndex}].modifiers[${modifierIndex}].damageDelta must be number`);
+                }
+                if (modifier.blockDelta !== undefined && !isFiniteNumber(modifier.blockDelta)) {
+                  errors.push(`combat.actions[${actionIndex}].modifiers[${modifierIndex}].blockDelta must be number`);
+                }
+                if (modifier.enemyAttackDelta !== undefined && !isFiniteNumber(modifier.enemyAttackDelta)) {
+                  errors.push(`combat.actions[${actionIndex}].modifiers[${modifierIndex}].enemyAttackDelta must be number`);
+                }
+                if (modifier.run !== undefined && typeof modifier.run !== 'boolean') {
+                  errors.push(`combat.actions[${actionIndex}].modifiers[${modifierIndex}].run must be boolean`);
+                }
+              });
             }
           }
         });
@@ -278,6 +330,23 @@ function assertStoryData(raw: unknown): StoryData {
       if (typeof scene.intro !== 'string') errors.push(`scenes[${sceneIndex}].intro must be string`);
       if (typeof scene.canonicalTruth !== 'string') {
         errors.push(`scenes[${sceneIndex}].canonicalTruth must be string`);
+      }
+      if (scene.roleClues !== undefined) {
+        if (!isObject(scene.roleClues)) {
+          errors.push(`scenes[${sceneIndex}].roleClues must be an object`);
+        } else {
+          const roleClues = scene.roleClues as Record<string, unknown>;
+          const allowedRoles = ['warrior', 'sage', 'ranger'];
+          Object.entries(roleClues).forEach(([key, value]) => {
+            if (!allowedRoles.includes(key)) {
+              errors.push(`scenes[${sceneIndex}].roleClues.${key} is not a valid role`);
+              return;
+            }
+            if (typeof value !== 'string') {
+              errors.push(`scenes[${sceneIndex}].roleClues.${key} must be a string`);
+            }
+          });
+        }
       }
 
       const rawMode = scene.mode;
@@ -404,6 +473,9 @@ function assertStoryData(raw: unknown): StoryData {
               if (action.narration !== undefined && typeof action.narration !== 'string') {
                 errors.push(`scenes[${sceneIndex}].steps[${stepIndex}].actions[${actionIndex}].narration must be string`);
               }
+              if (action.ifGlobal !== undefined && !isTagCondition(action.ifGlobal)) {
+                errors.push(`scenes[${sceneIndex}].steps[${stepIndex}].actions[${actionIndex}].ifGlobal invalid`);
+              }
             });
           }
 
@@ -527,7 +599,7 @@ function assertStoryData(raw: unknown): StoryData {
                   }
                 });
               }
-              pendingRoutes.push({ sceneId: sceneId as string, optionId: option.id, to: route.to });
+              pendingRoutes.push({ sceneId: sceneId as string, optionId: option.id as OptionId, to: route.to });
             });
           }
         });
@@ -594,20 +666,70 @@ function assertStoryData(raw: unknown): StoryData {
   return raw as StoryData;
 }
 
-export const STORY_DATA = assertStoryData(rawStoryData);
-export const STORY_SCENES: Scene[] = STORY_DATA.scenes;
-export const STORY_START_SCENE_ID: SceneId = STORY_DATA.startSceneId;
-export const SCENE_ID_SET = new Set<SceneId>(STORY_SCENES.map((scene) => scene.id));
-export const SCENE_BY_ID: Record<SceneId, Scene> = STORY_SCENES.reduce((acc, scene) => {
-  acc[scene.id] = scene;
-  return acc;
-}, {} as Record<SceneId, Scene>);
+function createStoryRuntime(storyData: StoryData): StoryRuntime {
+  const scenes = storyData.scenes;
+  const sceneIdSet = new Set<SceneId>(scenes.map((scene) => scene.id));
+  const sceneById: Record<SceneId, Scene> = scenes.reduce((acc, scene) => {
+    acc[scene.id] = scene;
+    return acc;
+  }, {} as Record<SceneId, Scene>);
+
+  return {
+    data: storyData,
+    scenes,
+    startSceneId: storyData.startSceneId,
+    sceneIdSet,
+    sceneById,
+    getDefaultNextSceneId: (sceneId: SceneId) => getDefaultNextSceneIdFromScenes(scenes, sceneId),
+  };
+}
+
+function getDefaultNextSceneIdFromScenes(scenes: Scene[], sceneId: SceneId): SceneId | null {
+  const currentIndex = scenes.findIndex((scene) => scene.id === sceneId);
+  if (currentIndex < 0) return null;
+  const nextScene = scenes[currentIndex + 1];
+  return nextScene ? nextScene.id : null;
+}
+
+function normalizeRuntimeSeed(seed?: string | null): string {
+  const trimmed = (seed ?? '').trim();
+  if (!trimmed) return 'local-default';
+  return trimmed;
+}
+
+function buildProceduralStory(seed: string): StoryData {
+  return assertStoryData(generateProceduralStoryData(seed));
+}
+
+const FALLBACK_STORY_DATA = assertStoryData(rawStoryData);
+const STORY_RUNTIME_CACHE = new Map<string, StoryRuntime>();
+
+export function getStoryRuntime(seed?: string | null): StoryRuntime {
+  const normalizedSeed = normalizeRuntimeSeed(seed);
+  const cached = STORY_RUNTIME_CACHE.get(normalizedSeed);
+  if (cached) return cached;
+
+  let runtime: StoryRuntime;
+  try {
+    runtime = createStoryRuntime(buildProceduralStory(normalizedSeed));
+  } catch {
+    runtime = createStoryRuntime(FALLBACK_STORY_DATA);
+  }
+
+  STORY_RUNTIME_CACHE.set(normalizedSeed, runtime);
+  return runtime;
+}
+
+const DEFAULT_STORY_RUNTIME = getStoryRuntime('default-run');
+
+export const STORY_DATA = DEFAULT_STORY_RUNTIME.data;
+export const STORY_SCENES: Scene[] = DEFAULT_STORY_RUNTIME.scenes;
+export const STORY_START_SCENE_ID: SceneId = DEFAULT_STORY_RUNTIME.startSceneId;
+export const SCENE_ID_SET = DEFAULT_STORY_RUNTIME.sceneIdSet;
+export const SCENE_BY_ID: Record<SceneId, Scene> = DEFAULT_STORY_RUNTIME.sceneById;
 
 export function getDefaultNextSceneId(sceneId: SceneId): SceneId | null {
-  const currentIndex = STORY_SCENES.findIndex((scene) => scene.id === sceneId);
-  if (currentIndex < 0) return null;
-  const nextScene = STORY_SCENES[currentIndex + 1];
-  return nextScene ? nextScene.id : null;
+  return getDefaultNextSceneIdFromScenes(STORY_SCENES, sceneId);
 }
 
 export function applyTagSet(tags: TagSet | undefined, globalSet: Set<string>, sceneSet: Set<string>) {
@@ -616,12 +738,42 @@ export function applyTagSet(tags: TagSet | undefined, globalSet: Set<string>, sc
   tags.scene?.forEach((tag) => sceneSet.add(tag));
 }
 
-function matchesCondition(tags: Set<string>, condition?: TagCondition): boolean {
+export function matchesTagCondition(tags: Set<string>, condition?: TagCondition): boolean {
   if (!condition) return true;
   if (condition.all && condition.all.some((tag) => !tags.has(tag))) return false;
   if (condition.any && condition.any.length > 0 && !condition.any.some((tag) => tags.has(tag))) return false;
   if (condition.none && condition.none.some((tag) => tags.has(tag))) return false;
   return true;
+}
+
+export function isCombatActionAvailable(action: CombatAction, globalTags: Set<string>): boolean {
+  return matchesTagCondition(globalTags, action.ifGlobal);
+}
+
+export function resolveCombatActionEffect(action: CombatAction, globalTags: Set<string>): CombatActionEffect {
+  const resolved: CombatActionEffect = {
+    damage: action.effect.damage ?? 0,
+    block: action.effect.block ?? 0,
+    enemyAttackDelta: action.effect.enemyAttackDelta ?? 0,
+    run: action.effect.run ?? false,
+  };
+
+  action.modifiers?.forEach((modifier) => {
+    if (!matchesTagCondition(globalTags, modifier.ifGlobal)) return;
+    resolved.damage = (resolved.damage ?? 0) + (modifier.damageDelta ?? 0);
+    resolved.block = (resolved.block ?? 0) + (modifier.blockDelta ?? 0);
+    resolved.enemyAttackDelta = (resolved.enemyAttackDelta ?? 0) + (modifier.enemyAttackDelta ?? 0);
+    if (modifier.run !== undefined) {
+      resolved.run = modifier.run;
+    }
+  });
+
+  return {
+    damage: resolved.damage || undefined,
+    block: resolved.block || undefined,
+    enemyAttackDelta: resolved.enemyAttackDelta || undefined,
+    run: resolved.run || undefined,
+  };
 }
 
 export function resolveNextSceneId(
@@ -640,9 +792,9 @@ export function resolveNextSceneId(
 
   const routes = option.next ?? [];
   for (const route of routes) {
-    if (!matchesCondition(nextGlobalTags, route.ifGlobal)) continue;
-    if (!matchesCondition(nextSceneTags, route.ifScene)) continue;
-    if (!matchesCondition(actionIds, route.ifActions)) continue;
+    if (!matchesTagCondition(nextGlobalTags, route.ifGlobal)) continue;
+    if (!matchesTagCondition(nextSceneTags, route.ifScene)) continue;
+    if (!matchesTagCondition(actionIds, route.ifActions)) continue;
     return route.to ?? null;
   }
 

@@ -63,6 +63,7 @@ export type SceneAction = {
   role: RoleId | 'any';
   text: string;
   buttonText?: string;
+  durationSeconds?: number;
   stage?: string;
   narration?: string;
   ifGlobal?: TagCondition;
@@ -101,6 +102,7 @@ export type CombatSceneConfig = {
   enemyName: string;
   enemyHp: number;
   enemyAttack: number;
+  enemyAttackIntervalSeconds?: number;
   allowRun?: boolean;
 };
 
@@ -108,6 +110,7 @@ export type TimedSceneConfig = {
   kind: 'rest' | 'travel' | 'wait';
   durationSeconds: number;
   allowEarly?: boolean;
+  timeoutDamagePerMissing?: number;
   statusText?: string;
   restWaitingText?: string;
 };
@@ -370,6 +373,12 @@ function assertStoryData(raw: unknown): StoryData {
           if (!isFiniteNumber(combatConfig.enemyAttack) || combatConfig.enemyAttack < 0) {
             errors.push(`scenes[${sceneIndex}].combat.enemyAttack must be a non-negative number`);
           }
+          if (
+            combatConfig.enemyAttackIntervalSeconds !== undefined &&
+            (!isFiniteNumber(combatConfig.enemyAttackIntervalSeconds) || combatConfig.enemyAttackIntervalSeconds <= 0)
+          ) {
+            errors.push(`scenes[${sceneIndex}].combat.enemyAttackIntervalSeconds must be a positive number`);
+          }
           if (combatConfig.allowRun !== undefined && typeof combatConfig.allowRun !== 'boolean') {
             errors.push(`scenes[${sceneIndex}].combat.allowRun must be boolean`);
           }
@@ -388,6 +397,12 @@ function assertStoryData(raw: unknown): StoryData {
           }
           if (timed.allowEarly !== undefined && typeof timed.allowEarly !== 'boolean') {
             errors.push(`scenes[${sceneIndex}].timed.allowEarly must be boolean`);
+          }
+          if (
+            timed.timeoutDamagePerMissing !== undefined &&
+            (!isFiniteNumber(timed.timeoutDamagePerMissing) || timed.timeoutDamagePerMissing < 0)
+          ) {
+            errors.push(`scenes[${sceneIndex}].timed.timeoutDamagePerMissing must be a non-negative number`);
           }
           if (timed.statusText !== undefined && typeof timed.statusText !== 'string') {
             errors.push(`scenes[${sceneIndex}].timed.statusText must be string`);
@@ -466,6 +481,12 @@ function assertStoryData(raw: unknown): StoryData {
               }
               if (action.buttonText !== undefined && typeof action.buttonText !== 'string') {
                 errors.push(`scenes[${sceneIndex}].steps[${stepIndex}].actions[${actionIndex}].buttonText must be string`);
+              }
+              if (
+                action.durationSeconds !== undefined &&
+                (!isFiniteNumber(action.durationSeconds) || action.durationSeconds <= 0)
+              ) {
+                errors.push(`scenes[${sceneIndex}].steps[${stepIndex}].actions[${actionIndex}].durationSeconds must be a positive number`);
               }
               if (action.stage !== undefined && typeof action.stage !== 'string') {
                 errors.push(`scenes[${sceneIndex}].steps[${stepIndex}].actions[${actionIndex}].stage must be string`);

@@ -101,7 +101,6 @@ export default function IndexScreen() {
     localPlayerId: localPlayerId ?? 'p1',
     roomId,
     currentSceneId: roomStory.isReady && isAdventureStarted && localRole ? roomStory.currentScene.id : null,
-    currentSceneTitle: roomStory.isReady && isAdventureStarted && localRole ? roomStory.currentScene.title : null,
   });
 
   const isLobby = room?.status === 'lobby';

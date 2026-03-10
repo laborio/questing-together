@@ -4,24 +4,24 @@ This app now supports only the systems required for the action-driven loop:
 - room create/join + per-device player identity (`p1`, `p2`, `p3`)
 - lobby role assignment (`sage`, `warrior`, `ranger`) with first-come-first-serve locking
 - player display names (per-room, no spaces)
-- synced scene progression (linear 5-scene story with per-option intro variants)
-- mind-bond chat with per-scene message/character limits
+- synced scene progression (short procedural run, timed node resolution)
+- room board notes (2 notes per player per active node, 120 chars max)
 - synced scene actions + action log
-- decision voting after all reactions are resolved
+- no scene voting (node outcomes auto-resolve from contributions + timer)
 - branching story graph with tag-driven routing + multiple endings
 - story content lives in `src/story/story-data.json` and is validated at runtime
-- optional combat scenes (shared combat actions, persistent party HP, automatic resolution)
-- timed rest/travel scenes (server-authoritative timers, automatic advance)
+- combat scenes with real-time enemy cadence metadata
+- timed node timers (server-authoritative timers, debug early-finish button)
 
 ## 1) Product rules locked
 
-- Story shape: fixed linear sequence of 5 scenes.
+- Story shape: short procedural run (6 core nodes before ending scene).
 - Adventure start: host starts only after 3 players pick unique roles.
-- Scene flow: Phase 1 (first action), Phase 2 (remaining actions), Phase 3 (vote).
-- Each player may take at most one action per scene (or choose “no reaction”).
-- Timer: remaining players auto-skip after 6 hours (configurable).
-- Decisions: one default option visible; hidden options unlock from action outcomes.
-- Vote resolution: majority wins, random on tie, then advance scene.
+- Scene flow: contributions -> timer -> auto resolution.
+- Each player may take at most one action per node.
+- Timer: nodes resolve when timer ends (or with debug finish button).
+- Decisions: one default option visible; hidden options unlock from action outcomes and are auto-selected by resolver.
+- Failure condition: party HP reaching 0.
 
 ## 2) Backend minimum
 
@@ -37,8 +37,8 @@ You need:
 - `rooms` (room metadata only)
 - `room_players` (identity + membership)
   - includes `role_id` (nullable in lobby, required before start)
-- `room_messages` (mind-bond chat)
-- `room_events` (scene/action/vote event stream)
+- `room_messages` (room board notes)
+- `room_events` (scene/action/timer event stream)
 - `push_subscriptions` (one Expo push token per user/device session)
 - `push_notification_dispatches` (dedupe marker for timed-scene push sends)
 
@@ -49,7 +49,6 @@ Client action RPCs write these event types server-side:
 - `story_set_display_name(p_room_id, p_display_name)`
 - `story_start_adventure(p_room_id)`
 - `story_take_action(p_room_id, p_scene_id, p_step_id, p_action_id)`
-- `story_confirm_option(p_room_id, p_scene_id, p_step_id, p_option_id, p_next_scene_id)`
 - `story_resolve_combat(p_room_id, p_scene_id, p_option_id, p_next_scene_id)`
 - `story_start_timer(p_room_id, p_scene_id, p_step_id, p_duration_seconds)`
 - `story_resolve_timed_scene(p_room_id, p_scene_id, p_option_id, p_next_scene_id, p_force)`
@@ -61,6 +60,8 @@ Generated events:
   - payload: `{ sceneId, stepId, actionId, playerId }`
 - `scene_resolve`
   - payload: `{ sceneId, optionId, mode, nextSceneId }`
+- `scene_advance`
+  - payload: `{ sceneId, optionId, nextSceneId }`
 - `scene_timer_started`
   - payload: `{ sceneId, stepId, endAt, durationSeconds }`
 - `story_reset`

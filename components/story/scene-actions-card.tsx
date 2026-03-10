@@ -42,8 +42,9 @@ export function SceneActionsCard({
         {actions.map((action) => {
           const isSelectedAction = action.id === localSelectedActionId;
           const isDisabled = !canAct || action.isDisabled;
-          const hasHpDelta = typeof action.hpDelta === 'number' && Number.isFinite(action.hpDelta) && action.hpDelta !== 0;
-          const hpLabel = hasHpDelta ? `HP ${action.hpDelta > 0 ? '+' : ''}${action.hpDelta}` : null;
+          const hpDeltaValue = typeof action.hpDelta === 'number' && Number.isFinite(action.hpDelta) ? action.hpDelta : 0;
+          const hasHpDelta = hpDeltaValue !== 0;
+          const hpLabel = hasHpDelta ? `HP ${hpDeltaValue > 0 ? '+' : ''}${hpDeltaValue}` : null;
 
           return (
             <Pressable
@@ -63,7 +64,7 @@ export function SceneActionsCard({
                     <Text
                       style={[
                         styles.actionMetaText,
-                        action.hpDelta && action.hpDelta < 0 ? styles.actionMetaNegative : styles.actionMetaPositive,
+                        hpDeltaValue < 0 ? styles.actionMetaNegative : styles.actionMetaPositive,
                       ]}>
                       {hpLabel}
                     </Text>

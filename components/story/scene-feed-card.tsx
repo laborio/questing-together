@@ -59,8 +59,6 @@ type SceneFeedCardProps = {
 const LINE_REVEAL_CADENCE_MS = 360;
 const LINE_FADE_DURATION_MS = 2400;
 const LINE_FADE_EASING = Easing.out(Easing.cubic);
-const FOOTER_FADE_DURATION_MS = 500;
-const FOOTER_REVEAL_BUFFER_MS = 120;
 
 function StoryText({
   text,
@@ -151,7 +149,7 @@ function getEntryAnimationUnits(item: JournalEntry): { key: string; text: string
 }
 
 export function SceneFeedCard({
-  sceneId,
+  sceneId: _sceneId,
   sceneTitle,
   journalEntries,
   sceneHistory: _sceneHistory,
@@ -163,8 +161,6 @@ export function SceneFeedCard({
   const autoScrollRef = useRef(true);
   const [animateFromIndex, setAnimateFromIndex] = useState<number | null>(null);
   const previousCountRef = useRef<number | null>(null);
-  const revealedFooterScenesRef = useRef<Set<string>>(new Set());
-  const footerOpacity = useRef(new Animated.Value(1)).current;
 
   useEffect(() => {
     if (previousCountRef.current === null) {
@@ -207,40 +203,6 @@ export function SceneFeedCard({
     const totalDurationMs = delayCursor > 0 ? delayCursor - LINE_REVEAL_CADENCE_MS + LINE_FADE_DURATION_MS : 0;
     return { delays, totalDurationMs };
   }, [animateFromIndex, journalEntries]);
-
-  const footerSceneKey = sceneId ?? sceneTitle ?? '__scene__';
-
-  useEffect(() => {
-    if (!footer) return;
-    if (revealedFooterScenesRef.current.has(footerSceneKey)) {
-      footerOpacity.setValue(1);
-      return;
-    }
-
-    footerOpacity.setValue(0);
-  }, [footer, footerOpacity, footerSceneKey]);
-
-  useEffect(() => {
-    if (!footer) return;
-    if (animateFromIndex === null) return;
-    if (revealedFooterScenesRef.current.has(footerSceneKey)) return;
-
-    const revealDelayMs = Math.max(0, animationPlan.totalDurationMs + FOOTER_REVEAL_BUFFER_MS);
-    const timer = setTimeout(() => {
-      Animated.timing(footerOpacity, {
-        toValue: 1,
-        duration: FOOTER_FADE_DURATION_MS,
-        useNativeDriver: true,
-      }).start(() => {
-        revealedFooterScenesRef.current.add(footerSceneKey);
-      });
-    }, revealDelayMs);
-
-    return () => {
-      clearTimeout(timer);
-      footerOpacity.stopAnimation();
-    };
-  }, [animateFromIndex, animationPlan.totalDurationMs, footer, footerOpacity, footerSceneKey]);
 
   const getStartDelay = (animationKey: string) => animationPlan.delays.get(animationKey) ?? 0;
 
@@ -381,10 +343,10 @@ export function SceneFeedCard({
           })}
         </ScrollView>
         {footer ? (
-          <Animated.View style={[styles.journalFooter, { opacity: footerOpacity }]}>
+          <View style={styles.journalFooter}>
             <Image source={dividerLarge} style={styles.journalDivider} resizeMode="contain" />
             {footer}
-          </Animated.View>
+          </View>
         ) : null}
 
       </View>

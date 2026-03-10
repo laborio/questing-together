@@ -51,17 +51,17 @@ export function PartyChatPanel({
   return (
     <>
       <View style={styles.chatPanelHeader}>
-        <Text style={styles.chatPanelTitle}>Party Chat</Text>
+        <Text style={styles.chatPanelTitle}>Room Board</Text>
         <Pressable onPress={onClose} style={styles.chatPanelCloseButton}>
           <Text style={styles.chatPanelCloseText}>X</Text>
         </Pressable>
       </View>
 
       <Text style={styles.chatRuleText}>
-        Mind-bond limit: {maxMessagesPerScene} messages per scene, {maxCharactersPerMessage} chars each.
+        Tactical notes only: {maxMessagesPerScene} notes per node, {maxCharactersPerMessage} chars each.
       </Text>
       <Text style={styles.chatBudgetText}>
-        Messages: {messagesUsedThisScene}/{maxMessagesPerScene} used ({messagesRemainingThisScene} left)
+        Notes: {messagesUsedThisScene}/{maxMessagesPerScene} used ({messagesRemainingThisScene} left)
       </Text>
       {chatError ? <Text style={styles.chatErrorText}>{chatError}</Text> : null}
 
@@ -95,7 +95,7 @@ export function PartyChatPanel({
         <TextInput
           value={chatInput}
           onChangeText={onInputChange}
-          placeholder={`Max ${maxCharactersPerMessage} chars`}
+          placeholder={`Add tactical note (${maxCharactersPerMessage} max)`}
           placeholderTextColor="#64748b"
           style={styles.chatInput}
         />

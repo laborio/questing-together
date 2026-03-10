@@ -46,7 +46,7 @@ export function PartyChatOverlay({
   return (
     <>
       <Pressable onPress={onOpen} style={styles.chatLauncher}>
-        <Text style={styles.chatLauncherLabel}>CHAT</Text>
+        <Text style={styles.chatLauncherLabel}>BOARD</Text>
         {unreadCount > 0 ? (
           <View style={styles.chatUnreadBadge}>
             <Text style={styles.chatUnreadText}>{unreadCount > 9 ? '9+' : unreadCount}</Text>

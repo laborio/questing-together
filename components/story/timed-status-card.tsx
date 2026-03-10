@@ -66,7 +66,7 @@ export function TimedStatusCard({
       {showTime && timeLabel ? <Text style={styles.timeText}>{timeLabel}</Text> : null}
       {showFinishButton && allowEarly && remainingMs !== null && remainingMs > 0 ? (
         <Pressable onPress={onFinishEarly} style={styles.finishButton}>
-          <Text style={styles.finishButtonText}>End rest early (testing)</Text>
+          <Text style={styles.finishButtonText}>Finish timer now (debug)</Text>
         </Pressable>
       ) : null}
     </View>

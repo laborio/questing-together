@@ -572,8 +572,8 @@ begin
     raise exception 'Message cannot be empty';
   end if;
 
-  if char_length(v_trimmed_text) > 30 then
-    raise exception 'Message exceeds 30 characters';
+  if char_length(v_trimmed_text) > 120 then
+    raise exception 'Board note exceeds 120 characters';
   end if;
 
   select rp.player_id
@@ -606,8 +606,8 @@ begin
     and rm.player_id = v_player_id
     and rm.created_at > v_reset_at;
 
-  if v_message_count >= 4 then
-    raise exception 'Mind-bond message limit reached for this scene';
+  if v_message_count >= 2 then
+    raise exception 'Room board note limit reached for this scene';
   end if;
 
   insert into public.room_messages (room_id, scene_id, kind, player_id, text)
@@ -1200,11 +1200,10 @@ begin
   values (
     p_room_id,
     v_user_id,
-    'scene_resolve',
+    'scene_advance',
     jsonb_build_object(
       'sceneId', p_scene_id,
       'optionId', p_option_id,
-      'mode', 'combat',
       'nextSceneId', p_next_scene_id
     )
   )
@@ -1230,8 +1229,6 @@ declare
   v_player_id public.player_id;
   v_room_status public.room_status;
   v_current_scene_id text;
-  v_player_count int := 0;
-  v_action_count int := 0;
   v_event_id bigint;
   v_end_at timestamptz;
 begin
@@ -1263,11 +1260,6 @@ begin
     raise exception 'Not a room member';
   end if;
 
-  select count(*)
-  into v_player_count
-  from public.room_players rp
-  where rp.room_id = p_room_id;
-
   v_current_scene_id := public.story_current_scene_id(p_room_id);
   if p_scene_id <> v_current_scene_id then
     raise exception 'Scene is no longer active';
@@ -1275,19 +1267,6 @@ begin
 
   if p_duration_seconds is null or p_duration_seconds <= 0 then
     raise exception 'Invalid timer duration';
-  end if;
-
-  select count(distinct re.payload_json->>'playerId')
-  into v_action_count
-  from public.room_events re
-  where re.room_id = p_room_id
-    and re.id > public.story_last_reset_id(p_room_id)
-    and re.type = 'scene_action'
-    and re.payload_json->>'sceneId' = p_scene_id
-    and re.payload_json->>'stepId' = p_step_id;
-
-  if v_action_count < v_player_count then
-    raise exception 'Waiting for all reactions before starting timer';
   end if;
 
   if exists (

@@ -16,14 +16,14 @@ export const initialSceneChat: PartyChatMessage[] = [
   {
     id: 'chat-setup',
     kind: 'separator',
-    text: 'Mind-bond active: 4 messages per scene, 30 characters max per message.',
+    text: 'Room board active: 2 tactical notes per node, 120 characters max per note.',
   },
 ];
 
 export const EVIDENCE_CONFIRMATION_COUNT = 2;
 export const MAX_EVIDENCE_MARKS_PER_SCENE = 2;
-export const MAX_CHAT_MESSAGES_PER_SCENE = 4;
-export const MAX_CHAT_CHARACTERS_PER_MESSAGE = 30;
+export const MAX_CHAT_MESSAGES_PER_SCENE = 2;
+export const MAX_CHAT_CHARACTERS_PER_MESSAGE = 120;
 
 export const roles: { id: RoleId; label: string; summary: string }[] = [
   {

@@ -33,7 +33,7 @@ type DecisionPanelCardProps = {
     outcome: 'victory' | 'defeat' | 'escape' | null;
     allowRun: boolean;
   } | null;
-  combatLog: Array<{ id: string; text: string }>;
+  combatLog: { id: string; text: string }[];
   phaseLabel: string;
   statusText: string;
   actions: SceneActionChoice[];
@@ -140,7 +140,7 @@ export function DecisionPanelCard({
 
   const endingContent = (
     <View style={styles.endingWrap}>
-      <Text style={styles.endingText}>Fin.</Text>
+      <Text style={styles.endingText}>The End.</Text>
       {canResetStory ? (
         <Pressable onPress={onResetStory} style={styles.textureButton}>
           <ImageBackground
@@ -149,11 +149,11 @@ export function DecisionPanelCard({
             imageStyle={styles.textureImage}
             resizeMode="stretch"
           >
-            <Text style={styles.textureText}>Recommencer l&apos;aventure</Text>
+            <Text style={styles.textureText}>Restart Adventure</Text>
           </ImageBackground>
         </Pressable>
       ) : (
-        <Text style={styles.waitingText}>En attente de l&apos;hote pour recommencer.</Text>
+        <Text style={styles.waitingText}>Waiting for host to restart.</Text>
       )}
     </View>
   );
@@ -219,11 +219,11 @@ export function DecisionPanelCard({
             <TimedStatusCard
               label={phaseLabel}
               endAt={timedEndsAt}
-              statusText={timedWaitingText ?? 'Le groupe attend....'}
+              statusText={timedWaitingText ?? 'The party is waiting...'}
               statusStyle="journal"
-              timePrefix="Temps restant"
+              timePrefix="Time remaining"
               showTime={false}
-              showFinishButton={false}
+              showFinishButton
               allowEarly={timedAllowEarly}
               onFinishEarly={onFinishTimedScene}
               embedded
@@ -313,7 +313,7 @@ export function DecisionPanelCard({
     <View style={[styles.card, embedded && styles.embeddedCard]}>
       {!embedded ? <Text style={styles.sectionTitle}>Decision Panel</Text> : null}
 
-      {!isTimedScene && !isEndingScene ? (
+      {!isTimedScene && !isEndingScene && isCombatScene ? (
         <View style={styles.tabsRow}>
           <Pressable
             onPress={() => setActiveTab('actions')}
@@ -324,7 +324,7 @@ export function DecisionPanelCard({
             onPress={() => setActiveTab('decisions')}
             style={[styles.tabButton, activeTab === 'decisions' && styles.tabButtonActive]}>
             <Text style={[styles.tabButtonText, activeTab === 'decisions' && styles.tabButtonTextActive]}>
-              {isCombatScene ? 'Combat' : 'Decisions'}
+              Combat
             </Text>
           </Pressable>
         </View>
@@ -351,7 +351,7 @@ export function DecisionPanelCard({
             endAt={timedEndsAt}
             statusText={timedStatusText ?? statusText}
             showTime={false}
-            showFinishButton={false}
+            showFinishButton
             allowEarly={timedAllowEarly}
             onFinishEarly={onFinishTimedScene}
             embedded={embedded}

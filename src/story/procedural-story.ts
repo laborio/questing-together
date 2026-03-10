@@ -27,6 +27,15 @@ type CombatAction = {
   }[];
 };
 
+type SceneAction = {
+  id: string;
+  role: RoleId | 'any';
+  text: string;
+  buttonText?: string;
+  durationSeconds?: number;
+  ifGlobal?: TagCondition;
+};
+
 type Scene = {
   id: string;
   title: string;
@@ -39,12 +48,21 @@ type Scene = {
     enemyName: string;
     enemyHp: number;
     enemyAttack: number;
+    enemyAttackIntervalSeconds?: number;
     allowRun?: boolean;
+  };
+  timed?: {
+    kind: 'rest' | 'travel' | 'wait';
+    durationSeconds: number;
+    allowEarly?: boolean;
+    timeoutDamagePerMissing?: number;
+    statusText?: string;
+    restWaitingText?: string;
   };
   evidence: { id: string; label: string; description: string }[];
   steps: {
     id: string;
-    actions: { id: string; role: RoleId | 'any'; text: string; buttonText?: string; ifGlobal?: TagCondition }[];
+    actions: SceneAction[];
     outcomes: Record<
       string,
       {
@@ -83,37 +101,28 @@ type StoryData = {
 type Theme = {
   id: string;
   label: string;
-  zone: string;
+  location: string;
   relic: string;
-  symbol: string;
+  enemy: string;
   material: string;
-  guardian: string;
-  atmosphere: string;
-  ambientSound: string;
+  sigil: string;
 };
 
 type ExploreCard = {
   id: string;
   title: string;
   obstacle: string;
-  context: string;
-  rangerFindsUtility?: boolean;
+  intro: string;
+  rangerUtility?: boolean;
 };
 
-type EventCard = {
+type PuzzleCard = {
   id: string;
   title: string;
   focus: string;
 };
 
-type DangerCard = {
-  id: string;
-  title: string;
-  hazard: string;
-  pressure: string;
-};
-
-type RewardCard = {
+type TreasureCard = {
   id: string;
   title: string;
   cache: string;
@@ -121,118 +130,73 @@ type RewardCard = {
 
 const THEMES: Theme[] = [
   {
-    id: 'necromancer_ruins',
-    label: 'Ruines Necromantiques',
-    zone: 'les cryptes de cendre',
-    relic: 'l\'ancre des morts',
-    symbol: 'des crane-runes',
-    material: 'de l\'obsidienne poudreuse',
-    guardian: 'Sentinelle Ossuaire',
-    atmosphere: 'une froideur d\'encre colle a chaque souffle',
-    ambientSound: 'des os qui frottent sous la pierre',
-  },
-  {
     id: 'sunken_temple',
-    label: 'Temple Englouti',
-    zone: 'les salles submergees',
-    relic: 'le coeur de maree',
-    symbol: 'des soleils noyes',
-    material: 'du basalte humide',
-    guardian: 'Gardien des Marées',
-    atmosphere: 'l\'air sale de saumure et d\'algues noires',
-    ambientSound: 'des vagues enfermées sous la roche',
+    label: 'Sunken Temple',
+    location: 'the drowned halls',
+    relic: 'the tide heart',
+    enemy: 'Drowned Guardian',
+    material: 'salted basalt',
+    sigil: 'wave sigils',
   },
   {
     id: 'obsidian_keep',
-    label: 'Forteresse d\'Obsidienne',
-    zone: 'les cours de verre noir',
-    relic: 'la braise juratoire',
-    symbol: 'des sigils de serment',
-    material: 'du verre volcanique',
-    guardian: 'Marcheur de Cendre',
-    atmosphere: 'la chaleur mord meme sans flammes visibles',
-    ambientSound: 'des chaines tendues qui vibrent',
+    label: 'Obsidian Keep',
+    location: 'the black-glass courtyards',
+    relic: 'the oath ember',
+    enemy: 'Ash Warden',
+    material: 'volcanic glass',
+    sigil: 'oath marks',
+  },
+  {
+    id: 'ashen_crypt',
+    label: 'Ashen Crypt',
+    location: 'the bone vaults',
+    relic: 'the death anchor',
+    enemy: 'Ossuary Sentinel',
+    material: 'powdered obsidian',
+    sigil: 'skull runes',
   },
 ];
 
 const EXPLORE_CARDS: ExploreCard[] = [
   {
-    id: 'locked_path',
-    title: 'Passage Verrouille',
-    obstacle: 'une porte de {material} couverte de {symbol}',
-    context: 'Le couloir se resserre et debouche sur {obstacle}.',
-    rangerFindsUtility: true,
+    id: 'sealed_gate',
+    title: 'Sealed Gate',
+    obstacle: 'a reinforced gate covered in {sigil}',
+    intro: 'The corridor narrows into {obstacle}.',
+    rangerUtility: true,
   },
   {
-    id: 'collapsed_gallery',
-    title: 'Galerie Effondree',
-    obstacle: 'un eboulis instable qui noie l\'ancien axe',
-    context: 'Une galerie laterale finit contre {obstacle}.',
+    id: 'collapsed_hall',
+    title: 'Collapsed Hall',
+    obstacle: 'a fresh collapse choking the main route',
+    intro: 'Dust hangs over {obstacle}.',
   },
   {
-    id: 'flooded_chamber',
-    title: 'Chambre Inondee',
-    obstacle: 'un bassin brise qui cache la sortie',
-    context: 'L\'eau monte jusqu\'aux genoux; devant, {obstacle}.',
-    rangerFindsUtility: true,
+    id: 'flooded_room',
+    title: 'Flooded Room',
+    obstacle: 'a submerged crossing with unstable footing',
+    intro: 'Knee-high water slows the group near {obstacle}.',
+    rangerUtility: true,
   },
   {
     id: 'whisper_wall',
-    title: 'Mur Murmurant',
-    obstacle: 'un mur grave qui repond aux voix',
-    context: 'Les torches vibrent. Vous tombez face a {obstacle}.',
-  },
-  {
-    id: 'sealed_niche',
-    title: 'Niche Scellee',
-    obstacle: 'une niche rituelle soudee par des liens anciens',
-    context: 'Dans l\'ombre d\'une arche, {obstacle}.',
-  },
-  {
-    id: 'watch_post',
-    title: 'Poste de Guet',
-    obstacle: 'une meurtriere activee par un mecanisme sourd',
-    context: 'Un ancien poste tient encore. Au centre, {obstacle}.',
+    title: 'Whisper Wall',
+    obstacle: 'a wall that answers spoken words',
+    intro: 'Torchlight shakes while the party faces {obstacle}.',
   },
 ];
 
-const EVENT_CARDS: EventCard[] = [
-  { id: 'relay_altar', title: 'Autel-Relais', focus: 'un autel relie au coeur du complexe' },
-  { id: 'resonance_hub', title: 'Noyau de Resonance', focus: 'un noyau qui amplifie vos traces' },
-  { id: 'broken_orrery', title: 'Orrery Brisee', focus: 'un cadran rituel fendu mais encore actif' },
+const PUZZLE_CARDS: PuzzleCard[] = [
+  { id: 'ancient_altar', title: 'Ancient Altar', focus: 'an altar that reacts to relic signatures' },
+  { id: 'echo_engine', title: 'Echo Engine', focus: 'a cracked resonance engine still humming' },
+  { id: 'ward_lattice', title: 'Ward Lattice', focus: 'a lattice of defensive runes guarding a passage' },
 ];
 
-const DANGER_CARDS: DangerCard[] = [
-  {
-    id: 'ritual_guard',
-    title: 'Garde Rituel',
-    hazard: 'des automates de garde sortent des murs',
-    pressure: 'Le moindre faux pas declenche une riposte coordonnee.',
-  },
-  {
-    id: 'void_cleft',
-    title: 'Faille Noire',
-    hazard: 'une faille mange les appuis au centre de la salle',
-    pressure: 'Le passage se referme par vagues brutales.',
-  },
-  {
-    id: 'howling_corridor',
-    title: 'Corridor Hurlant',
-    hazard: 'une conduite sonore brouille les ordres et attire des ombres',
-    pressure: 'Les cris amplifies poussent le groupe a la faute.',
-  },
-  {
-    id: 'burning_valve',
-    title: 'Vanne Incendiee',
-    hazard: 'une vanne instable vomit chaleur et etincelles',
-    pressure: 'Le terrain force des decisions rapides et couteuses.',
-  },
-];
-
-const REWARD_CARDS: RewardCard[] = [
-  { id: 'armory_cache', title: 'Reserve d\'Arsenal', cache: 'des modules de combat encore intacts' },
-  { id: 'ritual_cache', title: 'Reserve Rituelle', cache: 'des outils de sceau et des clefs fractales' },
-  { id: 'field_cache', title: 'Reserve de Campagne', cache: 'de l\'equipement mobile et des stimulants' },
+const TREASURE_CARDS: TreasureCard[] = [
+  { id: 'armory_cache', title: 'Armory Cache', cache: 'combat modules and field repairs' },
+  { id: 'ritual_cache', title: 'Ritual Cache', cache: 'seal tools and relay keys' },
+  { id: 'supply_cache', title: 'Supply Cache', cache: 'stimulants and reserve kits' },
 ];
 
 type Rng = () => number;
@@ -276,495 +240,338 @@ function replaceTokens(text: string, tokens: Record<string, string>): string {
   return text.replace(/\{([a-zA-Z0-9_]+)\}/g, (_, key: string) => tokens[key] ?? `{${key}}`);
 }
 
-function buildRoleClues(theme: Theme, sceneLabel: string) {
+function timed(kind: 'rest' | 'travel' | 'wait', minutes: number, statusText: string) {
   return {
-    warrior: `Tu reperes des marques de choc pres de ${sceneLabel}; quelque chose de lourd est passe ici.`,
-    sage: `Tu lis un motif de ${theme.symbol} incomplet autour de ${sceneLabel}; le flux rituel est affaibli.`,
-    ranger: `Tu notes des traces discrètes autour de ${sceneLabel}; un trajet secondaire reste praticable.`,
-  } as Partial<Record<RoleId, string>>;
+    kind,
+    durationSeconds: Math.floor(minutes * 60),
+    allowEarly: true,
+    timeoutDamagePerMissing: 1,
+    statusText,
+    restWaitingText: 'The party waits for the timer to resolve this node.',
+  } as const;
+}
+
+function roleClues(theme: Theme, subject: string): Partial<Record<RoleId, string>> {
+  return {
+    warrior: `You spot stress marks around ${subject}; force can open a path.`,
+    sage: `You read unstable patterns in ${theme.sigil} near ${subject}.`,
+    ranger: `You map a narrow side route around ${subject}.`,
+  };
+}
+
+function makeTimedActions(prefix: string): SceneAction[] {
+  return [
+    {
+      id: `${prefix}_attack`,
+      role: 'warrior',
+      text: 'Break through with force.',
+      buttonText: 'Break (20m)',
+      durationSeconds: 20 * 60,
+    },
+    {
+      id: `${prefix}_study`,
+      role: 'sage',
+      text: 'Study the structure and extract a safe route.',
+      buttonText: 'Study (30m)',
+      durationSeconds: 30 * 60,
+    },
+    {
+      id: `${prefix}_scout`,
+      role: 'ranger',
+      text: 'Scout for a hidden bypass and mark safe footing.',
+      buttonText: 'Scout (15m)',
+      durationSeconds: 15 * 60,
+    },
+  ];
 }
 
 function buildStartScene(theme: Theme): Scene {
-  const evidenceId = 'scene_0_trace';
+  const evidenceId = 'scene_0_entry';
   return {
     id: 'scene_0',
-    title: `Depart - ${theme.label}`,
-    journalTitle: `Depart - ${theme.label}`,
-    canonicalTruth: `Le groupe entre dans ${theme.zone} pour atteindre ${theme.relic}.`,
-    intro: `La mission commence dans ${theme.zone}. ${theme.atmosphere}. Votre cible est ${theme.relic}, perdu derriere ${theme.symbol}.`,
-    roleClues: buildRoleClues(theme, 'la porte d\'entree'),
-    evidence: [{ id: evidenceId, label: 'POINT_D_ENTREE', description: 'Indices initiaux sur la structure du complexe.' }],
+    title: `Entry - ${theme.label}`,
+    journalTitle: `Entry - ${theme.label}`,
+    canonicalTruth: `The party enters ${theme.location} to recover ${theme.relic}.`,
+    intro: `The expedition begins in ${theme.location}. Your objective is ${theme.relic}.`,
+    roleClues: roleClues(theme, 'the entry seal'),
+    mode: 'timed',
+    timed: timed('travel', 40, 'Entry pressure is building.'),
+    evidence: [{ id: evidenceId, label: 'ENTRY_TRACE', description: 'Initial readings from the expedition start.' }],
     steps: [
       {
         id: 'scene_0_step_1',
-        actions: [
-          { id: 'scene_0_warrior', role: 'warrior', text: 'Le Guerrier securise l\'entree et mesure le terrain.' },
-          { id: 'scene_0_sage', role: 'sage', text: 'Le Sage lit les premières inscriptions actives.' },
-          { id: 'scene_0_ranger', role: 'ranger', text: 'Le Ranger cartographie les couloirs proches.' },
-        ],
+        actions: makeTimedActions('scene_0'),
         outcomes: {
-          scene_0_warrior: {
-            narration: 'Le groupe gagne un point d\'appui solide avant d\'avancer.',
+          scene_0_attack: {
+            narration: 'The breach line holds and the party gains momentum.',
             evidenceIds: [evidenceId],
-            tagsAdded: { global: ['start_anchor'] },
+            unlockOptionIds: ['B'],
+            tagsAdded: { global: ['entry_force'] },
           },
-          scene_0_sage: {
-            narration: 'Les motifs revelent une structure en blocs reactifs.',
+          scene_0_study: {
+            narration: 'A stable pattern is mapped and shared with the team.',
             evidenceIds: [evidenceId],
-            tagsAdded: { global: ['start_reading'] },
+            unlockOptionIds: ['B'],
+            tagsAdded: { global: ['entry_read'] },
           },
-          scene_0_ranger: {
-            narration: 'Un chemin discret est note pour une future retraite.',
+          scene_0_scout: {
+            narration: 'A discreet lane is flagged for future repositioning.',
             evidenceIds: [evidenceId],
             unlockOptionIds: ['C'],
-            tagsAdded: { global: ['start_paths'] },
+            tagsAdded: { global: ['entry_path'] },
           },
         },
       },
     ],
     options: [
-      { id: 'A', text: 'Entrer prudemment.', defaultVisible: true, next: [{ to: 'scene_1' }] },
-      {
-        id: 'B',
-        text: 'Prendre l\'axe principal.',
-        next: [{ to: 'scene_1' }],
-        tagsAdded: { global: ['tempo_fast'] },
-      },
-      {
-        id: 'C',
-        text: 'Passer par une faille laterale.',
-        isRisky: true,
-        next: [{ to: 'scene_1' }],
-        tagsAdded: { global: ['tempo_fast', 'risk_taken'] },
-      },
+      { id: 'A', text: 'Proceed in formation.', defaultVisible: true, next: [{ to: 'scene_1' }] },
+      { id: 'B', text: 'Push the pace.', next: [{ to: 'scene_1' }], tagsAdded: { global: ['tempo_fast'] } },
+      { id: 'C', text: 'Take a risky side route.', isRisky: true, next: [{ to: 'scene_1' }], tagsAdded: { global: ['risk_taken'] } },
     ],
     unlockRules: [{ optionId: 'B', evidenceIds: [evidenceId] }],
     outcomeByOption: {
-      A: { text: 'Le groupe progresse en gardant ses reserves intactes.' },
-      B: { text: 'La progression gagne du temps mais revele votre presence.', hpDelta: -1 },
-      C: { text: 'Le détour paie, mais coute des forces sur un terrain instable.', hpDelta: -1 },
+      A: { text: 'The party advances steadily.' },
+      B: { text: 'The group gains time but exposes itself.', hpDelta: -1 },
+      C: { text: 'The shortcut works, but costs stamina.', hpDelta: -1 },
     },
   };
 }
 
-function buildExploreScene({
-  sceneId,
-  nextSceneId,
-  card,
-  theme,
-}: {
-  sceneId: string;
-  nextSceneId: string;
-  card: ExploreCard;
-  theme: Theme;
-}): Scene {
+function buildExploreScene(sceneId: string, nextSceneId: string, card: ExploreCard, theme: Theme): Scene {
   const evidenceId = `${sceneId}_evidence`;
-  const obstacle = replaceTokens(card.obstacle, { material: theme.material, symbol: theme.symbol });
+  const obstacle = replaceTokens(card.obstacle, { sigil: theme.sigil });
   return {
     id: sceneId,
-    title: `${card.title}`,
-    canonicalTruth: `Le groupe doit contourner ${obstacle}.`,
-    intro: replaceTokens(card.context, { obstacle }) + ` ${theme.ambientSound}.`,
-    roleClues: buildRoleClues(theme, obstacle),
-    evidence: [
-      {
-        id: evidenceId,
-        label: 'TRACE_STRUCTURELLE',
-        description: `Observation utile autour de ${obstacle}.`,
-      },
-    ],
+    title: card.title,
+    canonicalTruth: `The party must handle ${obstacle}.`,
+    intro: `${replaceTokens(card.intro, { obstacle })} The walls are ${theme.material}.`,
+    roleClues: roleClues(theme, obstacle),
+    mode: 'timed',
+    timed: timed('travel', 45, 'Expedition timer is active for this room.'),
+    evidence: [{ id: evidenceId, label: 'FIELD_MARK', description: `Actionable data recovered near ${obstacle}.` }],
     steps: [
       {
         id: `${sceneId}_step_1`,
-        actions: [
-          { id: `${sceneId}_warrior`, role: 'warrior', text: 'Le Guerrier ouvre un angle de progression.' },
-          { id: `${sceneId}_sage`, role: 'sage', text: 'Le Sage calibre les runes actives.' },
-          { id: `${sceneId}_ranger`, role: 'ranger', text: 'Le Ranger cherche une faille exploitable.' },
-        ],
+        actions: makeTimedActions(sceneId),
         outcomes: {
-          [`${sceneId}_warrior`]: {
-            narration: 'La position devient tenable, meme sous pression.',
+          [`${sceneId}_attack`]: {
+            narration: 'A direct opening appears through the obstruction.',
             evidenceIds: [evidenceId],
             unlockOptionIds: ['B'],
           },
-          [`${sceneId}_sage`]: {
-            narration: 'Le schema local est decode et simplifie la suite.',
+          [`${sceneId}_study`]: {
+            narration: 'The mechanism is decoded and risk is reduced.',
             evidenceIds: [evidenceId],
+            unlockOptionIds: ['B'],
             tagsAdded: { global: ['lore_fragment'] },
           },
-          [`${sceneId}_ranger`]: {
-            narration: card.rangerFindsUtility
-              ? 'Une petite clef modulaire est recuperee dans la poussiere.'
-              : 'Un passage de secours est balise pour plus tard.',
+          [`${sceneId}_scout`]: {
+            narration: card.rangerUtility
+              ? 'A utility key is recovered from the side route.'
+              : 'A fallback route is marked for rapid retreat.',
             evidenceIds: [evidenceId],
             unlockOptionIds: ['C'],
-            tagsAdded: card.rangerFindsUtility ? { global: ['utility_skeleton_key'] } : { global: ['path_marked'] },
+            tagsAdded: card.rangerUtility ? { global: ['utility_key'] } : { global: ['fallback_route'] },
           },
         },
       },
     ],
     options: [
-      {
-        id: 'A',
-        text: 'Continuer en formation serree.',
-        defaultVisible: true,
-        next: [{ to: nextSceneId }],
-      },
-      {
-        id: 'B',
-        text: 'Exploiter l\'ouverture detectee.',
-        next: [{ to: nextSceneId }],
-        tagsAdded: { global: ['tempo_fast'] },
-      },
-      {
-        id: 'C',
-        text: 'Forcer un passage fragile.',
-        isRisky: true,
-        next: [{ to: nextSceneId }],
-        tagsAdded: { global: ['risk_taken'] },
-      },
+      { id: 'A', text: 'Advance carefully.', defaultVisible: true, next: [{ to: nextSceneId }] },
+      { id: 'B', text: 'Exploit the opening.', next: [{ to: nextSceneId }], tagsAdded: { global: ['tempo_fast'] } },
+      { id: 'C', text: 'Force the unstable path.', isRisky: true, next: [{ to: nextSceneId }], tagsAdded: { global: ['risk_taken'] } },
     ],
     unlockRules: [{ optionId: 'B', evidenceIds: [evidenceId] }],
     outcomeByOption: {
-      A: { text: 'La progression reste stable et disciplinée.' },
-      B: { text: 'Vous gagnez du terrain mais le complexe vous repere.', hpDelta: -1 },
-      C: { text: 'Le groupe passe au prix d\'une fatigue immediate.', hpDelta: -1 },
+      A: { text: 'The party maintains control.' },
+      B: { text: 'The team gains ground quickly, taking light strain.', hpDelta: -1 },
+      C: { text: 'The risk pays off, but morale takes a hit.', hpDelta: -1 },
     },
   };
 }
 
-function buildEventScene({
-  sceneId,
-  nextSceneId,
-  card,
-  theme,
-}: {
-  sceneId: string;
-  nextSceneId: string;
-  card: EventCard;
-  theme: Theme;
-}): Scene {
+function buildPuzzleScene(sceneId: string, nextSceneId: string, card: PuzzleCard, theme: Theme): Scene {
   const evidenceId = `${sceneId}_evidence`;
   return {
     id: sceneId,
     title: card.title,
-    canonicalTruth: `La scene attribue les augments de run en lien avec ${card.focus}.`,
-    intro: `Au centre de ${theme.zone}, vous trouvez ${card.focus}. C'est ici que vos choix peuvent changer la fin de run.`,
-    roleClues: buildRoleClues(theme, card.focus),
-    evidence: [{ id: evidenceId, label: 'NOEUD_CENTRAL', description: 'Element cle pour la suite de l\'expedition.' }],
+    canonicalTruth: `The node revolves around ${card.focus}.`,
+    intro: `At the center of ${theme.location}, the party discovers ${card.focus}.`,
+    roleClues: roleClues(theme, card.focus),
+    mode: 'timed',
+    timed: timed('wait', 60, 'Puzzle pressure rises as runes adapt.'),
+    evidence: [{ id: evidenceId, label: 'RUNE_KEY', description: 'Critical puzzle alignment data.' }],
     steps: [
       {
         id: `${sceneId}_step_1`,
         actions: [
-          { id: `${sceneId}_warrior`, role: 'warrior', text: 'Le Guerrier ancre une charge de rupture.' },
-          { id: `${sceneId}_sage`, role: 'sage', text: 'Le Sage stabilise le flux et concentre la puissance.' },
-          { id: `${sceneId}_ranger`, role: 'ranger', text: 'Le Ranger monte un kit tactique de contournement.' },
-          { id: `${sceneId}_any`, role: 'any', text: 'Le groupe extrait une clef rituelle transportable.' },
-        ],
-        outcomes: {
-          [`${sceneId}_warrior`]: {
-            narration: 'Augment obtenu: Briseur de ligne (Guerrier).',
-            evidenceIds: [evidenceId],
-            unlockOptionIds: ['B'],
-            tagsAdded: { global: ['augment_warrior_breach'] },
-          },
-          [`${sceneId}_sage`]: {
-            narration: 'Augment obtenu: Focalisation arcanique (Sage).',
-            evidenceIds: [evidenceId],
-            unlockOptionIds: ['B'],
-            tagsAdded: { global: ['augment_sage_focus'] },
-          },
-          [`${sceneId}_ranger`]: {
-            narration: 'Augment obtenu: Outils d\'embuscade (Ranger).',
-            evidenceIds: [evidenceId],
-            unlockOptionIds: ['C'],
-            tagsAdded: { global: ['augment_ranger_gadget'] },
-          },
-          [`${sceneId}_any`]: {
-            narration: 'Vous prenez une clef utilitaire reutilisable.',
-            evidenceIds: [evidenceId],
-            unlockOptionIds: ['C'],
-            tagsAdded: { global: ['utility_skeleton_key'] },
-          },
-        },
-      },
-    ],
-    options: [
-      {
-        id: 'A',
-        text: 'Sceller le noyau et poursuivre.',
-        defaultVisible: true,
-        next: [{ to: nextSceneId }],
-      },
-      {
-        id: 'B',
-        text: 'Surcharger les canaux offensifs.',
-        next: [{ to: nextSceneId }],
-        tagsAdded: { global: ['augment_party_fury'] },
-      },
-      {
-        id: 'C',
-        text: 'Prioriser la logistique et les raccourcis.',
-        next: [{ to: nextSceneId }],
-        tagsAdded: { global: ['utility_skeleton_key'] },
-      },
-    ],
-    unlockRules: [{ optionId: 'B', evidenceIds: [evidenceId] }],
-    outcomeByOption: {
-      A: { text: 'Le noyau est stabilise sans surcout.' },
-      B: { text: 'Le groupe gagne un pic de puissance pour les combats a venir.' },
-      C: { text: 'Le groupe securise une marge tactique pour les zones dangereuses.' },
-    },
-  };
-}
-
-function buildDangerScene({
-  sceneId,
-  nextSceneId,
-  card,
-  theme,
-}: {
-  sceneId: string;
-  nextSceneId: string;
-  card: DangerCard;
-  theme: Theme;
-}): Scene {
-  const evidenceId = `${sceneId}_evidence`;
-  return {
-    id: sceneId,
-    title: card.title,
-    canonicalTruth: `Scene de danger: ${card.hazard}.`,
-    intro: `${card.hazard}. ${card.pressure} ${theme.atmosphere}.`,
-    roleClues: buildRoleClues(theme, card.hazard),
-    evidence: [{ id: evidenceId, label: 'SIGNAL_DANGER', description: 'Element tactique confirme sous pression.' }],
-    steps: [
-      {
-        id: `${sceneId}_step_1`,
-        actions: [
-          { id: `${sceneId}_warrior_base`, role: 'warrior', text: 'Le Guerrier couvre l\'avance a la lame.' },
-          { id: `${sceneId}_sage_base`, role: 'sage', text: 'Le Sage dresse un contre-rythme defensif.' },
-          { id: `${sceneId}_ranger_base`, role: 'ranger', text: 'Le Ranger guide une ligne de fuite propre.' },
           {
-            id: `${sceneId}_warrior_aug`,
+            id: `${sceneId}_attack`,
             role: 'warrior',
-            text: 'Augment: le Guerrier brise la ligne adverse.',
-            ifGlobal: { all: ['augment_warrior_breach'] },
+            text: 'Break the lock ring at a weak point.',
+            buttonText: 'Break Ring (20m)',
+            durationSeconds: 20 * 60,
           },
           {
-            id: `${sceneId}_sage_aug`,
+            id: `${sceneId}_study`,
             role: 'sage',
-            text: 'Augment: le Sage court-circuite la pression rituelle.',
-            ifGlobal: { all: ['augment_sage_focus'] },
+            text: 'Decode rune order and stabilize the relay.',
+            buttonText: 'Decode Runes (30m)',
+            durationSeconds: 30 * 60,
           },
           {
-            id: `${sceneId}_ranger_aug`,
+            id: `${sceneId}_scout`,
             role: 'ranger',
-            text: 'Augment: le Ranger pose un filet tactique.',
-            ifGlobal: { all: ['augment_ranger_gadget'] },
-          },
-          {
-            id: `${sceneId}_utility`,
-            role: 'any',
-            text: 'Utilitaire: activer la clef modulaire pour ouvrir un axe securise.',
-            ifGlobal: { all: ['utility_skeleton_key'] },
+            text: 'Find a bypass trigger hidden in side channels.',
+            buttonText: 'Find Trigger (15m)',
+            durationSeconds: 15 * 60,
           },
         ],
         outcomes: {
-          [`${sceneId}_warrior_base`]: {
-            narration: 'La ligne tient, mais au prix d\'efforts visibles.',
-            evidenceIds: [evidenceId],
-            hpDelta: -1,
-          },
-          [`${sceneId}_sage_base`]: {
-            narration: 'La poussée est contenue, mais draine vos reserves.',
-            evidenceIds: [evidenceId],
-            hpDelta: -1,
-            unlockOptionIds: ['B'],
-          },
-          [`${sceneId}_ranger_base`]: {
-            narration: 'Le groupe traverse le pire de la zone en restant mobile.',
-            evidenceIds: [evidenceId],
-            unlockOptionIds: ['C'],
-          },
-          [`${sceneId}_warrior_aug`]: {
-            narration: 'Action augmentee: une ouverture nette apparait dans la defense adverse.',
+          [`${sceneId}_attack`]: {
+            narration: 'The lock ring cracks and reveals a forced route.',
             evidenceIds: [evidenceId],
             unlockOptionIds: ['B'],
-            tagsAdded: { global: ['danger_opening'] },
           },
-          [`${sceneId}_sage_aug`]: {
-            narration: 'Action augmentee: la trame ennemie perd son rythme.',
+          [`${sceneId}_study`]: {
+            narration: 'Rune cadence is solved and opens a controlled route.',
             evidenceIds: [evidenceId],
             unlockOptionIds: ['B', 'C'],
-            tagsAdded: { global: ['boss_exposed'] },
+            tagsAdded: { global: ['puzzle_mastered'] },
           },
-          [`${sceneId}_ranger_aug`]: {
-            narration: 'Action augmentee: le groupe gagne un couloir d\'engagement ideal.',
+          [`${sceneId}_scout`]: {
+            narration: 'A hidden trigger grants a tactical bypass.',
             evidenceIds: [evidenceId],
             unlockOptionIds: ['C'],
-            tagsAdded: { global: ['path_marked'] },
-          },
-          [`${sceneId}_utility`]: {
-            narration: 'Utilitaire active: la clef ouvre un raccourci vers l\'objectif.',
-            evidenceIds: [evidenceId],
-            unlockOptionIds: ['C'],
-            tagsAdded: { global: ['shortcut_ready'] },
+            tagsAdded: { global: ['utility_key'] },
           },
         },
       },
     ],
     options: [
-      {
-        id: 'A',
-        text: 'Maintenir le plan et passer proprement.',
-        defaultVisible: true,
-        next: [{ to: nextSceneId }],
-      },
-      {
-        id: 'B',
-        text: 'Exploiter la faille offensive.',
-        next: [{ to: nextSceneId }],
-        tagsAdded: { global: ['boss_exposed'] },
-      },
-      {
-        id: 'C',
-        text: 'Prendre le raccourci instable.',
-        isRisky: true,
-        next: [{ to: nextSceneId }],
-        tagsAdded: { global: ['risk_taken'] },
-      },
+      { id: 'A', text: 'Take the stable route.', defaultVisible: true, next: [{ to: nextSceneId }] },
+      { id: 'B', text: 'Take the high-throughput route.', next: [{ to: nextSceneId }], tagsAdded: { global: ['boss_exposed'] } },
+      { id: 'C', text: 'Take the hidden bypass.', isRisky: true, next: [{ to: nextSceneId }], tagsAdded: { global: ['shortcut_ready'] } },
     ],
     unlockRules: [{ optionId: 'B', evidenceIds: [evidenceId] }],
     outcomeByOption: {
-      A: { text: 'La zone est franchie en limitant la casse.' },
-      B: { text: 'Vous prenez l\'initiative pour le combat final.', hpDelta: 1 },
-      C: { text: 'Le raccourci fonctionne mais use les nerfs.', hpDelta: -1 },
+      A: { text: 'The party keeps a safe pace.' },
+      B: { text: 'The team primes an advantage for the boss.', hpDelta: 1 },
+      C: { text: 'The bypass saves time but adds uncertainty.', hpDelta: -1 },
     },
   };
 }
 
-function buildRewardScene({
-  sceneId,
-  nextSceneId,
-  card,
-  theme,
-}: {
-  sceneId: string;
-  nextSceneId: string;
-  card: RewardCard;
-  theme: Theme;
-}): Scene {
+function buildTreasureScene(sceneId: string, nextSceneId: string, card: TreasureCard, theme: Theme): Scene {
   const evidenceId = `${sceneId}_evidence`;
   return {
     id: sceneId,
     title: card.title,
-    canonicalTruth: `Point de recompense avant le boss: ${card.cache}.`,
-    intro: `Vous trouvez ${card.cache}. C'est le dernier moment pour calibrer la puissance de run avant ${theme.guardian}.`,
-    roleClues: buildRoleClues(theme, card.cache),
-    evidence: [{ id: evidenceId, label: 'RESERVE', description: 'Materiel exploitable avant le boss.' }],
+    canonicalTruth: `The party secures ${card.cache} before the boss.`,
+    intro: `A side chamber contains ${card.cache}. This is the last prep node before ${theme.enemy}.`,
+    roleClues: roleClues(theme, card.cache),
+    mode: 'timed',
+    timed: timed('rest', 35, 'Upgrade selection window is active.'),
+    evidence: [{ id: evidenceId, label: 'CACHE_INDEX', description: 'Pre-boss resource index.' }],
     steps: [
       {
         id: `${sceneId}_step_1`,
         actions: [
-          { id: `${sceneId}_warrior`, role: 'warrior', text: 'Le Guerrier renforce l\'attaque frontale.' },
-          { id: `${sceneId}_sage`, role: 'sage', text: 'Le Sage stabilise les reserves defensives.' },
-          { id: `${sceneId}_ranger`, role: 'ranger', text: 'Le Ranger trie l\'equipement utilitaire.' },
+          {
+            id: `${sceneId}_attack`,
+            role: 'warrior',
+            text: 'Prioritize offensive modules.',
+            buttonText: 'Offense Pack (20m)',
+            durationSeconds: 20 * 60,
+          },
+          {
+            id: `${sceneId}_study`,
+            role: 'sage',
+            text: 'Prioritize defensive wards.',
+            buttonText: 'Defense Pack (30m)',
+            durationSeconds: 30 * 60,
+          },
+          {
+            id: `${sceneId}_scout`,
+            role: 'ranger',
+            text: 'Prioritize mobility kits and tactical tools.',
+            buttonText: 'Utility Pack (15m)',
+            durationSeconds: 15 * 60,
+          },
         ],
         outcomes: {
-          [`${sceneId}_warrior`]: {
-            narration: 'Le groupe prepare un assaut plus brutal.',
+          [`${sceneId}_attack`]: {
+            narration: 'The party is set up for stronger burst damage.',
             evidenceIds: [evidenceId],
             unlockOptionIds: ['B'],
+            tagsAdded: { global: ['upgrade_offense'] },
           },
-          [`${sceneId}_sage`]: {
-            narration: 'Un coussin defensif est mis en place.',
+          [`${sceneId}_study`]: {
+            narration: 'Defensive reserves are fortified.',
             evidenceIds: [evidenceId],
             unlockOptionIds: ['C'],
+            tagsAdded: { global: ['upgrade_defense'] },
           },
-          [`${sceneId}_ranger`]: {
-            narration: 'Des modules de contournement sont rendus utilisables.',
+          [`${sceneId}_scout`]: {
+            narration: 'Utility routing improves flexibility under pressure.',
             evidenceIds: [evidenceId],
             unlockOptionIds: ['B', 'C'],
+            tagsAdded: { global: ['upgrade_utility'] },
           },
         },
       },
     ],
     options: [
-      {
-        id: 'A',
-        text: 'Prendre l\'upgrade offensive.',
-        defaultVisible: true,
-        next: [{ to: nextSceneId }],
-        tagsAdded: { global: ['augment_party_fury'] },
-      },
-      {
-        id: 'B',
-        text: 'Prendre l\'upgrade utilitaire.',
-        next: [{ to: nextSceneId }],
-        tagsAdded: { global: ['utility_skeleton_key', 'shortcut_ready'] },
-      },
-      {
-        id: 'C',
-        text: 'Prendre l\'upgrade defensive.',
-        next: [{ to: nextSceneId }],
-        tagsAdded: { global: ['augment_reserve_vigor'] },
-      },
+      { id: 'A', text: 'Lock in balanced loadout.', defaultVisible: true, next: [{ to: nextSceneId }] },
+      { id: 'B', text: 'Lock in aggressive loadout.', next: [{ to: nextSceneId }], tagsAdded: { global: ['augment_party_fury'] } },
+      { id: 'C', text: 'Lock in defensive loadout.', next: [{ to: nextSceneId }], tagsAdded: { global: ['augment_reserve_vigor'] } },
     ],
     unlockRules: [{ optionId: 'B', evidenceIds: [evidenceId] }],
     outcomeByOption: {
-      A: { text: 'Vous acceptez une montee de puissance immediate.' },
-      B: { text: 'Le groupe privilegie l\'impact tactique et les ouvertures.', hpDelta: 1 },
-      C: { text: 'Les reserves sont consolidees pour absorber le choc final.', hpDelta: 2 },
+      A: { text: 'The team keeps a balanced profile.' },
+      B: { text: 'Offense spikes for the final fight.', hpDelta: 1 },
+      C: { text: 'Durability increases before the boss.', hpDelta: 2 },
     },
   };
 }
 
 function buildBossScene(theme: Theme): Scene {
   return {
-    id: 'scene_8',
-    title: `Boss - ${theme.guardian}`,
-    journalTitle: `Affrontement Final - ${theme.guardian}`,
-    canonicalTruth: `Le boss final verrouille ${theme.relic}.`,
-    intro: `${theme.guardian} sort de ${theme.material} et bloque l'acces a ${theme.relic}. Les choices de run definissent votre puissance ici.`,
+    id: 'scene_5',
+    title: `Boss - ${theme.enemy}`,
+    journalTitle: `Final Encounter - ${theme.enemy}`,
+    canonicalTruth: `${theme.enemy} protects ${theme.relic}.`,
+    intro: `${theme.enemy} rises from ${theme.material}. Enemy attacks land every 45 minutes unless blocked.`,
     roleClues: {
-      warrior: 'Tu vois des points de rupture nets sur l\'armure du boss.',
-      sage: 'Tu detectes une oscillation breve dans le noyau rituel du boss.',
-      ranger: 'Tu identifies un angle mort exploitable sur le flanc du boss.',
+      warrior: 'Armor seams are visible near the shoulder plate.',
+      sage: 'The ritual core desyncs for short windows.',
+      ranger: 'A blind-side lane opens between attack cycles.',
     },
     mode: 'combat',
     combat: {
-      enemyName: theme.guardian,
-      enemyHp: 34,
-      enemyAttack: 8,
+      enemyName: theme.enemy,
+      enemyHp: 20,
+      enemyAttack: 2,
+      enemyAttackIntervalSeconds: 45 * 60,
       allowRun: true,
     },
     evidence: [],
     steps: [],
     options: [
-      { id: 'A', text: 'Victoire', defaultVisible: true, next: [{ to: 'scene_end_heroic' }] },
-      { id: 'B', text: 'Defaite', next: [{ to: 'scene_end_failure' }] },
-      { id: 'C', text: 'Retraite', next: [{ to: 'scene_end_escape' }] },
+      { id: 'A', text: 'Victory', defaultVisible: true, next: [{ to: 'scene_end_victory' }] },
+      { id: 'B', text: 'Defeat', next: [{ to: 'scene_end_defeat' }] },
+      { id: 'C', text: 'Retreat', next: [{ to: 'scene_end_retreat' }] },
     ],
     unlockRules: [],
     outcomeByOption: {
-      A: { text: `Le boss tombe. ${theme.relic} est securise.` },
-      B: { text: `Le groupe cede et ${theme.relic} reste hors de portee.` },
-      C: { text: `Le groupe se retire en conservant une partie des acquis.` },
+      A: { text: `The boss falls and ${theme.relic} is secured.` },
+      B: { text: `The party is overwhelmed before reaching ${theme.relic}.` },
+      C: { text: 'The team escapes with partial gains.' },
     },
   };
 }
 
-function buildEndingScene({
-  id,
-  title,
-  intro,
-  canonicalTruth,
-}: {
-  id: string;
-  title: string;
-  intro: string;
-  canonicalTruth: string;
-}): Scene {
+function buildEndingScene(id: string, title: string, intro: string, canonicalTruth: string): Scene {
   return {
     id,
     title,
@@ -776,144 +583,56 @@ function buildEndingScene({
       {
         id: `${id}_step_1`,
         actions: [
-          { id: `${id}_warrior`, role: 'warrior', text: 'Le Guerrier confirme la fin de l\'expedition.' },
-          { id: `${id}_sage`, role: 'sage', text: 'Le Sage fixe le rapport final.' },
-          { id: `${id}_ranger`, role: 'ranger', text: 'Le Ranger balise la sortie.' },
+          { id: `${id}_warrior`, role: 'warrior', text: 'The warrior secures the final line.' },
+          { id: `${id}_sage`, role: 'sage', text: 'The sage records the expedition outcome.' },
+          { id: `${id}_ranger`, role: 'ranger', text: 'The ranger marks safe extraction routes.' },
         ],
         outcomes: {
-          [`${id}_warrior`]: { narration: 'Le front est tenu jusqu\'au dernier instant.' },
-          [`${id}_sage`]: { narration: 'La conclusion est proprement documentee.' },
-          [`${id}_ranger`]: { narration: 'Le retrait de la zone est securise.' },
+          [`${id}_warrior`]: { narration: 'The front holds to the end.' },
+          [`${id}_sage`]: { narration: 'The account is archived for future runs.' },
+          [`${id}_ranger`]: { narration: 'Extraction remains controlled.' },
         },
       },
     ],
     options: [
-      {
-        id: 'A',
-        text: 'Conclure la run.',
-        defaultVisible: true,
-        next: [{ to: null }],
-      },
-      {
-        id: 'B',
-        text: 'Conclure la run.',
-        next: [{ to: null }],
-      },
-      {
-        id: 'C',
-        text: 'Conclure la run.',
-        next: [{ to: null }],
-      },
+      { id: 'A', text: 'Conclude run.', defaultVisible: true, next: [{ to: null }] },
+      { id: 'B', text: 'Conclude run.', next: [{ to: null }] },
+      { id: 'C', text: 'Conclude run.', next: [{ to: null }] },
     ],
     unlockRules: [],
     outcomeByOption: {
-      A: { text: 'Run terminee.' },
-      B: { text: 'Run terminee.' },
-      C: { text: 'Run terminee.' },
+      A: { text: 'Run complete.' },
+      B: { text: 'Run complete.' },
+      C: { text: 'Run complete.' },
     },
   };
 }
 
 function buildCombatActions(): CombatAction[] {
-  const offenseModifier = { ifGlobal: { all: ['augment_party_fury'] }, damageDelta: 1 };
-  const defenseModifier = { ifGlobal: { all: ['augment_reserve_vigor'] }, blockDelta: 1 };
-  const exposedModifier = { ifGlobal: { all: ['boss_exposed'] }, damageDelta: 1 };
+  const offenseMod = { ifGlobal: { all: ['augment_party_fury'] }, damageDelta: 1 };
+  const defenseMod = { ifGlobal: { all: ['augment_reserve_vigor'] }, blockDelta: 1 };
+  const exposeMod = { ifGlobal: { all: ['boss_exposed'] }, damageDelta: 1 };
 
   return [
+    { id: 'warrior_strike', role: 'warrior', text: 'Attack', effect: { damage: 3 }, modifiers: [offenseMod, exposeMod] },
+    { id: 'warrior_guard', role: 'warrior', text: 'Defend', effect: { block: 2 }, modifiers: [defenseMod] },
+    { id: 'warrior_withdraw', role: 'warrior', text: 'Hold retreat lane', effect: { run: true, block: 1 }, modifiers: [defenseMod] },
+
+    { id: 'sage_bolt', role: 'sage', text: 'Cast bolt', effect: { damage: 3, enemyAttackDelta: -1 }, modifiers: [offenseMod, exposeMod] },
+    { id: 'sage_ward', role: 'sage', text: 'Raise ward', effect: { block: 2 }, modifiers: [defenseMod] },
+    { id: 'sage_withdraw', role: 'sage', text: 'Coordinated retreat', effect: { run: true, enemyAttackDelta: -1 }, modifiers: [defenseMod] },
+
+    { id: 'ranger_shot', role: 'ranger', text: 'Take shot', effect: { damage: 3 }, modifiers: [offenseMod, exposeMod] },
+    { id: 'ranger_cover', role: 'ranger', text: 'Mobile cover', effect: { block: 2 }, modifiers: [defenseMod] },
+    { id: 'ranger_withdraw', role: 'ranger', text: 'Open fallback', effect: { run: true }, modifiers: [defenseMod] },
+
     {
-      id: 'warrior_cleave',
-      role: 'warrior',
-      text: 'Fendre la ligne',
-      effect: { damage: 4 },
-      modifiers: [offenseModifier, exposedModifier],
-    },
-    {
-      id: 'warrior_guard',
-      role: 'warrior',
-      text: 'Couvrir le groupe',
-      effect: { block: 3 },
-      modifiers: [defenseModifier],
-    },
-    {
-      id: 'warrior_fallback',
-      role: 'warrior',
-      text: 'Tenir la retraite',
-      effect: { run: true, block: 1 },
-      modifiers: [defenseModifier],
-    },
-    {
-      id: 'sage_bolt',
-      role: 'sage',
-      text: 'Eclair rituel',
-      effect: { damage: 4, enemyAttackDelta: -1 },
-      modifiers: [offenseModifier, exposedModifier],
-    },
-    {
-      id: 'sage_ward',
-      role: 'sage',
-      text: 'Voile de garde',
-      effect: { block: 3 },
-      modifiers: [defenseModifier],
-    },
-    {
-      id: 'sage_withdraw',
-      role: 'sage',
-      text: 'Retrait coordonne',
-      effect: { run: true, enemyAttackDelta: -1 },
-      modifiers: [defenseModifier],
-    },
-    {
-      id: 'ranger_shot',
-      role: 'ranger',
-      text: 'Tir d\'ouverture',
-      effect: { damage: 4 },
-      modifiers: [offenseModifier, exposedModifier],
-    },
-    {
-      id: 'ranger_cover',
-      role: 'ranger',
-      text: 'Couverture mobile',
-      effect: { block: 2, enemyAttackDelta: -1 },
-      modifiers: [defenseModifier],
-    },
-    {
-      id: 'ranger_slip',
-      role: 'ranger',
-      text: 'Ouvrir une sortie',
-      effect: { run: true },
-      modifiers: [defenseModifier],
-    },
-    {
-      id: 'warrior_breach',
-      role: 'warrior',
-      text: 'Augment: Rupture totale',
-      ifGlobal: { all: ['augment_warrior_breach'] },
-      effect: { damage: 7 },
-      modifiers: [offenseModifier, exposedModifier],
-    },
-    {
-      id: 'sage_overload',
-      role: 'sage',
-      text: 'Augment: Surcharge runique',
-      ifGlobal: { all: ['augment_sage_focus'] },
-      effect: { damage: 6, enemyAttackDelta: -1 },
-      modifiers: [offenseModifier, exposedModifier],
-    },
-    {
-      id: 'ranger_barrage',
-      role: 'ranger',
-      text: 'Augment: Barrage tactique',
-      ifGlobal: { all: ['augment_ranger_gadget'] },
-      effect: { damage: 5, block: 2 },
-      modifiers: [offenseModifier, defenseModifier],
-    },
-    {
-      id: 'team_pylon',
+      id: 'team_utility',
       role: 'any',
-      text: 'Utilitaire: Activer le pylone',
-      ifGlobal: { all: ['utility_skeleton_key'] },
-      effect: { damage: 4, block: 2 },
-      modifiers: [offenseModifier, defenseModifier],
+      text: 'Activate utility rig',
+      ifGlobal: { all: ['upgrade_utility'] },
+      effect: { damage: 2, block: 1 },
+      modifiers: [offenseMod, defenseMod],
     },
   ];
 }
@@ -923,55 +642,37 @@ export function generateProceduralStoryData(seedInput: string): StoryData {
   const rng = createRng(seed);
 
   const theme = pickOne(rng, THEMES);
-  const exploreCards = pickUnique(rng, EXPLORE_CARDS, 3);
-  const eventCard = pickOne(rng, EVENT_CARDS);
-  const dangerCards = pickUnique(rng, DANGER_CARDS, 2);
-  const rewardCard = pickOne(rng, REWARD_CARDS);
+  const exploreCards = pickUnique(rng, EXPLORE_CARDS, 2);
+  const puzzleCard = pickOne(rng, PUZZLE_CARDS);
+  const treasureCard = pickOne(rng, TREASURE_CARDS);
 
   const scenes: Scene[] = [
     buildStartScene(theme),
-    buildExploreScene({ sceneId: 'scene_1', nextSceneId: 'scene_2', card: exploreCards[0]!, theme }),
-    buildExploreScene({ sceneId: 'scene_2', nextSceneId: 'scene_3', card: exploreCards[1]!, theme }),
-    buildExploreScene({ sceneId: 'scene_3', nextSceneId: 'scene_4', card: exploreCards[2]!, theme }),
-    buildEventScene({ sceneId: 'scene_4', nextSceneId: 'scene_5', card: eventCard, theme }),
-    buildDangerScene({ sceneId: 'scene_5', nextSceneId: 'scene_6', card: dangerCards[0]!, theme }),
-    buildDangerScene({ sceneId: 'scene_6', nextSceneId: 'scene_7', card: dangerCards[1]!, theme }),
-    buildRewardScene({ sceneId: 'scene_7', nextSceneId: 'scene_8', card: rewardCard, theme }),
+    buildExploreScene('scene_1', 'scene_2', exploreCards[0]!, theme),
+    buildExploreScene('scene_2', 'scene_3', exploreCards[1]!, theme),
+    buildPuzzleScene('scene_3', 'scene_4', puzzleCard, theme),
+    buildTreasureScene('scene_4', 'scene_5', treasureCard, theme),
     buildBossScene(theme),
-    buildEndingScene({
-      id: 'scene_end_heroic',
-      title: 'Fin Heroique',
-      intro: `La compagnie revient avec ${theme.relic}. Le complexe se tait enfin.`,
-      canonicalTruth: 'Victoire de run.',
-    }),
-    buildEndingScene({
-      id: 'scene_end_escape',
-      title: 'Fin Retraite',
-      intro: 'Vous survivez et sortez avec des fragments utiles, sans prendre le coeur du site.',
-      canonicalTruth: 'Retraite tactique.',
-    }),
-    buildEndingScene({
-      id: 'scene_end_failure',
-      title: 'Fin Echec',
-      intro: `Le groupe tombe avant de securiser ${theme.relic}. La zone reste active.`,
-      canonicalTruth: 'Defaite de run.',
-    }),
+    buildEndingScene('scene_end_victory', 'Victory', `The party returns with ${theme.relic}.`, 'Run victory.'),
+    buildEndingScene('scene_end_retreat', 'Retreat', 'The team survives and extracts with partial gains.', 'Run retreat.'),
+    buildEndingScene('scene_end_defeat', 'Defeat', `The party falls before securing ${theme.relic}.`, 'Run defeat.'),
   ];
 
   return {
-    version: 1001,
+    version: 2001,
     startSceneId: 'scene_0',
     combat: {
-      partyHp: 30,
+      partyHp: 24,
       actions: buildCombatActions(),
     },
     meta: {
-      generator: 'procedural-v1',
+      generator: 'procedural-v2-short',
       seed,
       runLength: 'short',
+      language: 'en',
       themeId: theme.id,
       themeLabel: theme.label,
-      structure: ['start', 'explore', 'explore', 'explore', 'event', 'danger', 'danger', 'reward', 'boss'],
+      structure: ['start', 'explore', 'explore', 'puzzle', 'treasure', 'boss'],
     },
     scenes,
   };

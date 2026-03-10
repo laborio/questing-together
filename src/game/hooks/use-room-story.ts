@@ -43,7 +43,7 @@ type OptionConfirmPayload = {
 type SceneResolvePayload = {
   sceneId: SceneId;
   optionId: OptionId;
-  mode: 'majority' | 'random' | 'combat';
+  mode: 'majority' | 'random' | 'combat' | 'timed';
   nextSceneId: SceneId | null;
 };
 
@@ -72,6 +72,7 @@ type SceneActionsByStep = Partial<Record<string, SceneActionPayload[]>>;
 type StoryReduction = {
   currentSceneId: SceneId;
   sceneSequence: SceneId[];
+  sceneEnteredAtByScene: Partial<Record<SceneId, string>>;
   actionsBySceneStep: Partial<Record<SceneId, SceneActionsByStep>>;
   confirmedVotesByScene: Partial<Record<SceneId, SceneConfirmedVotes>>;
   resolvedOptionByScene: Partial<Record<SceneId, OptionId>>;
@@ -179,7 +180,6 @@ type UseRoomStoryResult = {
 };
 
 const OPTION_ID_SET = new Set<OptionId>(['A', 'B', 'C']);
-const EMPTY_SCENE_CONFIRMED_VOTES: SceneConfirmedVotes = {};
 const ACTION_TIMEOUT_MS = 6 * 60 * 60 * 1000;
 const COMBAT_ROUND_PREFIX = 'combat_round_';
 const DEFAULT_COMBAT_CONFIG = { partyHp: 30, actions: [] as CombatAction[] };
@@ -323,7 +323,7 @@ function parseSceneResolvePayload(payload: unknown, sceneIdSet: Set<SceneId>): S
   if (!isSceneId(candidate.sceneId, sceneIdSet)) return null;
   if (!isOptionId(candidate.optionId)) return null;
   const mode = candidate.mode;
-  if (mode !== 'majority' && mode !== 'random' && mode !== 'combat') return null;
+  if (mode !== 'majority' && mode !== 'random' && mode !== 'combat' && mode !== 'timed') return null;
   const nextSceneId = candidate.nextSceneId;
   if (nextSceneId !== null && nextSceneId !== undefined && !isSceneId(nextSceneId, sceneIdSet)) return null;
 
@@ -379,6 +379,8 @@ function computeCombatResolution({
   partyHpStart,
   combatActionById,
   globalTags,
+  sceneStartedAtMs,
+  nowMs,
 }: {
   scene: Scene;
   actionsByStep: SceneActionsByStep;
@@ -386,6 +388,8 @@ function computeCombatResolution({
   partyHpStart: number;
   combatActionById: Map<string, CombatAction>;
   globalTags: Set<string>;
+  sceneStartedAtMs: number;
+  nowMs: number;
 }): {
   state: CombatState;
   currentRoundIndex: number;
@@ -405,17 +409,24 @@ function computeCombatResolution({
   let enemyHp = scene.combat.enemyHp;
   let outcome: CombatOutcome | null = null;
   const roundLog: CombatRoundLog[] = [];
-  let lastResolvedRound = 0;
   const runThreshold = Math.ceil((expectedPlayerCount * 2) / 3);
+  const roundDurationMs = Math.max(
+    1,
+    Math.floor(((scene.combat as { enemyAttackIntervalSeconds?: number }).enemyAttackIntervalSeconds ?? 2700) * 1000)
+  );
 
-  for (const round of roundsSorted) {
+  let round = 1;
+  while (true) {
     const actions = roundMap.get(round) ?? [];
     const uniquePlayers = new Set(actions.map((action) => action.playerId));
-    if (uniquePlayers.size < expectedPlayerCount) {
+    const stepCompleted = uniquePlayers.size >= expectedPlayerCount;
+    const roundDeadlineMs = sceneStartedAtMs + round * roundDurationMs;
+    const deadlineReached = nowMs >= roundDeadlineMs;
+
+    if (!stepCompleted && !deadlineReached) {
       break;
     }
 
-    lastResolvedRound = round;
     const allowRun = scene.combat.allowRun !== false;
     const runVotes = actions.reduce((count, action) => {
       const actionMeta = combatActionById.get(action.actionId);
@@ -476,23 +487,19 @@ function computeCombatResolution({
       outcome = 'defeat';
       break;
     }
-  }
 
-  let currentRoundIndex = 1;
-  if (roundsSorted.length > 0) {
-    for (const round of roundsSorted) {
-      const actions = roundMap.get(round) ?? [];
-      const uniquePlayers = new Set(actions.map((action) => action.playerId));
-      if (uniquePlayers.size < expectedPlayerCount) {
-        currentRoundIndex = round;
-        break;
-      }
-      currentRoundIndex = round + 1;
+    round += 1;
+
+    // Exit once we've caught up and no pending actions/deadline-triggered rounds remain.
+    const maxKnownRound = roundsSorted[roundsSorted.length - 1] ?? 0;
+    if (round > maxKnownRound && nowMs < sceneStartedAtMs + round * roundDurationMs) {
+      break;
     }
   }
 
-  if (outcome && lastResolvedRound > 0) {
-    currentRoundIndex = lastResolvedRound;
+  let currentRoundIndex = round;
+  if (outcome) {
+    currentRoundIndex = Math.max(1, round);
   }
 
   const currentRoundActions = roundMap.get(currentRoundIndex) ?? [];
@@ -531,6 +538,7 @@ function reduceStory(
   const state: StoryReduction = {
     currentSceneId: storyRuntime.startSceneId,
     sceneSequence: [storyRuntime.startSceneId],
+    sceneEnteredAtByScene: {},
     actionsBySceneStep: {},
     confirmedVotesByScene: {},
     resolvedOptionByScene: {},
@@ -543,6 +551,9 @@ function reduceStory(
     if (event.type === 'story_reset') {
       state.currentSceneId = storyRuntime.startSceneId;
       state.sceneSequence = [storyRuntime.startSceneId];
+      state.sceneEnteredAtByScene = {
+        [storyRuntime.startSceneId]: event.created_at,
+      };
       state.actionsBySceneStep = {};
       state.confirmedVotesByScene = {};
       state.resolvedOptionByScene = {};
@@ -627,6 +638,9 @@ function reduceStory(
       const fallbackNextSceneId = payload.nextSceneId ?? storyRuntime.getDefaultNextSceneId(payload.sceneId);
       if (fallbackNextSceneId) {
         state.currentSceneId = fallbackNextSceneId;
+        if (!state.sceneEnteredAtByScene[fallbackNextSceneId]) {
+          state.sceneEnteredAtByScene[fallbackNextSceneId] = event.created_at;
+        }
         const lastSceneId = state.sceneSequence[state.sceneSequence.length - 1];
         if (lastSceneId !== fallbackNextSceneId) {
           state.sceneSequence = [...state.sceneSequence, fallbackNextSceneId];
@@ -650,7 +664,13 @@ export function useRoomStory({
   const [events, setEvents] = useState<RoomEventRow[]>([]);
   const [isReady, setIsReady] = useState(false);
   const [storyError, setStoryError] = useState<string | null>(null);
+  const [nowMs, setNowMs] = useState(() => Date.now());
   const latestEventIdRef = useRef(0);
+
+  useEffect(() => {
+    const timer = setInterval(() => setNowMs(Date.now()), 1000);
+    return () => clearInterval(timer);
+  }, []);
 
   useEffect(() => {
     latestEventIdRef.current = events[events.length - 1]?.id ?? 0;
@@ -776,6 +796,8 @@ export function useRoomStory({
 
       if (scene.combat) {
         const sceneActionsByStep = reduced.actionsBySceneStep[sceneId] ?? {};
+        const sceneEnteredAt = reduced.sceneEnteredAtByScene[sceneId];
+        const sceneStartedAtMs = sceneEnteredAt ? Date.parse(sceneEnteredAt) : Number.NaN;
         const resolution = computeCombatResolution({
           scene,
           actionsByStep: sceneActionsByStep,
@@ -783,6 +805,8 @@ export function useRoomStory({
           partyHpStart: partyHp,
           combatActionById,
           globalTags,
+          sceneStartedAtMs: Number.isFinite(sceneStartedAtMs) ? sceneStartedAtMs : nowMs,
+          nowMs,
         });
         if (resolution) {
           combatStatesByScene[sceneId] = {
@@ -819,6 +843,24 @@ export function useRoomStory({
         applyHpDelta(outcome?.hpDelta);
         const option = scene.options.find((item) => item.id === resolvedOption);
         applyTagSet(option?.tagsAdded, globalTags, sceneTags);
+
+        // Timed pressure: missing contributions cost party HP.
+        if (scene.mode === 'timed' || scene.timed) {
+          const actionParticipants = new Set<PlayerId>();
+          Object.values(sceneActions).forEach((stepActions) => {
+            stepActions?.forEach((action) => {
+              actionParticipants.add(action.playerId);
+            });
+          });
+          const missingPlayers = Math.max(0, expectedPlayerCount - actionParticipants.size);
+          const timeoutDamagePerMissing =
+            typeof scene.timed?.timeoutDamagePerMissing === 'number' && Number.isFinite(scene.timed.timeoutDamagePerMissing)
+              ? Math.max(0, Math.floor(scene.timed.timeoutDamagePerMissing))
+              : 1;
+          if (missingPlayers > 0 && timeoutDamagePerMissing > 0) {
+            applyHpDelta(-(missingPlayers * timeoutDamagePerMissing));
+          }
+        }
       }
     });
 
@@ -827,7 +869,9 @@ export function useRoomStory({
     combatActionById,
     combatConfig.partyHp,
     expectedPlayerCount,
+    nowMs,
     reduced.actionsBySceneStep,
+    reduced.sceneEnteredAtByScene,
     reduced.resolvedOptionByScene,
     reduced.sceneSequence,
     storyRuntime.sceneById,
@@ -868,11 +912,6 @@ export function useRoomStory({
   const currentStepId = isCombatScene
     ? `${COMBAT_ROUND_PREFIX}${combatSnapshot?.currentRoundIndex ?? 1}`
     : currentStep?.id ?? currentScene.steps[0]?.id;
-
-  const currentVotes = useMemo(
-    () => reduced.confirmedVotesByScene[currentScene.id] ?? EMPTY_SCENE_CONFIRMED_VOTES,
-    [currentScene.id, reduced.confirmedVotesByScene]
-  );
 
   const resolvedOption = reduced.resolvedOptionByScene[currentScene.id] ?? null;
   const resolutionMode = reduced.resolutionModeByScene[currentScene.id] ?? null;
@@ -957,7 +996,7 @@ export function useRoomStory({
         entries.push({
           id: `role-clue-${sceneId}-${index}-${localRole}`,
           kind: 'narration',
-          text: `Indice personnel (${roleLabel}): ${roleClue}`,
+          text: `Personal clue (${roleLabel}): ${roleClue}`,
         });
       }
 
@@ -1107,14 +1146,13 @@ export function useRoomStory({
   const timedEndsAt = currentTimer?.endAt ?? null;
   const timedWaitingText = isTimedScene
     ? currentTimer
-      ? (timedConfig?.restWaitingText?.trim() || 'Le groupe attend....')
-      : timedConfig?.statusText?.trim() || 'Le groupe attend....'
+      ? (timedConfig?.restWaitingText?.trim() || 'The party is waiting...')
+      : timedConfig?.statusText?.trim() || 'The party is waiting...'
     : null;
-  const timedStatusText =
-    isTimedScene && currentStepCompleted ? timedConfig?.statusText ?? 'The group is busy...' : null;
+  const timedStatusText = isTimedScene && currentTimer ? timedConfig?.statusText ?? 'The group is busy...' : null;
 
   useEffect(() => {
-    if (!roomId || !isTimedScene || !currentStepCompleted || !currentStepId || currentTimer) return;
+    if (!roomId || !isTimedScene || !currentStepId || currentTimer || resolvedOption) return;
     const durationSeconds = timedConfig?.durationSeconds ?? 0;
     if (durationSeconds <= 0) return;
     let isActive = true;
@@ -1128,6 +1166,9 @@ export function useRoomStory({
       .then(({ error }) => {
         if (!isActive) return;
         if (error) {
+          if (error.message.includes('Waiting for all reactions before starting timer') && !currentStepCompleted) {
+            return;
+          }
           setStoryError(error.message);
         }
       });
@@ -1141,6 +1182,7 @@ export function useRoomStory({
     currentTimer,
     isTimedScene,
     roomId,
+    resolvedOption,
     timedConfig?.durationSeconds,
   ]);
 
@@ -1229,11 +1271,15 @@ export function useRoomStory({
     return unlocked;
   }, [confirmedEvidenceIds, currentScene.steps, currentScene.unlockRules, isCombatScene, sceneActionEvents]);
 
+  const resolvableOptions = useMemo(
+    () => currentScene.options.filter((option) => option.defaultVisible || unlockedOptionIds.has(option.id)),
+    [currentScene.options, unlockedOptionIds]
+  );
   const visibleOptions = useMemo(() => {
     if (isCombatScene || isTimedScene) return [];
-    return currentScene.options.filter((option) => option.defaultVisible || unlockedOptionIds.has(option.id));
-  }, [currentScene.options, isCombatScene, isTimedScene, unlockedOptionIds]);
-  const hiddenOptionCount = isCombatScene || isTimedScene ? 0 : currentScene.options.length - visibleOptions.length;
+    return resolvableOptions;
+  }, [isCombatScene, isTimedScene, resolvableOptions]);
+  const hiddenOptionCount = isCombatScene || isTimedScene ? 0 : Math.max(0, currentScene.options.length - visibleOptions.length);
 
   const riskyUnlockedOptionIds = useMemo(() => {
     const risky = new Set<OptionId>();
@@ -1243,21 +1289,14 @@ export function useRoomStory({
     return risky;
   }, [visibleOptions]);
 
-  const localConfirmedOption = currentVotes[localPlayerId] ?? null;
-  const voteCounts = useMemo(() => {
-    const counts: Record<OptionId, number> = { A: 0, B: 0, C: 0 };
-    (Object.values(currentVotes) as OptionId[]).forEach((optionId) => {
-      counts[optionId] += 1;
-    });
-    return counts;
-  }, [currentVotes]);
-
-  const confirmedVoteCount = Object.keys(currentVotes).length;
+  const localConfirmedOption = null;
+  const voteCounts = useMemo<Record<OptionId, number>>(() => ({ A: 0, B: 0, C: 0 }), []);
+  const confirmedVoteCount = 0;
 
   const isStoryEnded = useMemo(() => {
     if (!currentScene.isEnding) return false;
-    return Boolean(reduced.resolvedOptionByScene[currentScene.id]);
-  }, [currentScene.id, currentScene.isEnding, reduced.resolvedOptionByScene]);
+    return true;
+  }, [currentScene.isEnding]);
 
   const sceneHistory = useMemo(() => {
     const history: SceneHistoryItem[] = [];
@@ -1282,7 +1321,7 @@ export function useRoomStory({
   const localHasActed = playersActed.has(localPlayerId);
   const localSelectedActionId = currentStepActions.find((action) => action.playerId === localPlayerId)?.actionId ?? null;
   const phaseLabel = isCombatScene
-    ? `Combat Round ${combatSnapshot?.currentRoundIndex ?? 1}`
+    ? `Combat Round ${combatSnapshot?.currentRoundIndex ?? 1} · ${Math.ceil(((currentScene.combat as { enemyAttackIntervalSeconds?: number } | undefined)?.enemyAttackIntervalSeconds ?? 2700) / 60)}m cadence`
     : isTimedScene
       ? timedConfig?.kind === 'travel'
         ? 'Travel'
@@ -1290,10 +1329,10 @@ export function useRoomStory({
           ? 'Waiting'
           : 'Rest'
       : currentStepActions.length === 0
-        ? 'Phase 1: Initiate'
+        ? 'Contributions: Initiate'
         : currentStepCompleted
-          ? 'Phase 3: Vote'
-          : 'Phase 2: React';
+          ? 'Contributions: Complete'
+          : 'Contributions: In Progress';
   const phaseStatusText = isCombatScene
     ? combatState?.outcome
       ? `Combat resolved: ${combatState.outcome}.`
@@ -1309,18 +1348,27 @@ export function useRoomStory({
             ? `Waiting for remaining players to react (${currentStepActions.length}/${expectedPlayerCount}).`
             : `Your reaction is available (${currentStepActions.length}/${expectedPlayerCount} so far).`
       : currentStepCompleted
-        ? 'Reactions complete. Voting is available.'
+        ? 'All contributions are in.'
         : currentStepActions.length === 0
           ? 'Any player can act to begin the exchange.'
           : localHasActed
             ? `Waiting for remaining players to react (${currentStepActions.length}/${expectedPlayerCount}).`
             : `Your reaction is available (${currentStepActions.length}/${expectedPlayerCount} so far).`;
 
+  const timedWindowOpen = useMemo(() => {
+    if (!isTimedScene) return true;
+    if (!timedEndsAt) return true;
+    const endMs = Date.parse(timedEndsAt);
+    if (!Number.isFinite(endMs)) return true;
+    return endMs > nowMs;
+  }, [isTimedScene, nowMs, timedEndsAt]);
+
   const canAct =
     Boolean(localRole) &&
     !resolvedOption &&
     !isStoryEnded &&
     !currentStepCompleted &&
+    timedWindowOpen &&
     !localHasActed &&
     (!isCombatScene || !combatState?.outcome);
   const allowSkip = canAct && currentStepActions.length > 0;
@@ -1361,18 +1409,16 @@ export function useRoomStory({
         text: action.buttonText ?? action.text,
         isDisabled: disabledActionIds.has(action.id),
         hpDelta: currentStep.outcomes[action.id]?.hpDelta,
+        effectText:
+          typeof action.durationSeconds === 'number' && action.durationSeconds > 0
+            ? `~${Math.ceil(action.durationSeconds / 60)}m`
+            : undefined,
       }));
   }, [combatConfig.actions, combatState?.allowRun, currentStep, disabledActionIds, isCombatScene, localRole, tagState.globalTags]);
   const availableActionIdSet = useMemo(() => new Set(availableActions.map((action) => action.id)), [availableActions]);
 
-  const canVote = !isCombatScene && !isTimedScene && currentStepCompleted && !resolvedOption && !isStoryEnded;
-  const voteLockReason = isCombatScene
-    ? 'Combat scenes resolve automatically.'
-    : isTimedScene
-      ? 'Timed scenes resolve after the rest period.'
-      : currentStepCompleted
-        ? null
-        : `Voting unlocks after all reactions are complete (${currentStepActions.length}/${expectedPlayerCount}).`;
+  const canVote = false;
+  const voteLockReason = 'Scene voting is disabled. Node outcomes resolve from contributions and timer pressure.';
 
   useEffect(() => {
     if (!allowSkip || !roomId || !currentStepId || localHasActed) return;
@@ -1429,42 +1475,10 @@ export function useRoomStory({
   }, [allowSkip, currentScene.id, currentStepId, roomId]);
 
   const confirmOption = useCallback(
-    async (optionId: OptionId) => {
-      if (!roomId || resolvedOption || isStoryEnded || localConfirmedOption || !canVote || !currentStepId) return;
-
-      const isVisible = visibleOptions.some((option) => option.id === optionId);
-      if (!isVisible) return;
-
-      const nextSceneId = resolveNextSceneId(currentScene, optionId, tagState.globalTags, currentSceneTags, currentActionIds);
-
-      const { error } = await supabase.rpc('story_confirm_option', {
-        p_room_id: roomId,
-        p_scene_id: currentScene.id,
-        p_step_id: currentStepId,
-        p_option_id: optionId,
-        p_next_scene_id: nextSceneId,
-      });
-
-      if (error) {
-        setStoryError(error.message);
-        return;
-      }
-
-      setStoryError(null);
+    async (_optionId: OptionId) => {
+      setStoryError('Scene voting is disabled in the current engine.');
     },
-    [
-      canVote,
-      currentActionIds,
-      currentScene,
-      currentStepId,
-      currentSceneTags,
-      isStoryEnded,
-      localConfirmedOption,
-      resolvedOption,
-      roomId,
-      tagState.globalTags,
-      visibleOptions,
-    ]
+    []
   );
 
   const finishTimedScene = useCallback(
@@ -1472,7 +1486,26 @@ export function useRoomStory({
       if (!roomId || !isTimedScene || resolvedOption) return;
       if (!timedConfig) return;
 
-      const optionId: OptionId = 'A';
+      const participantCount = new Set(sceneActionEvents.map((action) => action.playerId)).size;
+      const missingParticipants = Math.max(0, expectedPlayerCount - participantCount);
+      const candidateOptions = (resolvableOptions.length ? resolvableOptions : currentScene.options).map((option) => option.id);
+      const hasOption = (optionId: OptionId) => candidateOptions.includes(optionId);
+
+      let optionId: OptionId;
+      if (missingParticipants > 0) {
+        optionId = hasOption('A')
+          ? 'A'
+          : ((candidateOptions[0] as OptionId | undefined) ?? 'A');
+      } else if (hasOption('B') && hasOption('C')) {
+        optionId = Math.random() < 0.5 ? 'B' : 'C';
+      } else if (hasOption('C')) {
+        optionId = 'C';
+      } else if (hasOption('B')) {
+        optionId = 'B';
+      } else {
+        optionId = 'A';
+      }
+
       const nextSceneId =
         resolveNextSceneId(currentScene, optionId, tagState.globalTags, currentSceneTags, currentActionIds) ??
         storyRuntime.getDefaultNextSceneId(currentScene.id);
@@ -1492,7 +1525,20 @@ export function useRoomStory({
 
       setStoryError(null);
     },
-    [currentActionIds, currentScene, currentSceneTags, isTimedScene, resolvedOption, roomId, storyRuntime, tagState.globalTags, timedConfig]
+    [
+      currentActionIds,
+      currentScene,
+      currentSceneTags,
+      expectedPlayerCount,
+      isTimedScene,
+      resolvableOptions,
+      resolvedOption,
+      roomId,
+      sceneActionEvents,
+      storyRuntime,
+      tagState.globalTags,
+      timedConfig,
+    ]
   );
 
   useEffect(() => {
@@ -1531,12 +1577,6 @@ export function useRoomStory({
     if (!resolvedOption || isStoryEnded || localHasContinued) return;
     void continueToNextScene();
   }, [continueToNextScene, isCombatScene, isStoryEnded, localHasContinued, resolvedOption]);
-
-  useEffect(() => {
-    if (isCombatScene || isTimedScene) return;
-    if (!resolvedOption || isStoryEnded || localHasContinued || !localConfirmedOption) return;
-    void continueToNextScene();
-  }, [continueToNextScene, isCombatScene, isStoryEnded, isTimedScene, localConfirmedOption, localHasContinued, resolvedOption]);
 
   const resetStory = useCallback(async () => {
     if (!roomId || !isHost) return;

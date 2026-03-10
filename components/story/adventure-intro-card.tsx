@@ -16,10 +16,10 @@ export function AdventureIntroCard({ onContinue }: AdventureIntroCardProps) {
 
       <View style={styles.tipBlock}>
         <Text style={styles.tipTitle}>How to play</Text>
-        <Text style={styles.tipLine}>• When a scene opens, each player chooses one action.</Text>
-        <Text style={styles.tipLine}>• Actions reveal evidence and may unlock hidden decisions.</Text>
-        <Text style={styles.tipLine}>• Vote on the decision once all actions are done.</Text>
-        <Text style={styles.tipLine}>• Party HP is shared. Choose wisely.</Text>
+        <Text style={styles.tipLine}>• When a node opens, each player can contribute one action.</Text>
+        <Text style={styles.tipLine}>• Action cards take time; node timers continue while players are offline.</Text>
+        <Text style={styles.tipLine}>• Outcomes resolve automatically from contributions and timer pressure.</Text>
+        <Text style={styles.tipLine}>• Party HP is shared. If it reaches zero, the run fails.</Text>
       </View>
 
       <Pressable onPress={onContinue} style={styles.continueButton}>

@@ -12,7 +12,6 @@ type UsePartyChatOptions = {
   localPlayerId: PlayerId;
   roomId: string | null;
   currentSceneId: string | null;
-  currentSceneTitle: string | null;
 };
 
 type RoomMessageRow = {
@@ -50,7 +49,7 @@ function normalizeOutgoingMessage(input: string): string {
   return input.trim().replace(/\s+/g, ' ');
 }
 
-export function usePartyChat({ localPlayerId, roomId, currentSceneId, currentSceneTitle }: UsePartyChatOptions) {
+export function usePartyChat({ localPlayerId, roomId, currentSceneId }: UsePartyChatOptions) {
   const [messages, setMessages] = useState<PartyChatMessage[]>(initialSceneChat);
   const [chatInput, setChatInput] = useState('');
   const [isChatOpen, setIsChatOpen] = useState(false);
@@ -58,12 +57,16 @@ export function usePartyChat({ localPlayerId, roomId, currentSceneId, currentSce
   const [chatError, setChatError] = useState<string | null>(null);
 
   const isChatOpenRef = useRef(isChatOpen);
+  const currentSceneIdRef = useRef<string | null>(currentSceneId);
   const lastMessageIdRef = useRef(0);
-  const lastAnnouncedSceneRef = useRef<string | null>(null);
 
   useEffect(() => {
     isChatOpenRef.current = isChatOpen;
   }, [isChatOpen]);
+
+  useEffect(() => {
+    currentSceneIdRef.current = currentSceneId;
+  }, [currentSceneId]);
 
   const openChat = useCallback(() => setIsChatOpen(true), []);
   const closeChat = useCallback(() => setIsChatOpen(false), []);
@@ -89,22 +92,25 @@ export function usePartyChat({ localPlayerId, roomId, currentSceneId, currentSce
     (!roomId || Boolean(currentSceneId));
 
   useEffect(() => {
-    if (!roomId) {
+    if (!roomId || !currentSceneId) {
       setMessages(initialSceneChat);
       setChatUnreadCount(0);
       setChatError(null);
       lastMessageIdRef.current = 0;
-      lastAnnouncedSceneRef.current = null;
       return;
     }
 
     let isMounted = true;
     setChatError(null);
+    lastMessageIdRef.current = 0;
 
     const appendRows = (rows: RoomMessageRow[]) => {
       if (!rows.length) return;
-      const mapped = rows.map(toPartyChatMessage);
-      const maxId = rows.reduce((maxId, row) => (row.id > maxId ? row.id : maxId), lastMessageIdRef.current);
+      const scopedRows = rows.filter((row) => row.scene_id === currentSceneIdRef.current);
+      if (!scopedRows.length) return;
+
+      const mapped = scopedRows.map(toPartyChatMessage);
+      const maxId = scopedRows.reduce((maxId, row) => (row.id > maxId ? row.id : maxId), lastMessageIdRef.current);
       lastMessageIdRef.current = maxId;
 
       setMessages((prev) => {
@@ -115,12 +121,15 @@ export function usePartyChat({ localPlayerId, roomId, currentSceneId, currentSce
     };
 
     const channel = supabase
-      .channel(`room-chat-${roomId}`)
+      .channel(`room-board-${roomId}-${currentSceneId}`)
       .on(
         'postgres_changes',
         { event: 'INSERT', schema: 'public', table: 'room_messages', filter: `room_id=eq.${roomId}` },
         (payload) => {
-          const message = toPartyChatMessage(payload.new as RoomMessageRow);
+          const row = payload.new as RoomMessageRow;
+          if (row.scene_id !== currentSceneIdRef.current) return;
+
+          const message = toPartyChatMessage(row);
           const newId = Number(String(message.id).replace('rm-', ''));
           if (Number.isFinite(newId)) {
             lastMessageIdRef.current = Math.max(lastMessageIdRef.current, newId);
@@ -140,34 +149,39 @@ export function usePartyChat({ localPlayerId, roomId, currentSceneId, currentSce
         .from('room_messages')
         .select('id, kind, player_id, scene_id, text')
         .eq('room_id', roomId)
+        .eq('scene_id', currentSceneId)
         .order('id', { ascending: true })
-        .limit(250);
+        .limit(200);
 
       if (!isMounted) return;
       if (error) {
-        setChatError(getErrorMessage(error, 'Failed to load chat'));
+        setChatError(getErrorMessage(error, 'Failed to load room board'));
         return;
       }
 
-      const mapped = (data as RoomMessageRow[]).map(toPartyChatMessage);
-      const maxId = (data as RoomMessageRow[]).reduce((max, row) => (row.id > max ? row.id : max), 0);
+      const rows = (data ?? []) as RoomMessageRow[];
+      const mapped = rows.map(toPartyChatMessage);
+      const maxId = rows.reduce((max, row) => (row.id > max ? row.id : max), 0);
       lastMessageIdRef.current = maxId;
       setMessages(mapped.length ? mapped : initialSceneChat);
       setChatError(null);
     };
 
     const pollNewMessages = async () => {
+      const sceneId = currentSceneIdRef.current;
+      if (!sceneId) return;
       const { data, error } = await supabase
         .from('room_messages')
         .select('id, kind, player_id, scene_id, text')
         .eq('room_id', roomId)
+        .eq('scene_id', sceneId)
         .gt('id', lastMessageIdRef.current)
         .order('id', { ascending: true })
         .limit(50);
 
       if (!isMounted) return;
       if (error) {
-        setChatError(getErrorMessage(error, 'Failed to sync chat'));
+        setChatError(getErrorMessage(error, 'Failed to sync room board'));
         return;
       }
 
@@ -184,49 +198,23 @@ export function usePartyChat({ localPlayerId, roomId, currentSceneId, currentSce
       clearInterval(pollTimer);
       void supabase.removeChannel(channel);
     };
-  }, [roomId]);
-
-  useEffect(() => {
-    if (!roomId || !currentSceneId) return;
-
-    if (lastAnnouncedSceneRef.current === currentSceneId) return;
-    lastAnnouncedSceneRef.current = currentSceneId;
-
-    const sceneMessageId = `scene-${roomId}-${currentSceneId}`;
-    const sceneLabel = currentSceneTitle ? currentSceneTitle.replace(/^Scene \d+:\s*/i, '') : currentSceneId;
-
-    setMessages((prev) => {
-      if (prev.some((item) => item.id === sceneMessageId)) return prev;
-      return [
-        ...prev,
-        {
-          id: sceneMessageId,
-          kind: 'separator',
-          text: `Scene changed: ${sceneLabel}`,
-        },
-      ];
-    });
-
-    if (!isChatOpenRef.current) {
-      setChatUnreadCount((count) => count + 1);
-    }
-  }, [currentSceneId, currentSceneTitle, roomId]);
+  }, [roomId, currentSceneId]);
 
   const sendChatMessage = useCallback(async () => {
     const outgoingText = normalizedInput;
     if (!outgoingText) return;
     if (outgoingText.length > MAX_CHAT_CHARACTERS_PER_MESSAGE) {
-      setChatError(`Message is too long (${outgoingText.length}/${MAX_CHAT_CHARACTERS_PER_MESSAGE}).`);
+      setChatError(`Note is too long (${outgoingText.length}/${MAX_CHAT_CHARACTERS_PER_MESSAGE}).`);
       return;
     }
     if (messagesRemainingThisScene <= 0) {
-      setChatError('Mind-link drained for this scene. No messages left.');
+      setChatError('Board note limit reached for this node.');
       return;
     }
 
     if (roomId) {
       if (!currentSceneId) {
-        setChatError('Mind-link not ready. Wait for the active scene.');
+        setChatError('Room board is waiting for the active node.');
         return;
       }
 
@@ -237,7 +225,7 @@ export function usePartyChat({ localPlayerId, roomId, currentSceneId, currentSce
       });
 
       if (error) {
-        setChatError(getErrorMessage(error, 'Failed to send chat message'));
+        setChatError(getErrorMessage(error, 'Failed to send board note'));
         return;
       }
 

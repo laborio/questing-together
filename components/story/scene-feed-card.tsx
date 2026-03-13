@@ -443,14 +443,12 @@ export function SceneFeedCard({
                 if (item.kind === 'transition') {
                   return (
                     <View key={item.id} style={styles.transitionWrap}>
-                      <Image source={dividerLarge} style={styles.transitionDivider} resizeMode="contain" />
                       <StoryText
                         text={item.text}
                         style={styles.transitionText}
                         animate={shouldAnimate}
                         startDelay={getStartDelay(`${item.id}-transition`)}
                       />
-                      <Image source={dividerLarge} style={styles.transitionDivider} resizeMode="contain" />
                     </View>
                   );
                 }
@@ -631,11 +629,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingVertical: 6,
     gap: 6,
-  },
-  transitionDivider: {
-    width: '70%',
-    aspectRatio: 400 / 22,
-    alignSelf: 'center',
   },
   transitionText: {
     fontSize: 12,

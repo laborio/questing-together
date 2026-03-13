@@ -237,7 +237,16 @@
         "C": {
           "text": "Le groupe avance en préparant un piège."
         }
-      }
+      },
+      "introDialogue": [
+        {
+          "speaker": "Entité instable",
+          "text": "Quittez ces lieux, mortels...",
+          "aside": "Une voix fantomatique avec beaucoup d'écho.",
+          "narration": ""
+        }
+      ],
+      "intermissionText": "ooo"
     },
     {
       "id": "scene_carrefour",
@@ -395,7 +404,8 @@
         "C": {
           "text": "Le groupe lance la diversion puis charge."
         }
-      }
+      },
+      "intermissionText": "2. Salle du carrefour"
     },
     {
       "id": "scene_combat",

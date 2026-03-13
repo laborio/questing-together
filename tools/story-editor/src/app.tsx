@@ -1939,7 +1939,7 @@ export default function App() {
                   <label>Intermission text</label>
                   <input
                     value={selectedScene.intermissionText ?? ''}
-                    placeholder="Later, you arrive at {scene}."
+                    placeholder="Defaults to scene title"
                     onChange={(event) =>
                       updateSelectedScene(
                         (scene) => {
@@ -2133,7 +2133,7 @@ export default function App() {
                   <label>Intermission text</label>
                   <input
                     value={selectedScene.intermissionText ?? ''}
-                    placeholder="Later, you arrive at {scene}."
+                    placeholder="Defaults to scene title"
                     onChange={(event) =>
                       updateSelectedScene(
                         (scene) => {

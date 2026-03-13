@@ -260,7 +260,7 @@ function getIntermissionText(scene: Scene) {
   const sceneName = cleanSceneTitle(scene.title);
   const customTemplate = scene.intermissionText?.trim();
   if (!customTemplate) {
-    return `Plus tard, le groupe atteint ${sceneName}.`;
+    return sceneName;
   }
   return customTemplate.replace(/\{scene\}|<scene name>/gi, sceneName);
 }

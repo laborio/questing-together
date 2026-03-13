@@ -6,10 +6,11 @@ export type Player = {
   name: string;
 };
 
-export type PartyChatMessage = {
+export type EmoteText = 'Safe!' | 'Fight!' | 'Trust me!' | 'Sorry...';
+
+export type PartyEmote = {
   id: string;
-  kind: 'player' | 'separator';
-  playerId?: PlayerId;
+  playerId: PlayerId;
   sceneId?: string;
-  text: string;
+  text: EmoteText;
 };

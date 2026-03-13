@@ -306,10 +306,12 @@ begin
 end;
 $$;
 
-create or replace function public.send_room_message(
+drop function if exists public.send_room_message(uuid, text, text);
+
+create or replace function public.send_room_emote(
   p_room_id uuid,
   p_scene_id text,
-  p_text text
+  p_emote text
 )
 returns bigint
 language plpgsql
@@ -322,9 +324,9 @@ declare
   v_room_status public.room_status;
   v_current_scene_id text;
   v_reset_at timestamptz;
-  v_message_count int;
-  v_message_id bigint;
-  v_trimmed_text text;
+  v_emote_count int;
+  v_emote_id bigint;
+  v_trimmed_emote text;
 begin
   if v_user_id is null then
     raise exception 'Not authenticated';
@@ -337,7 +339,8 @@ begin
   select r.status
   into v_room_status
   from public.rooms r
-  where r.id = p_room_id;
+  where r.id = p_room_id
+  for update;
 
   if v_room_status is null then
     raise exception 'Room not found';
@@ -347,13 +350,13 @@ begin
     raise exception 'Adventure not started';
   end if;
 
-  v_trimmed_text := regexp_replace(trim(coalesce(p_text, '')), '\s+', ' ', 'g');
-  if v_trimmed_text = '' then
-    raise exception 'Message cannot be empty';
+  v_trimmed_emote := regexp_replace(trim(coalesce(p_emote, '')), '\s+', ' ', 'g');
+  if v_trimmed_emote = '' then
+    raise exception 'Emote cannot be empty';
   end if;
 
-  if char_length(v_trimmed_text) > 30 then
-    raise exception 'Message exceeds 30 characters';
+  if v_trimmed_emote not in ('Safe!', 'Fight!', 'Trust me!', 'Sorry...') then
+    raise exception 'Invalid emote';
   end if;
 
   select rp.player_id
@@ -378,23 +381,24 @@ begin
     and re.type = 'story_reset';
 
   select count(*)
-  into v_message_count
+  into v_emote_count
   from public.room_messages rm
   where rm.room_id = p_room_id
     and rm.scene_id = p_scene_id
     and rm.kind = 'player'
     and rm.player_id = v_player_id
+    and rm.text in ('Safe!', 'Fight!', 'Trust me!', 'Sorry...')
     and rm.created_at > v_reset_at;
 
-  if v_message_count >= 4 then
-    raise exception 'Mind-bond message limit reached for this scene';
+  if v_emote_count >= 400 then
+    raise exception 'Emote limit reached for this scene';
   end if;
 
   insert into public.room_messages (room_id, scene_id, kind, player_id, text)
-  values (p_room_id, p_scene_id, 'player', v_player_id, v_trimmed_text)
-  returning id into v_message_id;
+  values (p_room_id, p_scene_id, 'player', v_player_id, v_trimmed_emote)
+  returning id into v_emote_id;
 
-  return v_message_id;
+  return v_emote_id;
 end;
 $$;
 
@@ -570,7 +574,8 @@ begin
   select r.status
   into v_room_status
   from public.rooms r
-  where r.id = p_room_id;
+  where r.id = p_room_id
+  for update;
 
   if v_room_status is null then
     raise exception 'Room not found';
@@ -585,6 +590,16 @@ begin
   end if;
   if char_length(v_trimmed) > 20 then
     raise exception 'Name must be 20 characters or fewer';
+  end if;
+  if exists (
+    select 1
+    from public.room_players rp
+    where rp.room_id = p_room_id
+      and rp.user_id <> v_user_id
+      and rp.display_name is not null
+      and lower(rp.display_name) = lower(v_trimmed)
+  ) then
+    raise exception 'Name is already taken';
   end if;
 
   update public.room_players
@@ -1667,7 +1682,7 @@ grant execute on function public.story_reset(uuid, text) to authenticated;
 grant execute on function public.create_room(public.player_id) to authenticated;
 grant execute on function public.join_room(text, public.player_id) to authenticated;
 grant execute on function public.leave_room(uuid) to authenticated;
-grant execute on function public.send_room_message(uuid, text, text) to authenticated;
+grant execute on function public.send_room_emote(uuid, text, text) to authenticated;
 grant execute on function public.set_push_subscription(text, text) to authenticated;
 
 -- ----------------------------

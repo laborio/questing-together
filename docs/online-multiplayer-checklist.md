@@ -5,7 +5,7 @@ This app now supports only the systems required for the action-driven loop:
 - lobby role assignment (`sage`, `warrior`, `ranger`) with first-come-first-serve locking
 - player display names (per-room, no spaces)
 - synced scene progression (linear 5-scene story with per-option intro variants)
-- mind-bond chat with per-scene message/character limits
+- party emotes with per-scene limits
 - synced scene actions + action log
 - decision voting after all reactions are resolved
 - branching story graph with tag-driven routing + multiple endings
@@ -37,7 +37,7 @@ You need:
 - `rooms` (room metadata only)
 - `room_players` (identity + membership)
   - includes `role_id` (nullable in lobby, required before start)
-- `room_messages` (mind-bond chat)
+- `room_messages` (party emotes)
 - `room_events` (scene/action/vote event stream)
 - `push_subscriptions` (one Expo push token per user/device session)
 - `push_notification_dispatches` (dedupe marker for timed-scene push sends)

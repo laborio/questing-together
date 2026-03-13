@@ -2,7 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { Image, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { PartyChatOverlay } from '@/components/chat/party-chat-overlay';
+import { PartyEmoteOverlay } from '@/components/emote/party-emote-overlay';
 import { DecisionPanelCard } from '@/components/story/decision-panel-card';
 import { PartyTopBar } from '@/components/story/party-top-bar';
 import { PartyStatusCard } from '@/components/story/party-status-card';
@@ -10,7 +10,7 @@ import { RoleOnboardingCard } from '@/components/story/role-onboarding-card';
 import { RoomConnectionCard } from '@/components/story/room-connection-card';
 import { SceneFeedCard } from '@/components/story/scene-feed-card';
 import { playerNameById, roles } from '@/src/game/constants';
-import { usePartyChat } from '@/src/game/hooks/use-party-chat';
+import { usePartyEmotes } from '@/src/game/hooks/use-party-emotes';
 import { useRoomStory } from '@/src/game/hooks/use-room-story';
 import { PlayerId, RoleId } from '@/src/game/types';
 import { useAnonymousAuth } from '@/src/online/hooks/use-anonymous-auth';
@@ -97,11 +97,10 @@ export default function IndexScreen() {
 
   const hasTechAlert = Boolean(roomConnection.roomError || roomStory.storyError);
 
-  const partyChat = usePartyChat({
+  const partyEmotes = usePartyEmotes({
     localPlayerId: localPlayerId ?? 'p1',
     roomId,
     currentSceneId: roomStory.isReady && isAdventureStarted && localRole ? roomStory.currentScene.id : null,
-    currentSceneTitle: roomStory.isReady && isAdventureStarted && localRole ? roomStory.currentScene.title : null,
   });
 
   const isLobby = room?.status === 'lobby';
@@ -410,25 +409,14 @@ export default function IndexScreen() {
         </>
       )}
 
-      {localPlayerId && room && localRole ? (
-        <PartyChatOverlay
-          isOpen={partyChat.isChatOpen}
-          unreadCount={partyChat.chatUnreadCount}
-          localPlayerId={localPlayerId}
-          messages={partyChat.messages}
-          chatError={partyChat.chatError}
-          chatInput={partyChat.chatInput}
-          inputLength={partyChat.inputLength}
-          canSend={partyChat.canSend}
-          maxMessagesPerScene={partyChat.maxMessagesPerScene}
-          messagesUsedThisScene={partyChat.messagesUsedThisScene}
-          messagesRemainingThisScene={partyChat.messagesRemainingThisScene}
-          maxCharactersPerMessage={partyChat.maxCharactersPerMessage}
+      {isStoryView && localPlayerId && room && localRole ? (
+        <PartyEmoteOverlay
           playerLabelById={playerDisplayNameById}
-          onOpen={partyChat.openChat}
-          onClose={partyChat.closeChat}
-          onInputChange={partyChat.setChatInput}
-          onSend={partyChat.sendChatMessage}
+          playerRoleById={playerRoleById}
+          visibleEmotes={partyEmotes.visibleEmotes}
+          errorText={partyEmotes.emoteError}
+          onClearVisibleEmote={partyEmotes.clearVisibleEmote}
+          onSendEmote={partyEmotes.sendEmote}
         />
       ) : null}
     </View>

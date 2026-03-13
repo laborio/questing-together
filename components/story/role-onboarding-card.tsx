@@ -44,16 +44,26 @@ export function RoleOnboardingCard({
   const [isPartySizeMenuOpen, setIsPartySizeMenuOpen] = useState(false);
 
   useEffect(() => {
-    if (existingName && existingName !== nameInput) {
-      setNameInput(existingName);
-    }
-  }, [existingName, nameInput]);
+    setNameInput(existingName);
+    setNameTouched(false);
+  }, [existingName]);
 
   const normalizedName = useMemo(() => nameInput.trim(), [nameInput]);
   const hasInvalidWhitespace = /\s/.test(normalizedName);
   const isNameEmpty = normalizedName.length === 0;
   const isNameTooLong = normalizedName.length > 20;
-  const isNameValid = !isNameEmpty && !isNameTooLong && !hasInvalidWhitespace;
+  const duplicateNameOwner = useMemo(
+    () =>
+      players.find(
+        (player) =>
+          player.playerId !== localPlayerId &&
+          player.displayName &&
+          player.displayName.trim().toLocaleLowerCase() === normalizedName.toLocaleLowerCase()
+      ) ?? null,
+    [localPlayerId, normalizedName, players]
+  );
+  const isDuplicateName = Boolean(normalizedName) && Boolean(duplicateNameOwner);
+  const isNameValid = !isNameEmpty && !isNameTooLong && !hasInvalidWhitespace && !isDuplicateName;
 
   const localNameSaved = Boolean(existingName);
   const canPickRole = localNameSaved;
@@ -81,11 +91,18 @@ export function RoleOnboardingCard({
             setNameTouched(true);
             setNameInput(text);
           }}
+          onSubmitEditing={() => {
+            setNameTouched(true);
+            if (!isNameValid || isBusy) return;
+            onSetDisplayName(normalizedName);
+          }}
           autoCorrect={false}
           autoCapitalize="words"
           maxLength={20}
+          editable={!isBusy}
           placeholder="No spaces (e.g. Arin)"
           placeholderTextColor="#64748b"
+          selectTextOnFocus
           style={styles.nameInput}
         />
         {nameTouched && !isNameValid ? (
@@ -94,7 +111,9 @@ export function RoleOnboardingCard({
               ? 'Name is required.'
               : isNameTooLong
                 ? 'Name must be 20 characters or fewer.'
-                : 'Name cannot contain spaces.'}
+                : hasInvalidWhitespace
+                  ? 'Name cannot contain spaces.'
+                  : 'Name is already taken.'}
           </Text>
         ) : null}
         <Pressable

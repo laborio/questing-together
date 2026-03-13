@@ -1,4 +1,4 @@
-import { PartyChatMessage, Player, PlayerId, RoleId } from '@/src/game/types';
+import { EmoteText, Player, PlayerId, RoleId } from '@/src/game/types';
 
 export const players: Player[] = [
   { id: 'p1', name: 'Player 1' },
@@ -12,18 +12,10 @@ export const playerNameById: Record<PlayerId, string> = {
   p3: 'Player 3',
 };
 
-export const initialSceneChat: PartyChatMessage[] = [
-  {
-    id: 'chat-setup',
-    kind: 'separator',
-    text: 'Mind-bond active: 4 messages per scene, 30 characters max per message.',
-  },
-];
-
 export const EVIDENCE_CONFIRMATION_COUNT = 2;
 export const MAX_EVIDENCE_MARKS_PER_SCENE = 2;
-export const MAX_CHAT_MESSAGES_PER_SCENE = 4;
-export const MAX_CHAT_CHARACTERS_PER_MESSAGE = 30;
+export const MAX_PARTY_EMOTES_PER_SCENE = 400;
+export const PARTY_EMOTES: EmoteText[] = ['Safe!', 'Fight!', 'Trust me!', 'Sorry...'];
 
 export const roles: { id: RoleId; label: string; summary: string }[] = [
   {

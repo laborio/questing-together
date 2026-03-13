@@ -153,6 +153,7 @@ type UseRoomStoryOptions = {
 type UseRoomStoryResult = {
   isReady: boolean;
   storyError: string | null;
+  storyInstanceKey: string;
   currentScene: Scene;
   journalEntries: JournalEntry[];
   combatLog: { id: string; text: string }[];
@@ -780,6 +781,11 @@ export function useRoomStory({
   }, [combatConfig.actions]);
 
   const currentScene = SCENE_BY_ID[reduced.currentSceneId] ?? STORY_SCENES[0];
+  const storyInstanceKey = useMemo(() => {
+    const latestResetEventId = [...events].reverse().find((event) => event.type === 'story_reset')?.id ?? 0;
+    const initialEventId = events[0]?.id ?? 0;
+    return `${roomId ?? 'local'}:${latestResetEventId || initialEventId || 0}`;
+  }, [events, roomId]);
 
   const isCombatScene = currentScene.mode === 'combat' || Boolean(currentScene.combat);
   const isTimedScene = currentScene.mode === 'timed' || Boolean(currentScene.timed);
@@ -1621,6 +1627,7 @@ export function useRoomStory({
   return {
     isReady,
     storyError,
+    storyInstanceKey,
     currentScene,
     journalEntries,
     combatLog,

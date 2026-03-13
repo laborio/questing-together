@@ -256,6 +256,8 @@ export default function IndexScreen() {
                   fullBleed
                   sceneId={roomStory.currentScene.id}
                   sceneTitle={roomStory.currentScene.journalTitle ?? roomStory.currentScene.title}
+                  persistenceScopeKey={roomId}
+                  storyInstanceKey={roomStory.storyInstanceKey}
                   journalEntries={roomStory.journalEntries}
                   sceneHistory={roomStory.sceneHistory}
                   footer={

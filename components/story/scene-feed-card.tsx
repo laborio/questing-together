@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
   Animated,
   Easing,
@@ -49,6 +50,8 @@ type JournalEntry =
 type SceneFeedCardProps = {
   sceneId?: string | null;
   sceneTitle?: string | null;
+  persistenceScopeKey?: string | null;
+  storyInstanceKey?: string | null;
   journalEntries: JournalEntry[];
   sceneHistory: SceneHistoryItem[];
   header?: React.ReactNode;
@@ -60,6 +63,13 @@ const WORD_REVEAL_CADENCE_MS = 120;
 const WORD_FADE_DURATION_MS = 300;
 const FOOTER_FADE_DURATION_MS = 500;
 const FOOTER_REVEAL_BUFFER_MS = 120;
+const SEEN_FEED_STORAGE_PREFIX = 'scene-feed-seen';
+
+type PersistedFeedState = {
+  storyInstanceKey: string;
+  entryIds: string[];
+  footerSceneKeys: string[];
+};
 
 function splitIntoWordTokens(text: string) {
   return text.split(/(\s+)/).filter((token) => token.length > 0);
@@ -213,6 +223,8 @@ function getEntryAnimationUnits(item: JournalEntry): { key: string; text: string
 export function SceneFeedCard({
   sceneId,
   sceneTitle,
+  persistenceScopeKey,
+  storyInstanceKey,
   journalEntries,
   sceneHistory: _sceneHistory,
   header,
@@ -221,70 +233,169 @@ export function SceneFeedCard({
 }: SceneFeedCardProps) {
   const scrollRef = useRef<ScrollView>(null);
   const autoScrollRef = useRef(true);
-  const [animateFromIndex, setAnimateFromIndex] = useState<number | null>(null);
-  const previousCountRef = useRef<number | null>(null);
-  const revealedFooterScenesRef = useRef<Set<string>>(new Set());
+  const [isSeenStateReady, setIsSeenStateReady] = useState(false);
+  const seenEntryIdsRef = useRef<Set<string>>(new Set());
+  const seenFooterSceneKeysRef = useRef<Set<string>>(new Set());
+  const animationPlanRef = useRef<{
+    signature: string | null;
+    delays: Map<string, number>;
+    animatedEntryIds: Set<string>;
+    totalDurationMs: number;
+    animateFooter: boolean;
+  }>({
+    signature: null,
+    delays: new Map<string, number>(),
+    animatedEntryIds: new Set<string>(),
+    totalDurationMs: 0,
+    animateFooter: false,
+  });
   const footerOpacity = useRef(new Animated.Value(1)).current;
+  const footerSceneKey = sceneId ?? sceneTitle ?? '__scene__';
+  const storageKey = persistenceScopeKey ? `${SEEN_FEED_STORAGE_PREFIX}:${persistenceScopeKey}` : null;
+  const animationSignature = useMemo(
+    () =>
+      isSeenStateReady
+        ? `${storyInstanceKey ?? 'local'}|${footer ? '1' : '0'}|${footerSceneKey}|${journalEntries.map((item) => item.id).join(',')}`
+        : null,
+    [footer, footerSceneKey, isSeenStateReady, journalEntries, storyInstanceKey]
+  );
 
   useEffect(() => {
-    if (previousCountRef.current === null) {
-      previousCountRef.current = journalEntries.length;
-      setAnimateFromIndex(0);
-      return;
+    let isCancelled = false;
+
+    setIsSeenStateReady(false);
+    seenEntryIdsRef.current = new Set();
+    seenFooterSceneKeysRef.current = new Set();
+    animationPlanRef.current = {
+      signature: null,
+      delays: new Map<string, number>(),
+      animatedEntryIds: new Set<string>(),
+      totalDurationMs: 0,
+      animateFooter: false,
+    };
+
+    async function loadSeenState() {
+      if (!storageKey || !storyInstanceKey) {
+        if (!isCancelled) {
+          setIsSeenStateReady(true);
+        }
+        return;
+      }
+
+      try {
+        const rawValue = await AsyncStorage.getItem(storageKey);
+        if (isCancelled) return;
+
+        if (rawValue) {
+          const parsed = JSON.parse(rawValue) as Partial<PersistedFeedState>;
+          if (parsed.storyInstanceKey === storyInstanceKey) {
+            seenEntryIdsRef.current = new Set(parsed.entryIds ?? []);
+            seenFooterSceneKeysRef.current = new Set(parsed.footerSceneKeys ?? []);
+          }
+        }
+      } catch (error) {
+        console.warn('[scene-feed] Failed to restore seen animation state:', error);
+      }
+
+      if (!isCancelled) {
+        setIsSeenStateReady(true);
+      }
     }
-    if (journalEntries.length > previousCountRef.current) {
-      setAnimateFromIndex(previousCountRef.current);
-    } else {
-      setAnimateFromIndex(journalEntries.length);
-    }
-    previousCountRef.current = journalEntries.length;
-  }, [journalEntries.length]);
+
+    void loadSeenState();
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [storageKey, storyInstanceKey]);
 
   useEffect(() => {
     if (!journalEntries.length) return;
+    if (!isSeenStateReady) return;
     if (autoScrollRef.current) {
       scrollRef.current?.scrollToEnd({ animated: true });
     }
-  }, [journalEntries.length]);
+  }, [isSeenStateReady, journalEntries.length]);
 
-  const animationPlan = useMemo(() => {
+  if (animationSignature && animationPlanRef.current.signature !== animationSignature) {
+    const animatedEntryIds = new Set<string>();
     const delays = new Map<string, number>();
-    if (animateFromIndex === null || animateFromIndex >= journalEntries.length) {
-      return { delays, totalDurationMs: 0 };
-    }
-
     let delayCursor = 0;
 
-    for (let index = animateFromIndex; index < journalEntries.length; index += 1) {
-      const units = getEntryAnimationUnits(journalEntries[index]);
+    journalEntries.forEach((item) => {
+      if (seenEntryIdsRef.current.has(item.id)) {
+        return;
+      }
+
+      animatedEntryIds.add(item.id);
+      const units = getEntryAnimationUnits(item);
       units.forEach(({ key, text }) => {
         const wordCount = getWordRevealCount(text);
         if (wordCount === 0) return;
         delays.set(key, delayCursor);
         delayCursor += wordCount * WORD_REVEAL_CADENCE_MS;
       });
+    });
+
+    animationPlanRef.current = {
+      signature: animationSignature,
+      delays,
+      animatedEntryIds,
+      totalDurationMs: delayCursor > 0 ? delayCursor - WORD_REVEAL_CADENCE_MS + WORD_FADE_DURATION_MS : 0,
+      animateFooter: Boolean(footer) && !seenFooterSceneKeysRef.current.has(footerSceneKey),
+    };
+  }
+
+  const animationPlan = animationPlanRef.current;
+
+  useEffect(() => {
+    if (!isSeenStateReady) return;
+
+    let hasChanges = false;
+    journalEntries.forEach((item) => {
+      if (seenEntryIdsRef.current.has(item.id)) return;
+      seenEntryIdsRef.current.add(item.id);
+      hasChanges = true;
+    });
+
+    if (footer && !seenFooterSceneKeysRef.current.has(footerSceneKey)) {
+      seenFooterSceneKeysRef.current.add(footerSceneKey);
+      hasChanges = true;
     }
 
-    const totalDurationMs = delayCursor > 0 ? delayCursor - WORD_REVEAL_CADENCE_MS + WORD_FADE_DURATION_MS : 0;
-    return { delays, totalDurationMs };
-  }, [animateFromIndex, journalEntries]);
+    if (!hasChanges || !storageKey || !storyInstanceKey) {
+      return;
+    }
 
-  const footerSceneKey = sceneId ?? sceneTitle ?? '__scene__';
+    const persistedState: PersistedFeedState = {
+      storyInstanceKey,
+      entryIds: Array.from(seenEntryIdsRef.current),
+      footerSceneKeys: Array.from(seenFooterSceneKeysRef.current),
+    };
+
+    void AsyncStorage.setItem(storageKey, JSON.stringify(persistedState)).catch((error) => {
+      console.warn('[scene-feed] Failed to persist seen animation state:', error);
+    });
+  }, [footer, footerSceneKey, isSeenStateReady, journalEntries, storageKey, storyInstanceKey]);
 
   useEffect(() => {
     if (!footer) return;
-    if (revealedFooterScenesRef.current.has(footerSceneKey)) {
+    if (!isSeenStateReady) {
+      footerOpacity.setValue(0);
+      return;
+    }
+    if (!animationPlan.animateFooter) {
       footerOpacity.setValue(1);
       return;
     }
 
     footerOpacity.setValue(0);
-  }, [footer, footerOpacity, footerSceneKey]);
+  }, [animationPlan.animateFooter, footer, footerOpacity, isSeenStateReady]);
 
   useEffect(() => {
     if (!footer) return;
-    if (animateFromIndex === null) return;
-    if (revealedFooterScenesRef.current.has(footerSceneKey)) return;
+    if (!isSeenStateReady) return;
+    if (!animationPlan.animateFooter) return;
 
     const revealDelayMs = Math.max(0, animationPlan.totalDurationMs + FOOTER_REVEAL_BUFFER_MS);
     const timer = setTimeout(() => {
@@ -292,16 +403,14 @@ export function SceneFeedCard({
         toValue: 1,
         duration: FOOTER_FADE_DURATION_MS,
         useNativeDriver: true,
-      }).start(() => {
-        revealedFooterScenesRef.current.add(footerSceneKey);
-      });
+      }).start();
     }, revealDelayMs);
 
     return () => {
       clearTimeout(timer);
       footerOpacity.stopAnimation();
     };
-  }, [animateFromIndex, animationPlan.totalDurationMs, footer, footerOpacity, footerSceneKey]);
+  }, [animationPlan.animateFooter, animationPlan.totalDurationMs, footer, footerOpacity, isSeenStateReady]);
 
   const getStartDelay = (animationKey: string) => animationPlan.delays.get(animationKey) ?? 0;
 
@@ -327,121 +436,122 @@ export function SceneFeedCard({
             }
           }}
           scrollEventThrottle={16}>
-          {journalEntries.map((item, index) => {
-            const shouldAnimate =
-              animateFromIndex !== null && animateFromIndex < journalEntries.length && index >= animateFromIndex;
+          {isSeenStateReady
+            ? journalEntries.map((item) => {
+                const shouldAnimate = animationPlan.animatedEntryIds.has(item.id);
 
-            if (item.kind === 'transition') {
-              return (
-                <View key={item.id} style={styles.transitionWrap}>
-                  <Image source={dividerLarge} style={styles.transitionDivider} resizeMode="contain" />
-                  <StoryText
-                    text={item.text}
-                    style={styles.transitionText}
-                    animate={shouldAnimate}
-                    startDelay={getStartDelay(`${item.id}-transition`)}
-                  />
-                  <Image source={dividerLarge} style={styles.transitionDivider} resizeMode="contain" />
-                </View>
-              );
-            }
+                if (item.kind === 'transition') {
+                  return (
+                    <View key={item.id} style={styles.transitionWrap}>
+                      <Image source={dividerLarge} style={styles.transitionDivider} resizeMode="contain" />
+                      <StoryText
+                        text={item.text}
+                        style={styles.transitionText}
+                        animate={shouldAnimate}
+                        startDelay={getStartDelay(`${item.id}-transition`)}
+                      />
+                      <Image source={dividerLarge} style={styles.transitionDivider} resizeMode="contain" />
+                    </View>
+                  );
+                }
 
-            if (item.kind === 'narration') {
-              return (
-                <View key={item.id} style={styles.narrativeParagraph}>
-                  <StoryText
-                    text={item.text}
-                    style={styles.narrativeText}
-                    animate={shouldAnimate}
-                    startDelay={getStartDelay(`${item.id}-narration`)}
-                  />
-                </View>
-              );
-            }
+                if (item.kind === 'narration') {
+                  return (
+                    <View key={item.id} style={styles.narrativeParagraph}>
+                      <StoryText
+                        text={item.text}
+                        style={styles.narrativeText}
+                        animate={shouldAnimate}
+                        startDelay={getStartDelay(`${item.id}-narration`)}
+                      />
+                    </View>
+                  );
+                }
 
-            if (item.kind === 'combat_summary') {
-              return (
-                <View key={item.id} style={styles.combatSummaryWrap}>
-                  <CombatStatusCard
-                    combatState={item.combatState}
-                    combatLog={item.combatLog}
-                    resolvedOption={null}
-                    showResolutionStatus={false}
-                    embedded
-                  />
-                </View>
-              );
-            }
+                if (item.kind === 'combat_summary') {
+                  return (
+                    <View key={item.id} style={styles.combatSummaryWrap}>
+                      <CombatStatusCard
+                        combatState={item.combatState}
+                        combatLog={item.combatLog}
+                        resolvedOption={null}
+                        showResolutionStatus={false}
+                        embedded
+                      />
+                    </View>
+                  );
+                }
 
-            if (item.kind === 'npc') {
-              return (
-                <View key={item.id} style={[styles.dialogueWrap, styles.dialogueNpc]}>
-                  <StoryText
-                    text={item.speaker}
-                    style={styles.dialogueSpeaker}
-                    animate={shouldAnimate}
-                    startDelay={getStartDelay(`${item.id}-speaker`)}
-                  />
-                  {item.aside ? (
-                    <StoryText
-                      text={item.aside}
-                      style={styles.dialogueAside}
-                      animate={shouldAnimate}
-                      startDelay={getStartDelay(`${item.id}-aside`)}
-                    />
-                  ) : null}
-                  <StoryText
-                    text={quoted(item.text)}
-                    style={styles.dialogueLine}
-                    animate={shouldAnimate}
-                    startDelay={getStartDelay(`${item.id}-line`)}
-                  />
-                  {item.narration ? (
-                    <StoryText
-                      text={item.narration}
-                      style={styles.actionNarration}
-                      animate={shouldAnimate}
-                      startDelay={getStartDelay(`${item.id}-narration`)}
-                    />
-                  ) : null}
-                </View>
-              );
-            }
+                if (item.kind === 'npc') {
+                  return (
+                    <View key={item.id} style={[styles.dialogueWrap, styles.dialogueNpc]}>
+                      <StoryText
+                        text={item.speaker}
+                        style={styles.dialogueSpeaker}
+                        animate={shouldAnimate}
+                        startDelay={getStartDelay(`${item.id}-speaker`)}
+                      />
+                      {item.aside ? (
+                        <StoryText
+                          text={item.aside}
+                          style={styles.dialogueAside}
+                          animate={shouldAnimate}
+                          startDelay={getStartDelay(`${item.id}-aside`)}
+                        />
+                      ) : null}
+                      <StoryText
+                        text={quoted(item.text)}
+                        style={styles.dialogueLine}
+                        animate={shouldAnimate}
+                        startDelay={getStartDelay(`${item.id}-line`)}
+                      />
+                      {item.narration ? (
+                        <StoryText
+                          text={item.narration}
+                          style={styles.actionNarration}
+                          animate={shouldAnimate}
+                          startDelay={getStartDelay(`${item.id}-narration`)}
+                        />
+                      ) : null}
+                    </View>
+                  );
+                }
 
-            return (
-              <View key={item.id} style={[styles.dialogueWrap, styles.dialoguePlayer]}>
-                <Image source={dividerSmall} style={styles.actionDivider} resizeMode="contain" />
-                <Text style={styles.dialogueSpeaker}>{item.speaker}</Text>
-                {item.stage ? (
-                  <StoryText
-                    text={item.stage}
-                    style={styles.dialogueAside}
-                    animate={shouldAnimate}
-                    startDelay={getStartDelay(`${item.id}-stage`)}
-                  />
-                ) : null}
-                {item.lines.map((line, lineIndex) => (
-                  <StoryText
-                    key={`${item.id}-line-${lineIndex}`}
-                    text={quoted(line)}
-                    style={styles.dialogueLine}
-                    animate={shouldAnimate}
-                    startDelay={getStartDelay(`${item.id}-line-${lineIndex}`)}
-                  />
-                ))}
-                {item.narration ? (
-                  <StoryText
-                    text={item.narration}
-                    style={styles.actionNarration}
-                    animate={shouldAnimate}
-                    startDelay={getStartDelay(`${item.id}-narration`)}
-                  />
-                ) : null}
-              </View>
-            );
-          })}
+                return (
+                  <View key={item.id} style={[styles.dialogueWrap, styles.dialoguePlayer]}>
+                    <Image source={dividerSmall} style={styles.actionDivider} resizeMode="contain" />
+                    <Text style={styles.dialogueSpeaker}>{item.speaker}</Text>
+                    {item.stage ? (
+                      <StoryText
+                        text={item.stage}
+                        style={styles.dialogueAside}
+                        animate={shouldAnimate}
+                        startDelay={getStartDelay(`${item.id}-stage`)}
+                      />
+                    ) : null}
+                    {item.lines.map((line, lineIndex) => (
+                      <StoryText
+                        key={`${item.id}-line-${lineIndex}`}
+                        text={quoted(line)}
+                        style={styles.dialogueLine}
+                        animate={shouldAnimate}
+                        startDelay={getStartDelay(`${item.id}-line-${lineIndex}`)}
+                      />
+                    ))}
+                    {item.narration ? (
+                      <StoryText
+                        text={item.narration}
+                        style={styles.actionNarration}
+                        animate={shouldAnimate}
+                        startDelay={getStartDelay(`${item.id}-narration`)}
+                      />
+                    ) : null}
+                  </View>
+                );
+              })
+            : null}
         </ScrollView>
-        {footer ? (
+        {footer && isSeenStateReady ? (
           <Animated.View style={[styles.journalFooter, { opacity: footerOpacity }]}>
             <Image source={dividerLarge} style={styles.journalDivider} resizeMode="contain" />
             {footer}

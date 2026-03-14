@@ -1,0 +1,545 @@
+{
+  "version": 11,
+  "meta": {
+    "title": "Histoire Test Minimale",
+    "theme": "flux linéaire simple en français",
+    "notes": "QA: intro, scène narrative, combat, fin."
+  },
+  "startSceneId": "scene_intro",
+  "combat": {
+    "partyHp": 18,
+    "actions": [
+      {
+        "id": "warrior_frappe",
+        "role": "warrior",
+        "text": "Frappe lourde",
+        "effect": {
+          "damage": 5
+        }
+      },
+      {
+        "id": "warrior_garde",
+        "role": "warrior",
+        "text": "Lever le bouclier",
+        "effect": {
+          "block": 3
+        }
+      },
+      {
+        "id": "warrior_repli",
+        "role": "warrior",
+        "text": "Couvrir le repli",
+        "effect": {
+          "run": true,
+          "block": 1
+        }
+      },
+      {
+        "id": "sage_eclair",
+        "role": "sage",
+        "text": "Éclair runique",
+        "effect": {
+          "damage": 4
+        }
+      },
+      {
+        "id": "sage_rempart",
+        "role": "sage",
+        "text": "Tracer un rempart",
+        "effect": {
+          "block": 2
+        }
+      },
+      {
+        "id": "sage_fumee",
+        "role": "sage",
+        "text": "Voile de fumée",
+        "effect": {
+          "run": true,
+          "enemyAttackDelta": -1
+        }
+      },
+      {
+        "id": "ranger_tir",
+        "role": "ranger",
+        "text": "Tir précis",
+        "effect": {
+          "damage": 4
+        }
+      },
+      {
+        "id": "ranger_couverture",
+        "role": "ranger",
+        "text": "Feu de couverture",
+        "effect": {
+          "block": 2
+        }
+      },
+      {
+        "id": "ranger_issue",
+        "role": "ranger",
+        "text": "Ouvrir une issue",
+        "effect": {
+          "run": true
+        }
+      }
+    ]
+  },
+  "scenes": [
+    {
+      "id": "scene_intro",
+      "title": "1. Intro",
+      "journalTitle": "1. Entrée des ruines",
+      "canonicalTruth": "Scène d'introduction simple avec plusieurs actions et décisions.",
+      "intro": "Le groupe entre dans des ruines calmes. Quelque chose a bougé ici récemment.",
+      "evidence": [],
+      "steps": [
+        {
+          "id": "scene_intro_step1",
+          "actions": [
+            {
+              "id": "scene_intro_warrior_entree",
+              "role": "warrior",
+              "text": "Je tiens l'entrée.",
+              "buttonText": "Tenir l'entrée",
+              "stage": "Le Guerrier se place devant la porte."
+            },
+            {
+              "id": "scene_intro_warrior_caisses",
+              "role": "warrior",
+              "text": "Je renverse les caisses pour faire une couverture.",
+              "buttonText": "Créer une couverture",
+              "stage": "Le bois grince, l'espace devient défendable."
+            },
+            {
+              "id": "scene_intro_sage_runes",
+              "role": "sage",
+              "text": "Je lis les runes du mur.",
+              "buttonText": "Lire les runes",
+              "stage": "Le Sage suit les signes à voix basse."
+            },
+            {
+              "id": "scene_intro_sage_lueur",
+              "role": "sage",
+              "text": "Je révèle les traces cachées par une lueur.",
+              "buttonText": "Révéler les traces",
+              "stage": "Une lumière pâle souligne le sol."
+            },
+            {
+              "id": "scene_intro_ranger_pistes",
+              "role": "ranger",
+              "text": "Je suis les pistes fraîches.",
+              "buttonText": "Suivre les pistes",
+              "stage": "Le Ranger inspecte la poussière."
+            },
+            {
+              "id": "scene_intro_ranger_son",
+              "role": "ranger",
+              "text": "J'écoute les couloirs.",
+              "buttonText": "Écouter les couloirs",
+              "stage": "Le Ranger s'immobilise et tend l'oreille."
+            }
+          ],
+          "outcomes": {
+            "scene_intro_warrior_entree": {
+              "narration": "L'entrée est sécurisée pour quelques minutes.",
+              "unlockOptionIds": [
+                "B",
+                "C"
+              ]
+            },
+            "scene_intro_warrior_caisses": {
+              "narration": "Un point de défense est prêt si ça tourne mal.",
+              "unlockOptionIds": [
+                "B",
+                "C"
+              ]
+            },
+            "scene_intro_sage_runes": {
+              "narration": "Les runes mentionnent un carrefour gardé plus loin.",
+              "unlockOptionIds": [
+                "B",
+                "C"
+              ]
+            },
+            "scene_intro_sage_lueur": {
+              "narration": "Des empreintes récentes apparaissent dans la poussière.",
+              "unlockOptionIds": [
+                "B",
+                "C"
+              ]
+            },
+            "scene_intro_ranger_pistes": {
+              "narration": "Les pistes convergent vers une grande porte.",
+              "unlockOptionIds": [
+                "B",
+                "C"
+              ]
+            },
+            "scene_intro_ranger_son": {
+              "narration": "Un souffle métallique résonne au nord.",
+              "unlockOptionIds": [
+                "B",
+                "C"
+              ]
+            }
+          }
+        }
+      ],
+      "options": [
+        {
+          "id": "A",
+          "text": "Avancer immédiatement vers le carrefour.",
+          "defaultVisible": true,
+          "next": [
+            {
+              "to": "scene_carrefour"
+            }
+          ]
+        },
+        {
+          "id": "B",
+          "text": "Prendre un détour prudent.",
+          "tagsAdded": {
+            "global": [
+              "approche_prudente"
+            ]
+          },
+          "next": [
+            {
+              "to": "scene_carrefour"
+            }
+          ]
+        },
+        {
+          "id": "C",
+          "text": "Préparer une embuscade avant d'avancer.",
+          "tagsAdded": {
+            "global": [
+              "approche_embuscade"
+            ]
+          },
+          "next": [
+            {
+              "to": "scene_carrefour"
+            }
+          ]
+        }
+      ],
+      "unlockRules": [],
+      "outcomeByOption": {
+        "A": {
+          "text": "Le groupe avance sans pause."
+        },
+        "B": {
+          "text": "Le groupe progresse lentement, en silence."
+        },
+        "C": {
+          "text": "Le groupe avance en préparant un piège."
+        }
+      },
+      "introDialogue": [
+        {
+          "speaker": "Entité instable",
+          "text": "Quittez ces lieux, mortels...",
+          "aside": "Une voix fantomatique avec beaucoup d'écho.",
+          "narration": ""
+        }
+      ],
+      "intermissionText": "ooo"
+    },
+    {
+      "id": "scene_carrefour",
+      "title": "2. Carrefour",
+      "journalTitle": "2. Salle du carrefour",
+      "canonicalTruth": "Scène narrative régulière qui remplace le repos.",
+      "intro": "Le groupe atteint un carrefour de pierre fermé par une porte ancienne.",
+      "introByPreviousOption": {
+        "A": "Le groupe arrive vite au carrefour. La porte vibre d'une énergie sourde.",
+        "B": "Le détour a pris plus de temps, mais personne ne vous a repérés en chemin.",
+        "C": "Votre préparation d'embuscade vous donne des angles clairs autour du carrefour."
+      },
+      "evidence": [],
+      "steps": [
+        {
+          "id": "scene_carrefour_step1",
+          "actions": [
+            {
+              "id": "scene_carrefour_warrior_porte",
+              "role": "warrior",
+              "text": "Je teste la porte à l'épaule.",
+              "buttonText": "Tester la porte",
+              "stage": "La pierre cède à peine."
+            },
+            {
+              "id": "scene_carrefour_warrior_ligne",
+              "role": "warrior",
+              "text": "Je marque une ligne de défense.",
+              "buttonText": "Tracer une ligne",
+              "stage": "Le Guerrier choisit l'endroit où tenir."
+            },
+            {
+              "id": "scene_carrefour_sage_sigil",
+              "role": "sage",
+              "text": "Je décrypte le sigil de la porte.",
+              "buttonText": "Décrypter le sigil",
+              "stage": "Les glyphes s'illuminent brièvement."
+            },
+            {
+              "id": "scene_carrefour_sage_rupture",
+              "role": "sage",
+              "text": "Je cherche un point de rupture magique.",
+              "buttonText": "Chercher une rupture",
+              "stage": "Le Sage suit une fissure énergétique."
+            },
+            {
+              "id": "scene_carrefour_ranger_meurtriere",
+              "role": "ranger",
+              "text": "Je repère une meurtrière latérale.",
+              "buttonText": "Repérer une meurtrière",
+              "stage": "Le Ranger trouve un angle discret."
+            },
+            {
+              "id": "scene_carrefour_ranger_leurre",
+              "role": "ranger",
+              "text": "Je prépare un leurre sonore.",
+              "buttonText": "Préparer un leurre",
+              "stage": "Un petit mécanisme est posé près des débris."
+            }
+          ],
+          "outcomes": {
+            "scene_carrefour_warrior_porte": {
+              "narration": "La porte ne tombe pas, mais ses gonds ont souffert.",
+              "unlockOptionIds": [
+                "B",
+                "C"
+              ]
+            },
+            "scene_carrefour_warrior_ligne": {
+              "narration": "Un couloir de repli est prêt en cas d'attaque.",
+              "unlockOptionIds": [
+                "B",
+                "C"
+              ]
+            },
+            "scene_carrefour_sage_sigil": {
+              "narration": "Le sigil confirme la présence d'un gardien derrière la porte.",
+              "unlockOptionIds": [
+                "B",
+                "C"
+              ]
+            },
+            "scene_carrefour_sage_rupture": {
+              "narration": "Une faiblesse magique apparaît près de l'arc central.",
+              "unlockOptionIds": [
+                "B",
+                "C"
+              ]
+            },
+            "scene_carrefour_ranger_meurtriere": {
+              "narration": "Un passage latéral étroit peut servir de contournement.",
+              "unlockOptionIds": [
+                "B",
+                "C"
+              ]
+            },
+            "scene_carrefour_ranger_leurre": {
+              "narration": "Le leurre peut attirer le premier assaut hors position.",
+              "unlockOptionIds": [
+                "B",
+                "C"
+              ]
+            }
+          }
+        }
+      ],
+      "options": [
+        {
+          "id": "A",
+          "text": "Forcer l'ouverture et engager le gardien.",
+          "defaultVisible": true,
+          "next": [
+            {
+              "to": "scene_combat"
+            }
+          ]
+        },
+        {
+          "id": "B",
+          "text": "Contourner par le passage latéral puis attaquer.",
+          "tagsAdded": {
+            "global": [
+              "entree_laterale"
+            ]
+          },
+          "next": [
+            {
+              "to": "scene_combat"
+            }
+          ]
+        },
+        {
+          "id": "C",
+          "text": "Déclencher le leurre puis frapper pendant la diversion.",
+          "tagsAdded": {
+            "global": [
+              "diversion_prete"
+            ]
+          },
+          "next": [
+            {
+              "to": "scene_combat"
+            }
+          ]
+        }
+      ],
+      "unlockRules": [],
+      "outcomeByOption": {
+        "A": {
+          "text": "Le groupe choisit l'assaut frontal."
+        },
+        "B": {
+          "text": "Le groupe attaque depuis un angle inattendu."
+        },
+        "C": {
+          "text": "Le groupe lance la diversion puis charge."
+        }
+      },
+      "intermissionText": "2. Salle du carrefour"
+    },
+    {
+      "id": "scene_combat",
+      "title": "3. Combat",
+      "journalTitle": "3. Le gardien",
+      "canonicalTruth": "Unique scène de combat pour les tests.",
+      "intro": "Un gardien de pierre s'éveille et bloque la sortie.",
+      "introByPreviousOption": {
+        "A": "Le gardien vous voit arriver de face et rugit.",
+        "B": "Vous surgissez de côté, le gardien pivote brutalement.",
+        "C": "Le leurre explose et le gardien hésite une seconde."
+      },
+      "mode": "combat",
+      "combat": {
+        "enemyName": "Gardien de pierre",
+        "enemyHp": 14,
+        "enemyAttack": 4,
+        "allowRun": true
+      },
+      "evidence": [],
+      "steps": [],
+      "options": [
+        {
+          "id": "A",
+          "text": "Victoire du groupe.",
+          "defaultVisible": true,
+          "next": [
+            {
+              "to": "scene_fin"
+            }
+          ]
+        },
+        {
+          "id": "B",
+          "text": "Défaite du groupe.",
+          "next": [
+            {
+              "to": "scene_fin"
+            }
+          ]
+        },
+        {
+          "id": "C",
+          "text": "Fuite du groupe.",
+          "next": [
+            {
+              "to": "scene_fin"
+            }
+          ]
+        }
+      ],
+      "unlockRules": [],
+      "outcomeByOption": {
+        "A": {
+          "text": "Le gardien s'effondre et le passage s'ouvre."
+        },
+        "B": {
+          "text": "Le groupe recule sous la pression du gardien."
+        },
+        "C": {
+          "text": "Le groupe bat en retraite avant le coup final."
+        }
+      }
+    },
+    {
+      "id": "scene_fin",
+      "title": "4. Fin",
+      "journalTitle": "4. Conclusion",
+      "canonicalTruth": "Fin de l'histoire test.",
+      "intro": "L'essai est terminé.",
+      "introByPreviousOption": {
+        "A": "La poussière retombe. Vous avez gagné le passage.",
+        "B": "Vous êtes vivants, mais le gardien tient encore la salle.",
+        "C": "Vous vous éloignez rapidement, en notant ce qui a fonctionné."
+      },
+      "isEnding": true,
+      "evidence": [],
+      "steps": [
+        {
+          "id": "scene_fin_step1",
+          "actions": [
+            {
+              "id": "scene_fin_warrior",
+              "role": "warrior",
+              "text": "On a tenu jusqu'au bout.",
+              "buttonText": "Acquiescer",
+              "stage": "Le Guerrier pose enfin son bouclier."
+            },
+            {
+              "id": "scene_fin_sage",
+              "role": "sage",
+              "text": "Les notes sont complètes.",
+              "buttonText": "Fermer le carnet",
+              "stage": "Le Sage referme calmement son carnet."
+            },
+            {
+              "id": "scene_fin_ranger",
+              "role": "ranger",
+              "text": "Aucune menace immédiate.",
+              "buttonText": "Observer l'horizon",
+              "stage": "Le Ranger vérifie une dernière fois les alentours."
+            }
+          ],
+          "outcomes": {
+            "scene_fin_warrior": {
+              "narration": "La ligne a tenu jusqu'à la fin."
+            },
+            "scene_fin_sage": {
+              "narration": "Les faits sont clairs pour le rapport."
+            },
+            "scene_fin_ranger": {
+              "narration": "Le secteur reste calme."
+            }
+          }
+        }
+      ],
+      "options": [
+        {
+          "id": "A",
+          "text": "Terminer l'histoire.",
+          "defaultVisible": true,
+          "next": [
+            {
+              "to": null
+            }
+          ]
+        }
+      ],
+      "unlockRules": [],
+      "outcomeByOption": {
+        "A": {
+          "text": "Fin de l'aventure de test."
+        }
+      }
+    }
+  ]
+}

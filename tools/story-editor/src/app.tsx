@@ -32,6 +32,26 @@ type StatusMessage = {
   type: 'info' | 'error' | 'success';
 };
 
+type StoryLibraryEntry = {
+  fileName: string;
+  title: string;
+  version: number | null;
+  sceneCount: number | null;
+  isActive: boolean;
+  isValidJson: boolean;
+};
+
+type StoryLibraryResponse = {
+  activeStoryFile: string | null;
+  stories: StoryLibraryEntry[];
+};
+
+type StoryPayload = {
+  fileName: string;
+  activeStoryFile: string | null;
+  story: StoryData;
+};
+
 const ajv = new Ajv({ allErrors: true, allowUnionTypes: true });
 
 type TaggedEdgeData = {
@@ -828,6 +848,25 @@ function createSceneTemplate(sceneId: string, type: 'story' | 'combat' | 'timed'
   return base;
 }
 
+function titleFromFileName(fileName: string): string {
+  return fileName.replace(/\.json$/i, '').replace(/[-_]+/g, ' ').trim() || 'New story';
+}
+
+function createBlankStory(fileName: string): StoryData {
+  const startSceneId = 'scene_1';
+  const openingScene = createSceneTemplate(startSceneId, 'story');
+  openingScene.title = 'Opening Scene';
+
+  return {
+    version: 1,
+    startSceneId,
+    scenes: [openingScene],
+    meta: {
+      title: titleFromFileName(fileName)
+    }
+  };
+}
+
 function parseOptionId(handleId?: string | null): string | null {
   if (!handleId) return null;
   if (handleId.startsWith('option-')) {
@@ -838,6 +877,9 @@ function parseOptionId(handleId?: string | null): string | null {
 
 export default function App() {
   const [story, setStory] = useState<StoryData | null>(null);
+  const [storyLibrary, setStoryLibrary] = useState<StoryLibraryEntry[]>([]);
+  const [currentStoryFile, setCurrentStoryFile] = useState<string | null>(null);
+  const [activeStoryFile, setActiveStoryFile] = useState<string | null>(null);
   const [schema, setSchema] = useState<Record<string, unknown> | null>(null);
   const [validatorErrors, setValidatorErrors] = useState<string[]>([]);
   const [status, setStatus] = useState<StatusMessage | null>(null);
@@ -874,6 +916,11 @@ export default function App() {
   const tagLibrary = useMemo(() => (story ? collectTagLibrary(story) : []), [story]);
   const actionIdLibrary = useMemo(() => collectActionIds(selectedScene), [selectedScene]);
   const evidenceIdLibrary = useMemo(() => collectEvidenceIds(selectedScene), [selectedScene]);
+  const currentStoryEntry = useMemo(
+    () => storyLibrary.find((entry) => entry.fileName === currentStoryFile) ?? null,
+    [currentStoryFile, storyLibrary]
+  );
+  const hasUnsavedChanges = isDirty || storyJsonDirty || sceneJsonDirty;
 
   const updateValidation = useCallback(
     (nextStory: StoryData) => {
@@ -1060,25 +1107,50 @@ export default function App() {
     });
   }, []);
 
-  const loadStory = useCallback(async () => {
-    try {
-      setStatus({ text: 'Loading story...', type: 'info' });
-      const response = await fetch('/api/story');
-      if (!response.ok) throw new Error('Failed to load story');
-      const data = (await response.json()) as StoryData;
-      setStory(data);
-      setSelectedSceneId(data.startSceneId);
-      setStoryJsonDraft(JSON.stringify(data, null, 2));
-      setStoryJsonDirty(false);
-      historyRef.current = [deepClone(data)];
-      historyIndexRef.current = 0;
-      setIsDirty(false);
-      updateValidation(data);
-      setStatus({ text: 'Story loaded.', type: 'success' });
-    } catch (error) {
-      setStatus({ text: 'Failed to load story.', type: 'error' });
+  const loadStoryLibrary = useCallback(async () => {
+    const response = await fetch('/api/stories');
+    if (!response.ok) {
+      throw new Error('Failed to list story files');
     }
-  }, [updateValidation]);
+
+    const data = (await response.json()) as StoryLibraryResponse;
+    setStoryLibrary(data.stories);
+    setActiveStoryFile(data.activeStoryFile);
+    return data;
+  }, []);
+
+  const loadStory = useCallback(
+    async (fileName?: string | null, { silent = false } = {}) => {
+      try {
+        if (!silent) {
+          setStatus({ text: `Loading ${fileName ?? 'story'}...`, type: 'info' });
+        }
+
+        const url = fileName ? `/api/story?file=${encodeURIComponent(fileName)}` : '/api/story';
+        const response = await fetch(url);
+        if (!response.ok) throw new Error('Failed to load story');
+
+        const data = (await response.json()) as StoryPayload;
+        setStory(data.story);
+        setCurrentStoryFile(data.fileName);
+        setActiveStoryFile(data.activeStoryFile);
+        setSelectedSceneId(data.story.startSceneId);
+        setStoryJsonDraft(JSON.stringify(data.story, null, 2));
+        setStoryJsonDirty(false);
+        setSceneJsonDirty(false);
+        historyRef.current = [deepClone(data.story)];
+        historyIndexRef.current = 0;
+        setIsDirty(false);
+        updateValidation(data.story);
+        setStatus({ text: `Loaded ${data.fileName}.`, type: 'success' });
+        return data;
+      } catch (error) {
+        setStatus({ text: 'Failed to load story file.', type: 'error' });
+        return null;
+      }
+    },
+    [updateValidation]
+  );
 
   const loadSchema = useCallback(async () => {
     try {
@@ -1095,9 +1167,19 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    void loadSchema();
-    void loadStory();
-  }, [loadSchema, loadStory]);
+    void (async () => {
+      await loadSchema();
+      try {
+        const library = await loadStoryLibrary();
+        const preferredFile = library.activeStoryFile ?? library.stories[0]?.fileName ?? null;
+        if (preferredFile) {
+          await loadStory(preferredFile, { silent: true });
+        }
+      } catch (error) {
+        setStatus({ text: 'Failed to load story library.', type: 'error' });
+      }
+    })();
+  }, [loadSchema, loadStory, loadStoryLibrary]);
 
   useEffect(() => {
     document.documentElement.dataset.theme = theme;
@@ -1452,60 +1534,249 @@ export default function App() {
     }
   };
 
-  const saveStory = async () => {
-    if (!story) return;
-    try {
+  const persistStory = useCallback(
+    async (fileName: string, nextStory: StoryData) => {
       const response = await fetch('/api/story', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(story)
+        body: JSON.stringify({ fileName, story: nextStory })
       });
-      if (!response.ok) throw new Error('Failed to save');
+
+      if (!response.ok) {
+        throw new Error('Failed to save story');
+      }
+
+      return (await response.json()) as { fileName: string; syncedToGame: boolean };
+    },
+    []
+  );
+
+  const saveStory = async () => {
+    if (!story || !currentStoryFile || storyJsonDirty || sceneJsonDirty) return;
+    try {
+      const result = await persistStory(currentStoryFile, story);
       setIsDirty(false);
-      setStatus({ text: 'Saved to story-data.json.', type: 'success' });
+      await loadStoryLibrary();
+      setStatus({
+        text: result.syncedToGame
+          ? `Saved ${result.fileName} and synced it to the game.`
+          : `Saved ${result.fileName}.`,
+        type: 'success'
+      });
     } catch (error) {
-      setStatus({ text: 'Failed to save story.', type: 'error' });
+      setStatus({ text: 'Failed to save story file.', type: 'error' });
     }
   };
 
   const reloadStory = async () => {
-    await loadStory();
-    setStatus({ text: 'Reloaded story from disk.', type: 'success' });
+    if (!currentStoryFile) return;
+    const loaded = await loadStory(currentStoryFile, { silent: true });
+    if (loaded) {
+      setStatus({ text: `Reloaded ${loaded.fileName} from disk.`, type: 'success' });
+    }
   };
+
+  const switchStoryFile = useCallback(
+    async (nextFileName: string) => {
+      if (!nextFileName || nextFileName === currentStoryFile) return;
+      if (
+        hasUnsavedChanges &&
+        !window.confirm('You have unsaved changes. Discard them and load another story file?')
+      ) {
+        return;
+      }
+
+      await loadStory(nextFileName);
+    },
+    [currentStoryFile, hasUnsavedChanges, loadStory]
+  );
+
+  const saveStoryAs = useCallback(async () => {
+    if (!story || storyJsonDirty || sceneJsonDirty) return;
+
+    const suggestedName =
+      currentStoryFile?.replace(/\.json$/i, '-copy.json') ??
+      `${titleFromFileName(story.meta?.title as string | undefined ?? 'story').replace(/\s+/g, '-').toLowerCase()}.json`;
+    const requestedFileName = window.prompt('Save story as JSON file', suggestedName);
+    if (!requestedFileName) return;
+
+    try {
+      const result = await persistStory(requestedFileName, story);
+      await loadStoryLibrary();
+      await loadStory(result.fileName, { silent: true });
+      setStatus({
+        text: result.syncedToGame
+          ? `Saved ${result.fileName} and synced it to the game.`
+          : `Saved ${result.fileName}.`,
+        type: 'success'
+      });
+    } catch (error) {
+      setStatus({ text: 'Failed to save story as a new file.', type: 'error' });
+    }
+  }, [currentStoryFile, loadStory, loadStoryLibrary, persistStory, sceneJsonDirty, story, storyJsonDirty]);
+
+  const createStoryFile = useCallback(async () => {
+    if (
+      hasUnsavedChanges &&
+      !window.confirm('You have unsaved changes. Discard them and create a new story file?')
+    ) {
+      return;
+    }
+
+    const requestedFileName = window.prompt('New story JSON file name', 'new-story.json');
+    if (!requestedFileName) return;
+
+    const nextStory = createBlankStory(requestedFileName);
+
+    try {
+      const result = await persistStory(requestedFileName, nextStory);
+      await loadStoryLibrary();
+      await loadStory(result.fileName, { silent: true });
+      setStatus({ text: `Created ${result.fileName}.`, type: 'success' });
+    } catch (error) {
+      setStatus({ text: 'Failed to create story file.', type: 'error' });
+    }
+  }, [hasUnsavedChanges, loadStory, loadStoryLibrary, persistStory]);
+
+  const applyStoryToGame = useCallback(async () => {
+    if (!story || !currentStoryFile || storyJsonDirty || sceneJsonDirty) return;
+
+    try {
+      const response = await fetch('/api/story/apply', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ fileName: currentStoryFile, story })
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to apply story');
+      }
+
+      setIsDirty(false);
+      const library = await loadStoryLibrary();
+      setActiveStoryFile(library.activeStoryFile);
+      setStatus({ text: `Applied ${currentStoryFile} to story-data.json for the game.`, type: 'success' });
+    } catch (error) {
+      setStatus({ text: 'Failed to apply story to the game.', type: 'error' });
+    }
+  }, [currentStoryFile, loadStoryLibrary, sceneJsonDirty, story, storyJsonDirty]);
 
   const endingsCount = story?.scenes.filter((scene) => scene.isEnding).length ?? 0;
   const scenesCount = story?.scenes.length ?? 0;
   const isBackboneMode = editorMode === 'backbone';
+  const canPersistStory = Boolean(
+    story && currentStoryFile && validatorErrors.length === 0 && !storyJsonDirty && !sceneJsonDirty
+  );
   const selectedSceneType = selectedScene ? (selectedScene.isEnding ? 'ending' : selectedScene.mode ?? 'story') : 'story';
   const selectedSceneIsEnding = Boolean(selectedScene?.isEnding);
   const edgeTypes = useMemo(() => ({ tagged: TaggedEdge }), []);
   const nodeTypes = useMemo(() => ({ scene: SceneNode }), []);
+  const statusTone = validatorErrors.length > 0 || status?.type === 'error' ? 'error' : status?.type === 'success' ? 'success' : 'neutral';
+  const toolbarStatusText =
+    status?.text ??
+    (storyJsonDirty || sceneJsonDirty
+      ? 'Apply the JSON draft before saving or applying this story.'
+      : hasUnsavedChanges
+        ? 'Unsaved changes in the current story file.'
+        : 'Current story file is saved.');
+
+  useEffect(() => {
+    const handleSaveShortcut = (event: KeyboardEvent) => {
+      const isSave = (event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 's';
+      if (!isSave) return;
+
+      event.preventDefault();
+      if (canPersistStory) {
+        void saveStory();
+      }
+    };
+
+    window.addEventListener('keydown', handleSaveShortcut);
+    return () => window.removeEventListener('keydown', handleSaveShortcut);
+  }, [canPersistStory, saveStory]);
 
   return (
     <div className="app">
       <header className="app-header">
-        <h1>Story Visualizer + Editor</h1>
-        <p>Inspect branches, edit scenes, and save directly to story-data.json.</p>
-        <div className="row">
-          <button className="secondary" onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}>
-            {theme === 'dark' ? 'Switch to light' : 'Switch to dark'}
-          </button>
+        <div className="header-topline">Questing Together Story Studio</div>
+        <div className="header-hero">
+          <div>
+            <h1>Story Visualizer + Editor</h1>
+            <p>Inspect branches, edit multiple story JSON files, and choose which one the game uses.</p>
+          </div>
+          <div className="header-badges">
+            {currentStoryFile ? <span className="badge">Editing {currentStoryFile}</span> : null}
+            {activeStoryFile ? <span className="badge">Game uses {activeStoryFile}</span> : null}
+            {schema ? <span className="pill">Schema loaded</span> : <span className="pill">Schema missing</span>}
+            {currentStoryEntry && !currentStoryEntry.isValidJson ? <span className="pill">Invalid JSON</span> : null}
+          </div>
         </div>
-        <div className="mode-switch">
-          <button
-            className={isBackboneMode ? '' : 'secondary'}
-            onClick={() => setEditorMode('backbone')}
-            type="button"
-          >
-            Backbone
-          </button>
-          <button
-            className={isBackboneMode ? 'secondary' : ''}
-            onClick={() => setEditorMode('detailed')}
-            type="button"
-          >
-            Detailed
-          </button>
+        <div className="top-toolbar">
+          <div className="toolbar-group toolbar-file-picker">
+            <label>Story JSON</label>
+            <select value={currentStoryFile ?? ''} onChange={(event) => void switchStoryFile(event.target.value)}>
+              {storyLibrary.map((entry) => (
+                <option key={entry.fileName} value={entry.fileName}>
+                  {entry.fileName}
+                  {entry.isActive ? ' [active]' : ''}
+                  {entry.sceneCount !== null ? ` - ${entry.sceneCount} scenes` : ''}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="toolbar-group toolbar-actions">
+            <button onClick={saveStory} disabled={!canPersistStory}>
+              Save
+            </button>
+            <button className="secondary" onClick={saveStoryAs} disabled={!story || validatorErrors.length > 0 || storyJsonDirty || sceneJsonDirty}>
+              Save As
+            </button>
+            <button className="secondary" onClick={reloadStory} disabled={!currentStoryFile}>
+              Reload
+            </button>
+            <button className="secondary" onClick={createStoryFile}>
+              New JSON
+            </button>
+            <button onClick={applyStoryToGame} disabled={!canPersistStory}>
+              Apply to Game
+            </button>
+            {!isBackboneMode ? (
+              <button className="secondary" onClick={applyStoryJson} disabled={!storyJsonDirty}>
+                Apply Story JSON
+              </button>
+            ) : null}
+          </div>
+          <div className="toolbar-group toolbar-view">
+            <div className="mode-switch">
+              <button
+                className={isBackboneMode ? '' : 'secondary'}
+                onClick={() => setEditorMode('backbone')}
+                type="button"
+              >
+                Backbone
+              </button>
+              <button
+                className={isBackboneMode ? 'secondary' : ''}
+                onClick={() => setEditorMode('detailed')}
+                type="button"
+              >
+                Detailed
+              </button>
+            </div>
+            <button className="secondary" onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}>
+              {theme === 'dark' ? 'Light UI' : 'Dark UI'}
+            </button>
+          </div>
+        </div>
+        <div className="toolbar-status-row">
+          <div className={`toolbar-status ${statusTone}`}>
+            {toolbarStatusText}
+          </div>
+          <div className="toolbar-metrics">
+            <span className="badge">{scenesCount} scenes</span>
+            <span className="badge">{endingsCount} endings</span>
+            <span className="pill">{isBackboneMode ? 'Backbone mode' : 'Detailed mode'}</span>
+          </div>
         </div>
         <div className="small mode-switch-hint">
           {isBackboneMode
@@ -1516,40 +1787,40 @@ export default function App() {
       <div className="content">
         <section className="panel">
           <div className="panel-section">
-            <h2>Branch Map</h2>
+            <h2>Story Flow</h2>
             <div className="scene-meta">
-              <span className="badge">{scenesCount} scenes</span>
-              <span className="badge">{endingsCount} endings</span>
-              {schema && <span className="pill">Schema loaded</span>}
-              {!schema && <span className="pill">Schema missing</span>}
+              <span>{currentStoryEntry?.title ?? 'Current story'}</span>
+              <span className="pill">Cmd/Ctrl+S to save</span>
             </div>
           </div>
-          <div className="panel-section">
-            <label>Start scene</label>
-            <select
-              value={story?.startSceneId ?? ''}
-              onChange={(event) => {
-                const value = event.target.value;
-                updateStory((current) => ({ ...current, startSceneId: value }), { replaceHistory: false });
-              }}
-            >
-              {story?.scenes.map((scene) => (
-                <option key={scene.id} value={scene.id}>
-                  {scene.id} — {scene.title}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div className="panel-section">
-            <label>New scene</label>
-            <div className="row">
-              <select value={newSceneType} onChange={(event) => setNewSceneType(event.target.value as typeof newSceneType)}>
-                <option value="story">Story scene</option>
-                <option value="combat">Combat scene</option>
-                <option value="timed">Timed scene</option>
-                <option value="ending">Ending</option>
+          <div className="panel-section panel-controls">
+            <div className="toolbar-group compact-toolbar-group">
+              <label>Start scene</label>
+              <select
+                value={story?.startSceneId ?? ''}
+                onChange={(event) => {
+                  const value = event.target.value;
+                  updateStory((current) => ({ ...current, startSceneId: value }), { replaceHistory: false });
+                }}
+              >
+                {story?.scenes.map((scene) => (
+                  <option key={scene.id} value={scene.id}>
+                    {scene.id} — {scene.title}
+                  </option>
+                ))}
               </select>
-              <button onClick={() => addScene(newSceneType)}>Add Scene</button>
+            </div>
+            <div className="toolbar-group compact-toolbar-group">
+              <label>New scene</label>
+              <div className="row">
+                <select value={newSceneType} onChange={(event) => setNewSceneType(event.target.value as typeof newSceneType)}>
+                  <option value="story">Story scene</option>
+                  <option value="combat">Combat scene</option>
+                  <option value="timed">Timed scene</option>
+                  <option value="ending">Ending</option>
+                </select>
+                <button onClick={() => addScene(newSceneType)}>Add Scene</button>
+              </div>
             </div>
           </div>
           <div className="graph-wrap">
@@ -1615,21 +1886,6 @@ export default function App() {
                 ? 'Backbone mode: focus on scene types, option labels, and links between nodes.'
                 : 'Edge pills: A/B/C = option id. Hover a pill to see tag conditions.'}
             </div>
-            <div className="row">
-              <button onClick={saveStory} disabled={!story || validatorErrors.length > 0}>
-                Save to story-data.json
-              </button>
-              <button className="secondary" onClick={reloadStory}>
-                Reload from disk
-              </button>
-              {!isBackboneMode ? (
-                <button className="secondary" onClick={applyStoryJson} disabled={!storyJsonDirty}>
-                  Apply Story JSON
-                </button>
-              ) : null}
-            </div>
-            <div className="status">{isDirty ? 'Unsaved changes.' : 'All changes saved.'}</div>
-            {status && <div className={`status ${status.type}`}>{status.text}</div>}
             {validatorErrors.length > 0 && (
               <div className="panel-section">
                 <div className="status error">Validation errors:</div>

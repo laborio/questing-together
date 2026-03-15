@@ -41,3 +41,11 @@ app-example
 # generated native folders
 /ios
 /android
+
+.env.keys
+.idea
+supabase/.temp/
+
+.vscode
+.claude
+CLAUDE.md

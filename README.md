@@ -1,54 +1,108 @@
-# Welcome to your Expo app 👋
+# Questing Together
 
-This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
+A cooperative multiplayer storytelling RPG built with [Expo](https://expo.dev) and [Supabase](https://supabase.com).
+
+## Prerequisites
+
+- [Bun](https://bun.sh/) (runtime & package manager)
+- [Expo CLI](https://docs.expo.dev/get-started/installation/)
 
 ## Get started
 
 1. Install dependencies
 
    ```bash
-   npm install
+   bun install
    ```
 
-2. Start the app
+2. Set up environment variables
+
+   The `.env` file is encrypted with [dotenvx](https://dotenvx.com/). To decrypt it you need the private key (`DOTENV_PRIVATE_KEY`).
+
+   - Get the key from a team member or your password manager
+   - Create a `.env.keys` file at the project root:
+     ```
+     DOTENV_PRIVATE_KEY="your-private-key-here"
+     ```
+   - Decrypt the `.env`:
+     ```bash
+     bun run env:decrypt
+     ```
+
+3. Start the app
 
    ```bash
-   npx expo start
+   bun start
    ```
 
-In the output, you'll find options to open the app in a
+   This automatically decrypts the env variables at runtime via dotenvx.
 
-- [development build](https://docs.expo.dev/develop/development-builds/introduction/)
-- [Android emulator](https://docs.expo.dev/workflow/android-studio-emulator/)
-- [iOS simulator](https://docs.expo.dev/workflow/ios-simulator/)
-- [Expo Go](https://expo.dev/go), a limited sandbox for trying out app development with Expo
+## Scripts
 
-You can start developing by editing the files inside the **app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
+| Script | Description |
+|--------|-------------|
+| `bun start` | Start the Expo dev server |
+| `bun run android` | Run on Android |
+| `bun run ios` | Run on iOS |
+| `bun run web` | Run on web |
+| `bun run lint` | Lint & check with Biome |
+| `bun run lint:fix` | Auto-fix lint & format issues |
+| `bun run format` | Format all files with Biome |
+| `bun run env:decrypt` | Decrypt `.env` in place (requires `.env.keys`) |
+| `bun run env:encrypt` | Re-encrypt `.env` after editing values |
 
-## Get a fresh project
+## Project structure
 
-When you're ready, run:
-
-```bash
-npm run reset-project
+```
+src/
+  app/          # Expo Router file-based routes
+  api/          # Supabase client & API hooks
+  components/   # UI components
+  features/     # Game logic, story engine & hooks
+  assets/       # Fonts, images
+supabase/
+  functions/    # Supabase Edge Functions (Deno)
 ```
 
-This command will move the starter code to the **app-example** directory and create a blank **app** directory where you can start developing.
+## Tooling
 
-## Learn more
+- **Bun** - package manager & script runner
+- **Biome** - linter & formatter (replaces ESLint + Prettier)
+- **TypeScript** - strict mode
 
-To learn more about developing your project with Expo, look at the following resources:
+## Multiplayer
 
-- [Expo documentation](https://docs.expo.dev/): Learn fundamentals, or go into advanced topics with our [guides](https://docs.expo.dev/guides).
-- [Learn Expo tutorial](https://docs.expo.dev/tutorial/introduction/): Follow a step-by-step tutorial where you'll create a project that runs on Android, iOS, and the web.
+### Product rules
 
-## Join the community
+- 3 players pick unique roles (sage, warrior, ranger) before the host starts.
+- Scene flow: Phase 1 (first action), Phase 2 (remaining actions), Phase 3 (vote).
+- Each player may take at most one action per scene (or choose "no reaction").
+- Decisions: one default option visible; hidden options unlock from action outcomes.
+- Vote resolution: majority wins, random on tie, then advance scene.
+- Story content lives in `src/features/story-data.json` and is validated at runtime.
+- Branching story graph with tag-driven routing + multiple endings.
+- Optional combat scenes (shared combat actions, persistent party HP, automatic resolution).
+- Timed rest/travel scenes (server-authoritative timers, automatic advance).
 
-Join our community of developers creating universal apps.
+### Backend (Supabase)
 
-- [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
-- [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
+- Anonymous auth enabled (MVP).
+- Database tables: `rooms`, `room_players`, `room_messages`, `room_events`, `push_subscriptions`, `push_notification_dispatches`.
+- Realtime publication includes: `rooms`, `room_players`, `room_messages`, `room_events`.
+- Edge function `timed-scene-notify` (`supabase/functions/timed-scene-notify/index.ts`).
 
-## Multiplayer rollout
+### Event stream contract (`room_events`)
 
-- See `docs/online-multiplayer-checklist.md` for the backend and deployment checklist to run this app online across devices.
+Client action RPCs:
+- `story_select_role`, `story_set_display_name`, `story_start_adventure`
+- `story_take_action`, `story_confirm_option`, `story_resolve_combat`
+- `story_start_timer`, `story_resolve_timed_scene`
+- `set_push_subscription`, `story_reset`
+
+Generated events: `scene_action`, `scene_resolve`, `scene_timer_started`, `story_reset`.
+
+### Deployment
+
+- Env vars: `EXPO_PUBLIC_SUPABASE_URL`, `EXPO_PUBLIC_SUPABASE_ANON_KEY`
+- Apply `src/api/sql/supabase-schema.sql` for fresh setup.
+- If migrating from old schema, apply `src/api/sql/supabase-pivot-migration.sql`.

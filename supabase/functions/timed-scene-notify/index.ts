@@ -1,4 +1,4 @@
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.57.4';
+import { createClient } from '@supabase/supabase-js';
 
 type NotifyRequest = {
   roomId?: string;
@@ -139,7 +139,9 @@ Deno.serve(async (request) => {
     return jsonResponse(500, { error: membersError.message });
   }
 
-  const userIds = Array.from(new Set((members ?? []).map((member) => member.user_id).filter(Boolean)));
+  const userIds = Array.from(
+    new Set((members ?? []).map((member) => member.user_id).filter(Boolean)),
+  );
   if (!userIds.length) {
     return jsonResponse(200, { ok: true, sent: 0 });
   }
@@ -156,8 +158,8 @@ Deno.serve(async (request) => {
     new Set(
       (subscriptions ?? [])
         .map((subscription) => subscription.expo_push_token)
-        .filter((token): token is string => typeof token === 'string' && token.length > 0)
-    )
+        .filter((token): token is string => typeof token === 'string' && token.length > 0),
+    ),
   );
 
   if (!tokens.length) {

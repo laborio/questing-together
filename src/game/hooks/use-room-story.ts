@@ -164,6 +164,7 @@ type UseRoomStoryResult = {
   partyHpMax: number;
   timedStatusText: string | null;
   timedEndsAt: string | null;
+  timedDurationSeconds: number | null;
   timedAllowEarly: boolean;
   timedWaitingText: string | null;
   phaseLabel: string;
@@ -1136,6 +1137,7 @@ export function useRoomStory({
   const currentSceneTags = tagState.sceneTagsByScene[currentScene.id] ?? new Set<string>();
   const currentTimer = reduced.timersByScene[currentScene.id] ?? null;
   const timedEndsAt = currentTimer?.endAt ?? null;
+  const timedDurationSeconds = currentTimer?.durationSeconds ?? (isTimedScene ? timedConfig?.durationSeconds ?? null : null);
   const timedWaitingText = isTimedScene
     ? currentTimer
       ? (timedConfig?.restWaitingText?.trim() || 'Le groupe attend....')
@@ -1364,11 +1366,17 @@ export function useRoomStory({
     : isTimedScene
       ? currentStepCompleted
         ? timedConfig?.statusText ?? 'The group is busy...'
-        : currentStepActions.length === 0
-          ? 'Choose how you spend the time.'
-          : localHasActed
-            ? `Waiting for remaining players to react (${currentStepActions.length}/${expectedPlayerCount}).`
-            : `Your reaction is available (${currentStepActions.length}/${expectedPlayerCount} so far).`
+        : timedConfig?.kind === 'rest'
+          ? currentStepActions.length === 0
+            ? 'Choose your rest action. The timer will start once every player has acted.'
+            : localHasActed
+              ? `Waiting for the remaining players to finish their rest actions before the timer starts (${currentStepActions.length}/${expectedPlayerCount}).`
+              : `Pick your rest action to help start the timer (${currentStepActions.length}/${expectedPlayerCount} players ready).`
+          : currentStepActions.length === 0
+            ? 'Choose how you spend the time.'
+            : localHasActed
+              ? `Waiting for remaining players to react (${currentStepActions.length}/${expectedPlayerCount}).`
+              : `Your reaction is available (${currentStepActions.length}/${expectedPlayerCount} so far).`
       : currentStepCompleted
         ? 'Reactions complete. Voting is available.'
         : currentStepActions.length === 0
@@ -1377,6 +1385,8 @@ export function useRoomStory({
             ? `Waiting for remaining players to react (${currentStepActions.length}/${expectedPlayerCount}).`
             : `Your reaction is available (${currentStepActions.length}/${expectedPlayerCount} so far).`;
 
+  const isRestTimedScene = isTimedScene && timedConfig?.kind === 'rest';
+
   const canAct =
     Boolean(localRole) &&
     !resolvedOption &&
@@ -1384,7 +1394,7 @@ export function useRoomStory({
     !currentStepCompleted &&
     !localHasActed &&
     (!isCombatScene || !combatState?.outcome);
-  const allowSkip = canAct && currentStepActions.length > 0;
+  const allowSkip = canAct && currentStepActions.length > 0 && !isRestTimedScene;
 
   const availableActions = useMemo(() => {
     if (!localRole) return [];
@@ -1657,6 +1667,7 @@ export function useRoomStory({
     partyHpMax,
     timedStatusText,
     timedEndsAt,
+    timedDurationSeconds,
     timedAllowEarly: Boolean(timedConfig?.allowEarly),
     timedWaitingText,
     phaseLabel,

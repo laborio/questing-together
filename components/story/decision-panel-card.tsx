@@ -60,6 +60,7 @@ type DecisionPanelCardProps = {
   canVote: boolean;
   voteLockReason: string | null;
   timedEndsAt: string | null;
+  timedDurationSeconds: number | null;
   timedStatusText: string | null;
   timedAllowEarly: boolean;
   timedWaitingText: string | null;
@@ -105,6 +106,7 @@ export function DecisionPanelCard({
   canVote,
   voteLockReason,
   timedEndsAt,
+  timedDurationSeconds,
   timedStatusText,
   timedAllowEarly,
   timedWaitingText,
@@ -218,9 +220,11 @@ export function DecisionPanelCard({
     if (isEndingScene) {
       return <View style={styles.journalCard}>{endingContent}</View>;
     }
+    const timedIntroMessage = !timedEndsAt && isTimedScene ? <Text style={styles.voteLockedText}>{statusText}</Text> : null;
     return (
       <View style={styles.journalCard}>
         <Text style={styles.journalPrompt}>What do you do?</Text>
+        {timedIntroMessage}
         <View style={styles.buttonStack}>
           {actions.map((action) => {
             const isSelectedAction = action.id === localSelectedActionId;
@@ -271,19 +275,22 @@ export function DecisionPanelCard({
 
         {isCombatScene ? null : isTimedScene ? (
           <>
-            <View style={styles.promptSpacer} />
-            <TimedStatusCard
-              label={phaseLabel}
-              endAt={timedEndsAt}
-              statusText={timedWaitingText ?? 'Le groupe attend....'}
-              statusStyle="journal"
-              timePrefix="Temps restant"
-              showTime={false}
-              showFinishButton={false}
-              allowEarly={timedAllowEarly}
-              onFinishEarly={onFinishTimedScene}
-              embedded
-            />
+            {timedEndsAt ? <View style={styles.promptSpacer} /> : null}
+            {timedEndsAt ? (
+              <TimedStatusCard
+                label={phaseLabel}
+                endAt={timedEndsAt}
+                durationSeconds={timedDurationSeconds}
+                statusText={timedWaitingText ?? 'Le groupe attend....'}
+                statusStyle="journal"
+                timePrefix="Temps restant"
+                showTime
+                showFinishButton
+                allowEarly={timedAllowEarly}
+                onFinishEarly={onFinishTimedScene}
+                embedded
+              />
+            ) : null}
           </>
         ) : (
           <>
@@ -406,29 +413,34 @@ export function DecisionPanelCard({
           endingContent
         ) : isTimedScene ? (
           <>
-          <SceneActionsCard
-            phaseLabel={phaseLabel}
-            statusText={statusText}
-            actions={actions}
-            localSelectedActionId={localSelectedActionId}
-            canAct={canAct}
-            allowSkip={allowSkip}
-            onTakeAction={onTakeAction}
-            onSkip={onSkipAction}
-            embedded={embedded}
-          />
-          <TimedStatusCard
-            label={phaseLabel}
-            endAt={timedEndsAt}
-            statusText={timedStatusText ?? statusText}
-            showTime={false}
-            showFinishButton={false}
-            allowEarly={timedAllowEarly}
-            onFinishEarly={onFinishTimedScene}
-            embedded={embedded}
-          />
-        </>
-      ) : activeTab === 'actions' ? (
+            {!timedEndsAt ? <Text style={styles.voteLockedText}>{statusText}</Text> : null}
+            <SceneActionsCard
+              phaseLabel={phaseLabel}
+              statusText={statusText}
+              actions={actions}
+              localSelectedActionId={localSelectedActionId}
+              canAct={canAct}
+              allowSkip={allowSkip}
+              onTakeAction={onTakeAction}
+              onSkip={onSkipAction}
+              embedded={embedded}
+            />
+            {timedEndsAt ? (
+              <TimedStatusCard
+                label={phaseLabel}
+                endAt={timedEndsAt}
+                durationSeconds={timedDurationSeconds}
+                statusText={timedStatusText ?? statusText}
+                timePrefix="Temps restant"
+                showTime
+                showFinishButton
+                allowEarly={timedAllowEarly}
+                onFinishEarly={onFinishTimedScene}
+                embedded={embedded}
+              />
+            ) : null}
+          </>
+        ) : activeTab === 'actions' ? (
         <SceneActionsCard
           phaseLabel={phaseLabel}
           statusText={statusText}

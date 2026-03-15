@@ -3,7 +3,7 @@
   "meta": {
     "title": "Histoire Test Minimale",
     "theme": "flux linéaire simple en français",
-    "notes": "QA: intro, scène narrative, combat, fin."
+    "notes": "QA: intro, scène narrative, combat, repos, fin."
   },
   "startSceneId": "scene_intro",
   "combat": {
@@ -434,7 +434,7 @@
           "defaultVisible": true,
           "next": [
             {
-              "to": "scene_fin"
+              "to": "scene_rest"
             }
           ]
         },
@@ -443,7 +443,7 @@
           "text": "Défaite du groupe.",
           "next": [
             {
-              "to": "scene_fin"
+              "to": "scene_rest"
             }
           ]
         },
@@ -452,7 +452,7 @@
           "text": "Fuite du groupe.",
           "next": [
             {
-              "to": "scene_fin"
+              "to": "scene_rest"
             }
           ]
         }
@@ -471,15 +471,91 @@
       }
     },
     {
+      "id": "scene_rest",
+      "title": "4. Repos",
+      "journalTitle": "4. La halte",
+      "canonicalTruth": "Le groupe prend une courte pause après le combat.",
+      "intro": "À l'abri d'une alcôve fissurée, le groupe reprend son souffle.",
+      "introByPreviousOption": {
+        "A": "Les débris du gardien s'immobilisent enfin. Vous trouvez quelques minutes pour souffler.",
+        "B": "Vous vous extirpez de la mêlée et gagnez une alcôve où reprendre haleine.",
+        "C": "La retraite vous mène jusqu'à un recoin sûr, assez calme pour souffler un instant."
+      },
+      "mode": "timed",
+      "timed": {
+        "kind": "rest",
+        "durationSeconds": 7200,
+        "allowEarly": true,
+        "statusText": "Le groupe reprend son souffle dans le silence revenu.",
+        "restWaitingText": "Le groupe se repose pendant quelques instants."
+      },
+      "evidence": [],
+      "steps": [
+        {
+          "id": "scene_rest_step1",
+          "actions": [
+            {
+              "id": "scene_rest_warrior",
+              "role": "warrior",
+              "text": "Je cale mon bouclier contre l'entrée et j'écoute la pierre se taire.",
+              "buttonText": "Monter la garde",
+              "stage": "Le Guerrier s'adosse au mur et verrouille le passage."
+            },
+            {
+              "id": "scene_rest_sage",
+              "role": "sage",
+              "text": "Je recompte nos ressources et je note ce que le gardien protégeait.",
+              "buttonText": "Prendre des notes",
+              "stage": "Le Sage ouvre son carnet sur ses genoux."
+            },
+            {
+              "id": "scene_rest_ranger",
+              "role": "ranger",
+              "text": "Je vérifie les couloirs voisins avant de revenir près du feu.",
+              "buttonText": "Balayer les couloirs",
+              "stage": "Le Ranger disparaît un instant dans la pénombre puis revient."
+            }
+          ],
+          "outcomes": {
+            "scene_rest_warrior": {
+              "narration": "Le passage reste calme sous la garde du Guerrier."
+            },
+            "scene_rest_sage": {
+              "narration": "Le Sage consigne les détails pendant que le groupe récupère."
+            },
+            "scene_rest_ranger": {
+              "narration": "Le Ranger confirme qu'aucune menace immédiate ne se rapproche."
+            }
+          }
+        }
+      ],
+      "options": [
+        {
+          "id": "A",
+          "text": "Reprendre la route.",
+          "defaultVisible": true,
+          "next": [
+            {
+              "to": "scene_fin"
+            }
+          ]
+        }
+      ],
+      "unlockRules": [],
+      "outcomeByOption": {
+        "A": {
+          "text": "Le groupe repart après une courte halte."
+        }
+      }
+    },
+    {
       "id": "scene_fin",
-      "title": "4. Fin",
-      "journalTitle": "4. Conclusion",
+      "title": "5. Fin",
+      "journalTitle": "5. Conclusion",
       "canonicalTruth": "Fin de l'histoire test.",
       "intro": "L'essai est terminé.",
       "introByPreviousOption": {
-        "A": "La poussière retombe. Vous avez gagné le passage.",
-        "B": "Vous êtes vivants, mais le gardien tient encore la salle.",
-        "C": "Vous vous éloignez rapidement, en notant ce qui a fonctionné."
+        "A": "La halte terminée, vous quittez l'alcôve et concluez l'essai."
       },
       "isEnding": true,
       "evidence": [],

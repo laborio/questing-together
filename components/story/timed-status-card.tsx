@@ -1,9 +1,12 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
+import { AnimatedBarFill } from '@/components/story/animated-bar-fill';
+
 type TimedStatusCardProps = {
   label: string;
   endAt: string | null;
+  durationSeconds?: number | null;
   statusText: string;
   statusStyle?: 'default' | 'journal';
   timePrefix?: string;
@@ -28,6 +31,7 @@ function formatRemaining(ms: number): string {
 export function TimedStatusCard({
   label,
   endAt,
+  durationSeconds = null,
   statusText,
   statusStyle = 'default',
   timePrefix = 'Time remaining',
@@ -50,23 +54,32 @@ export function TimedStatusCard({
     if (!Number.isFinite(endMs)) return null;
     return endMs - now;
   }, [endAt, now]);
+  const totalMs = durationSeconds && durationSeconds > 0 ? durationSeconds * 1000 : null;
 
   const isComplete = remainingMs !== null && remainingMs <= 0;
-  const timeLabel =
-    remainingMs === null
+  const timePercent =
+    remainingMs === null || totalMs === null || totalMs <= 0
       ? null
-      : isComplete
-        ? 'Rest period complete.'
-        : `${timePrefix}: ${formatRemaining(remainingMs)}`;
+      : Math.max(0, Math.min(1, remainingMs / totalMs));
+  const timeLabel = remainingMs === null ? null : isComplete ? '0s' : formatRemaining(remainingMs);
+  const isEmbedded = embedded;
 
   return (
     <View style={[styles.card, embedded && styles.embeddedCard]}>
-      {!embedded ? <Text style={styles.sectionTitle}>{label}</Text> : null}
+      {!embedded ? <Text style={[styles.sectionTitle, isEmbedded && styles.sectionTitleEmbedded]}>{label}</Text> : null}
       <Text style={[styles.statusText, statusStyle === 'journal' && styles.statusTextJournal]}>{statusText}</Text>
-      {showTime && timeLabel ? <Text style={styles.timeText}>{timeLabel}</Text> : null}
+      {showTime && timeLabel && timePercent !== null ? (
+        <View style={styles.timeBlock}>
+          <Text style={[styles.timeLabel, isEmbedded && styles.timeLabelEmbedded]}>{timePrefix}</Text>
+          <View style={styles.timeBar}>
+            <AnimatedBarFill percent={timePercent} style={styles.timeFill} decreaseDuration={850} increaseDuration={180} />
+          </View>
+          <Text style={[styles.timeValue, isEmbedded && styles.timeValueEmbedded]}>{timeLabel}</Text>
+        </View>
+      ) : null}
       {showFinishButton && allowEarly && remainingMs !== null && remainingMs > 0 ? (
-        <Pressable onPress={onFinishEarly} style={styles.finishButton}>
-          <Text style={styles.finishButtonText}>End rest early (testing)</Text>
+        <Pressable onPress={onFinishEarly} style={[styles.finishButton, embedded && styles.finishButtonEmbedded]}>
+          <Text style={[styles.finishButtonText, embedded && styles.finishButtonTextEmbedded]}>Skip timer</Text>
         </Pressable>
       ) : null}
     </View>
@@ -91,6 +104,10 @@ const styles = StyleSheet.create({
     fontSize: 17,
     fontWeight: '700',
     color: '#f3e8d0',
+    fontFamily: 'Besley',
+  },
+  sectionTitleEmbedded: {
+    color: '#47332a',
   },
   statusText: {
     fontSize: 12,
@@ -105,23 +122,58 @@ const styles = StyleSheet.create({
     fontFamily: 'Besley',
     textAlign: 'center',
   },
-  timeText: {
-    fontSize: 16,
-    fontFamily: 'Besley',
+  timeBlock: {
+    gap: 6,
+  },
+  timeLabel: {
+    fontSize: 12,
+    color: '#e8d7bf',
     fontWeight: '700',
-    color: '#49240c',
+    textTransform: 'uppercase',
+    fontFamily: 'Besley',
+  },
+  timeLabelEmbedded: {
+    color: '#6b4a2a',
+  },
+  timeBar: {
+    height: 8,
+    borderRadius: 999,
+    backgroundColor: '#4a270f66',
+    overflow: 'hidden',
+  },
+  timeFill: {
+    height: '100%',
+    backgroundColor: '#f08d2b',
+  },
+  timeValue: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#d3c2a4',
+    fontFamily: 'Besley',
+  },
+  timeValueEmbedded: {
+    color: '#6e5043',
   },
   finishButton: {
-    borderRadius: 10,
-    backgroundColor: '#6b4428',
-    paddingVertical: 10,
+    alignSelf: 'flex-end',
+    borderRadius: 999,
+    backgroundColor: 'transparent',
+    paddingVertical: 4,
+    paddingHorizontal: 8,
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: '#a57a4a',
+    borderColor: '#a57a4a66',
+  },
+  finishButtonEmbedded: {
+    borderColor: '#8b674866',
   },
   finishButtonText: {
-    color: '#f7f0df',
-    fontSize: 12,
-    fontWeight: '700',
+    color: '#d6b48d',
+    fontSize: 11,
+    fontWeight: '600',
+    fontFamily: 'Besley',
+  },
+  finishButtonTextEmbedded: {
+    color: '#7b5d46',
   },
 });

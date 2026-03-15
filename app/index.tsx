@@ -293,6 +293,7 @@ export default function IndexScreen() {
                       canVote={roomStory.canVote}
                       voteLockReason={roomStory.voteLockReason}
                       timedEndsAt={roomStory.timedEndsAt}
+                      timedDurationSeconds={roomStory.timedDurationSeconds}
                       timedStatusText={roomStory.timedStatusText}
                       timedAllowEarly={roomStory.timedAllowEarly}
                       timedWaitingText={roomStory.timedWaitingText}

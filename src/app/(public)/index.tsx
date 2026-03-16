@@ -2,7 +2,7 @@ import { Text, View } from 'react-native';
 import { useGame } from '@/contexts/GameContext';
 import { RoomConnectionCard } from '@/features/lobby/RoomConnectionCard';
 
-export default function HomeScreen() {
+const HomeScreen = () => {
   const game = useGame();
 
   if (!game.auth.isAuthReady) {
@@ -45,4 +45,6 @@ export default function HomeScreen() {
       />
     </View>
   );
-}
+};
+
+export default HomeScreen;

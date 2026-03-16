@@ -1,11 +1,7 @@
 import '../../global.css';
 import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
-import { Asset } from 'expo-asset';
-import { useFonts } from 'expo-font';
 import { Slot } from 'expo-router';
-import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
-import { useEffect, useState } from 'react';
 import 'react-native-reanimated';
 
 import fontBesleyItalic from '@/assets/fonts/Besley-Italic-VariableFont_wght.ttf';
@@ -25,12 +21,16 @@ import imgPortraitFrame from '@/assets/images/T_PortraitFrame.png';
 import imgRangerPortrait from '@/assets/images/T_RangerPortrait.png';
 import imgSagePortrait from '@/assets/images/T_SagePortrait.png';
 import imgWarriorPortrait from '@/assets/images/T_WarriorPortrait.png';
-import { GameProvider } from '@/contexts/GameContext';
+import AppLoader from '@/components/AppLoader';
+import { GameProvider } from '@/contexts/GameProvider';
 import { useColorScheme } from '@/hooks/useColorScheme';
 
-void SplashScreen.preventAutoHideAsync();
+const fonts = {
+  Besley: fontBesley,
+  BesleyItalic: fontBesleyItalic,
+};
 
-const bootImageAssets: number[] = [
+const images = [
   imgBackgroundPaper,
   imgBackgroundHeader,
   imgHeaderBorder,
@@ -48,55 +48,19 @@ const bootImageAssets: number[] = [
   imgPartyHealthFrame,
 ];
 
-export default function RootLayout() {
+const RootLayout = () => {
   const colorScheme = useColorScheme();
-  const [fontsLoaded, fontsError] = useFonts({
-    Besley: fontBesley,
-    BesleyItalic: fontBesleyItalic,
-  });
-  const [imagesLoaded, setImagesLoaded] = useState(false);
-
-  useEffect(() => {
-    let mounted = true;
-
-    void (async () => {
-      try {
-        await Asset.loadAsync(bootImageAssets);
-      } catch (error) {
-        console.warn('Image preload failed', error);
-      } finally {
-        if (mounted) {
-          setImagesLoaded(true);
-        }
-      }
-    })();
-
-    return () => {
-      mounted = false;
-    };
-  }, []);
-
-  const appReady = fontsLoaded && imagesLoaded;
-
-  useEffect(() => {
-    if (!appReady) return;
-    void SplashScreen.hideAsync();
-  }, [appReady]);
-
-  if (fontsError) {
-    throw fontsError;
-  }
-
-  if (!appReady) {
-    return null;
-  }
 
   return (
-    <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
-      <GameProvider>
-        <Slot />
-        <StatusBar style="auto" />
-      </GameProvider>
-    </ThemeProvider>
+    <AppLoader fonts={fonts} images={images}>
+      <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
+        <GameProvider>
+          <Slot />
+          <StatusBar style="auto" />
+        </GameProvider>
+      </ThemeProvider>
+    </AppLoader>
   );
-}
+};
+
+export default RootLayout;

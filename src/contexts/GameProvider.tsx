@@ -1,13 +1,15 @@
+import type { ReactNode } from 'react';
 import { useMemo, useState } from 'react';
 import { useAnonymousAuth } from '@/api/hooks/use-anonymous-auth';
 import { useRoomConnection } from '@/api/hooks/use-room-connection';
 import { playerNameById } from '@/constants/constants';
+import { GameContext } from '@/contexts/GameContext';
 import { usePartyEmotes } from '@/hooks/usePartyEmotes';
 import { useRoomStory } from '@/hooks/useRoomStory';
 import type { PlayerId, RoleId } from '@/types/player';
 import { buildPartyStatusRows, type PartyStatusRow } from '@/utils/buildPartyStatusRows';
 
-export function useGameState() {
+const GameProvider = ({ children }: { children: ReactNode }) => {
   const auth = useAnonymousAuth();
   const roomConnection = useRoomConnection();
   const [showStatusPanel, setShowStatusPanel] = useState(false);
@@ -90,26 +92,53 @@ export function useGameState() {
     ],
   );
 
-  return {
-    auth,
-    roomConnection,
-    room,
-    roomId,
-    localPlayerId,
-    localRole,
-    localDisplayName,
-    isHost,
-    isTitleScreen,
-    isLobby,
-    isStoryView,
-    isAdventureStarted,
-    hasTechAlert,
-    playerDisplayNameById,
-    playerRoleById,
-    partyStatusRows,
-    roomStory,
-    partyEmotes,
-    showStatusPanel,
-    setShowStatusPanel,
-  };
-}
+  const value = useMemo(
+    () => ({
+      auth,
+      roomConnection,
+      room,
+      roomId,
+      localPlayerId,
+      localRole,
+      localDisplayName,
+      isHost,
+      isTitleScreen,
+      isLobby,
+      isStoryView,
+      isAdventureStarted,
+      hasTechAlert,
+      playerDisplayNameById,
+      playerRoleById,
+      partyStatusRows,
+      roomStory,
+      partyEmotes,
+      showStatusPanel,
+      setShowStatusPanel,
+    }),
+    [
+      auth,
+      roomConnection,
+      room,
+      roomId,
+      localPlayerId,
+      localRole,
+      localDisplayName,
+      isHost,
+      isTitleScreen,
+      isLobby,
+      isStoryView,
+      isAdventureStarted,
+      hasTechAlert,
+      playerDisplayNameById,
+      playerRoleById,
+      partyStatusRows,
+      roomStory,
+      partyEmotes,
+      showStatusPanel,
+    ],
+  );
+
+  return <GameContext.Provider value={value}>{children}</GameContext.Provider>;
+};
+
+export { GameProvider };

@@ -44,4 +44,4 @@ const Typography = ({ variant = 'body', style, ...props }: TypographyProps) => {
   return <Text style={[variantStyles[variant], style]} {...props} />;
 };
 
-export { Typography };
+export default Typography;

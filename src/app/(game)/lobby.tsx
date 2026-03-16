@@ -2,7 +2,7 @@ import { Redirect } from 'expo-router';
 import { Pressable, ScrollView, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import paperTexture from '@/assets/images/T_Background_Paper.png';
-import TiledBackground from '@/components/Layout/TiledBackground';
+import { TiledBackground } from '@/components';
 import { useGame } from '@/contexts/GameContext';
 import { LobbyView } from '@/features/lobby/LobbyView';
 import type { RoleId } from '@/types/player';

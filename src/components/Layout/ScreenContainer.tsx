@@ -18,4 +18,4 @@ const ScreenContainer = ({ centered, style, ...props }: ScreenContainerProps) =>
   );
 };
 
-export { ScreenContainer };
+export default ScreenContainer;

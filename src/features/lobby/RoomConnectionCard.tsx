@@ -1,12 +1,16 @@
 import { useState } from 'react';
-import { Image, ImageBackground, StyleSheet, useWindowDimensions, View } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { View } from 'react-native';
 import homeScreenArt from '@/assets/images/T_HomeScreen_Art.png';
 import homeScreenTitleFrame from '@/assets/images/T_HomeScreen_TitleFrame.png';
-import { CodeInput } from '@/components/ui/CodeInput';
-import { TexturedButton } from '@/components/ui/TexturedButton';
-import { Typography } from '@/components/ui/Typography';
-import { colors } from '@/constants/colors';
+import {
+  BackgroundArt,
+  CodeInput,
+  ContentContainer,
+  FramedTitle,
+  TexturedButton,
+  Typography,
+} from '@/components';
+import { useHomeScreenLayout } from '@/utils/homeScreenLayout';
 
 type RoomConnectionCardProps = {
   isBusy: boolean;
@@ -21,37 +25,43 @@ const RoomConnectionCard = ({
   onCreateRoom,
   onJoinRoom,
 }: RoomConnectionCardProps) => {
-  const { height, width } = useWindowDimensions();
-  const insets = useSafeAreaInsets();
+  const {
+    minHeight,
+    titleTopOffset,
+    actionsBottomOffset,
+    titleFrameHeight,
+    titleFrameWidth,
+    insets,
+  } = useHomeScreenLayout();
   const [joinCode, setJoinCode] = useState('');
   const [showJoinInput, setShowJoinInput] = useState(false);
   const canJoin = Boolean(joinCode.trim()) && !isBusy;
-  const minHeight = Math.max(560, height + insets.top + insets.bottom);
-  const titleTopOffset = Math.max(52, Math.round(height * 0.16));
-  const actionsBottomOffset = Math.max(90, Math.round(height * 0.16));
-  const titleFrameHeight = Math.max(106, Math.round(height * 0.15));
-  const titleFrameWidth = width + 32;
 
   return (
-    <ImageBackground
+    <BackgroundArt
       source={homeScreenArt}
-      resizeMode="cover"
-      imageStyle={styles.screenArt}
-      style={[styles.screen, { minHeight, marginTop: -insets.top, marginBottom: -insets.bottom }]}
+      style={{ minHeight, marginTop: -insets.top, marginBottom: -insets.bottom }}
     >
-      <View style={styles.overlayTint} />
-      <View style={styles.content}>
-        <View style={[styles.topBlock, { marginTop: titleTopOffset }]}>
-          <View
-            style={[styles.titleFrameWrap, { height: titleFrameHeight, width: titleFrameWidth }]}
+      <ContentContainer>
+        <View style={{ width: '100%', alignItems: 'center', gap: 8, marginTop: titleTopOffset }}>
+          <FramedTitle
+            source={homeScreenTitleFrame}
+            style={{ height: titleFrameHeight, width: titleFrameWidth, marginTop: 2 }}
           >
-            <Image source={homeScreenTitleFrame} style={styles.titleFrame} resizeMode="stretch" />
             <Typography variant="title">À L'AVENTURE, COMPAGNONS</Typography>
-          </View>
+          </FramedTitle>
           <Typography variant="subtitle">Multiplayer Text RPG Adventure</Typography>
         </View>
 
-        <View style={[styles.bottomBlock, { marginBottom: actionsBottomOffset }]}>
+        <View
+          style={{
+            width: '100%',
+            alignItems: 'center',
+            gap: 10,
+            marginTop: 'auto',
+            marginBottom: actionsBottomOffset,
+          }}
+        >
           <TexturedButton
             disabled={isBusy}
             onPress={onCreateRoom}
@@ -83,55 +93,9 @@ const RoomConnectionCard = ({
 
           {errorText ? <Typography variant="error">{errorText}</Typography> : null}
         </View>
-      </View>
-    </ImageBackground>
+      </ContentContainer>
+    </BackgroundArt>
   );
 };
-
-const styles = StyleSheet.create({
-  screen: {
-    width: '100%',
-    overflow: 'hidden',
-    justifyContent: 'center',
-  },
-  screenArt: {
-    opacity: 1,
-  },
-  overlayTint: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: colors.backgroundOverlay,
-  },
-  content: {
-    flex: 1,
-    width: '100%',
-    alignSelf: 'center',
-    paddingHorizontal: 16,
-    paddingTop: 12,
-    paddingBottom: 28,
-    alignItems: 'center',
-  },
-  topBlock: {
-    width: '100%',
-    alignItems: 'center',
-    gap: 8,
-  },
-  titleFrameWrap: {
-    alignSelf: 'center',
-    marginTop: 2,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  titleFrame: {
-    ...StyleSheet.absoluteFillObject,
-    width: undefined,
-    height: undefined,
-  },
-  bottomBlock: {
-    width: '100%',
-    alignItems: 'center',
-    gap: 10,
-    marginTop: 'auto',
-  },
-});
 
 export { RoomConnectionCard };

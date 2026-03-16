@@ -1,7 +1,6 @@
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
-
-import { PartyStatusCard } from '@/components/Card/PartyStatusCard';
 import { roles } from '@/constants/constants';
+import PartyStatusCard from '@/features/party/PartyStatusCard';
 import type { PlayerId, RoleId } from '@/types/player';
 import type { PartyStatusRow } from '@/utils/buildPartyStatusRows';
 

@@ -4,7 +4,7 @@ import * as SplashScreen from 'expo-splash-screen';
 import { type ReactNode, useCallback, useEffect, useState } from 'react';
 import { preloadFonts } from '@/assets/fonts';
 import { preloadImages } from '@/assets/images';
-import { ScreenContainer } from '@/components/ui/ScreenContainer';
+import { ScreenContainer } from '@/components';
 
 void SplashScreen.preventAutoHideAsync();
 

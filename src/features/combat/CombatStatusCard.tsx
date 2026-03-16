@@ -1,6 +1,6 @@
 import { StyleSheet, Text, View } from 'react-native';
 
-import { AnimatedBarFill } from '@/components/Animated/AnimatedBarFill';
+import { AnimatedBarFill } from '@/components';
 import type { OptionId } from '@/types/story';
 
 type CombatRoundLog = {

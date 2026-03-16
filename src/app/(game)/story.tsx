@@ -3,7 +3,7 @@ import { useState } from 'react';
 import { ScrollView, useWindowDimensions, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import paperTexture from '@/assets/images/T_Background_Paper.png';
-import TiledBackground from '@/components/Layout/TiledBackground';
+import { TiledBackground } from '@/components';
 import { useGame } from '@/contexts/GameContext';
 import { PartyEmoteOverlay } from '@/features/emote/PartyEmoteOverlay';
 import { StatusOverlay } from '@/features/party/StatusOverlay';

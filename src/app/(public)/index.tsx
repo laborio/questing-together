@@ -1,5 +1,4 @@
-import { ScreenContainer } from '@/components/ui/ScreenContainer';
-import { Typography } from '@/components/ui/Typography';
+import { ScreenContainer, Typography } from '@/components';
 import { useGame } from '@/contexts/GameContext';
 import { RoomConnectionCard } from '@/features/lobby/RoomConnectionCard';
 

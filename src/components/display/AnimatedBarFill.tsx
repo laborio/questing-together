@@ -16,7 +16,7 @@ type AnimatedBarFillProps = {
   increaseDuration?: number;
 };
 
-export function AnimatedBarFill({
+function AnimatedBarFill({
   percent,
   style,
   decreaseDuration = 650,
@@ -69,3 +69,5 @@ const styles = StyleSheet.create({
     height: '100%',
   },
 });
+
+export default AnimatedBarFill;

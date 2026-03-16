@@ -1,6 +1,6 @@
 import { Image, type ImageSourcePropType, StyleSheet, Text, View } from 'react-native';
 
-import { AnimatedBarFill } from '@/components/Animated/AnimatedBarFill';
+import { AnimatedBarFill } from '@/components';
 
 type PartyStatusTone = 'ready' | 'waiting' | 'neutral' | 'offline';
 

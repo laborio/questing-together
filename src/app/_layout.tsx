@@ -3,7 +3,7 @@ import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native
 import { Slot } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import 'react-native-reanimated';
-import AppLoader from '@/components/AppLoader';
+import AppLoader from '@/components/utils/AppLoader';
 import { GameProvider } from '@/contexts/GameProvider';
 import { useColorScheme } from '@/hooks/useColorScheme';
 

@@ -9,12 +9,7 @@ type FramedTitleProps = {
 
 const FramedTitle = ({ source, style, children }: FramedTitleProps) => {
   return (
-    <View
-      style={[
-        { alignSelf: 'center', alignItems: 'center', justifyContent: 'center', paddingBottom: 8 },
-        style,
-      ]}
-    >
+    <View style={[{ alignSelf: 'center', alignItems: 'center', justifyContent: 'center' }, style]}>
       <Image
         source={source}
         resizeMode="stretch"

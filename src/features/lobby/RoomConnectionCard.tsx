@@ -1,10 +1,9 @@
 import { useState } from 'react';
-import { View } from 'react-native';
 import homeScreenArt from '@/assets/images/T_HomeScreen_Art.png';
 import homeScreenTitleFrame from '@/assets/images/T_HomeScreen_TitleFrame.png';
 import { FramedTitle, Typography } from '@/components/display';
 import { CodeInput, TexturedButton } from '@/components/input';
-import { ActionGroup, BackgroundArt, ContentContainer } from '@/components/layout';
+import { ActionGroup, BackgroundArt, ContentContainer, Stack } from '@/components/layout';
 import { useHomeScreenLayout } from '@/utils/homeScreenLayout';
 
 type RoomConnectionCardProps = {
@@ -38,16 +37,18 @@ const RoomConnectionCard = ({
       style={{ minHeight, marginTop: -insets.top, marginBottom: -insets.bottom }}
     >
       <ContentContainer>
-        <View style={{ width: '100%', alignItems: 'center', gap: 16, marginTop: titleTopOffset }}>
+        <Stack gap={16} align="center" style={{ width: '100%', marginTop: titleTopOffset }}>
           <FramedTitle
             source={homeScreenTitleFrame}
             style={{ height: titleFrameHeight, width: titleFrameWidth, marginTop: 2 }}
           >
-            <Typography variant="title">À L'AVENTURE,</Typography>
-            <Typography variant="title">COMPAGNONS</Typography>
+            <Stack style={{ marginBottom: -16 }}>
+              <Typography variant="title">À L'AVENTURE,</Typography>
+              <Typography variant="title">COMPAGNONS</Typography>
+            </Stack>
           </FramedTitle>
           <Typography variant="subtitle">Multiplayer Text RPG Adventure</Typography>
-        </View>
+        </Stack>
 
         <ActionGroup style={{ marginBottom: actionsBottomOffset }}>
           <TexturedButton

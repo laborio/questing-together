@@ -1,5 +1,5 @@
 import { HealthBar, Portrait } from '@/components/display';
-import { Row } from '@/components/layout';
+import { Stack } from '@/components/layout';
 import { colors } from '@/constants/colors';
 import type { StatusTone } from '@/constants/statusTones';
 import { portraitByRole } from '@/utils/portraitByRole';
@@ -43,7 +43,7 @@ const PartyTopBar = ({ partyHp, partyHpMax, rows, variant = 'default' }: PartyTo
   const { barBg, nameColor, hpTextColor } = variantStyles[variant];
 
   return (
-    <Row gap={isCompact ? 4 : 8} style={{ backgroundColor: barBg }}>
+    <Stack direction="row" gap={isCompact ? 4 : 8} style={{ backgroundColor: barBg }}>
       {rows.map((row) => (
         <Portrait
           key={row.id}
@@ -56,7 +56,7 @@ const PartyTopBar = ({ partyHp, partyHpMax, rows, variant = 'default' }: PartyTo
         />
       ))}
       <HealthBar current={partyHp} max={partyHpMax} compact={isCompact} textColor={hpTextColor} />
-    </Row>
+    </Stack>
   );
 };
 

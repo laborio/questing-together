@@ -1,6 +1,6 @@
-import { StyleSheet, Text, View } from 'react-native';
-
-import { AnimatedBarFill } from '@/components/display';
+import { StatBar, Typography } from '@/components/display';
+import { Card, Stack } from '@/components/layout';
+import { colors } from '@/constants/colors';
 import type { OptionId } from '@/types/story';
 
 type CombatRoundLog = {
@@ -27,189 +27,112 @@ type CombatStatusCardProps = {
   embedded?: boolean;
 };
 
-export function CombatStatusCard({
+const variantColors = {
+  default: {
+    title: colors.combatTitle,
+    round: colors.combatRound,
+    outcome: colors.combatOutcome,
+    healthLabel: colors.combatHealthLabel,
+    healthValue: colors.combatHealthValue,
+    log: colors.combatLog,
+    waiting: colors.combatWaiting,
+  },
+  embedded: {
+    title: colors.combatTitleEmbedded,
+    round: colors.combatRoundEmbedded,
+    outcome: colors.combatOutcomeEmbedded,
+    healthLabel: colors.combatHealthLabelEmbedded,
+    healthValue: colors.combatHealthValueEmbedded,
+    log: colors.combatLogEmbedded,
+    waiting: colors.combatWaitingEmbedded,
+  },
+} as const;
+
+const CombatStatusCard = ({
   combatState,
   combatLog,
   resolvedOption,
   showResolutionStatus = true,
   embedded = false,
-}: CombatStatusCardProps) {
-  const partyPercent = Math.max(0, Math.min(1, combatState.partyHp / combatState.partyHpMax));
-  const enemyPercent = Math.max(0, Math.min(1, combatState.enemyHp / combatState.enemyHpMax));
+}: CombatStatusCardProps) => {
   const outcomeLabel = combatState.outcome ? combatState.outcome.toUpperCase() : null;
-  const isEmbedded = embedded;
+  const c = variantColors[embedded ? 'embedded' : 'default'];
+
+  const getResolutionText = () => {
+    if (!showResolutionStatus) return null;
+    if (resolvedOption) return 'Moving to the next scene...';
+    if (combatState.outcome) return 'Resolving combat outcome...';
+    return null;
+  };
+
+  const resolutionText = getResolutionText();
 
   return (
-    <View style={[styles.card, embedded && styles.embeddedCard]}>
+    <Card embedded={embedded} backgroundColor={colors.backgroundCombatCard}>
       {!embedded ? (
-        <Text style={[styles.sectionTitle, isEmbedded && styles.sectionTitleEmbedded]}>
+        <Typography variant="body" style={{ fontSize: 17, fontWeight: '700', color: c.title }}>
           Combat Status
-        </Text>
+        </Typography>
       ) : null}
 
-      <View style={styles.headerRow}>
-        <Text style={[styles.roundText, isEmbedded && styles.roundTextEmbedded]}>
+      <Stack direction="row" justify="space-between" align="center">
+        <Typography variant="caption" style={{ fontSize: 13, fontWeight: '700', color: c.round }}>
           Round {combatState.round}
-        </Text>
+        </Typography>
         {outcomeLabel ? (
-          <Text style={[styles.outcomeText, isEmbedded && styles.outcomeTextEmbedded]}>
+          <Typography
+            variant="caption"
+            style={{ fontSize: 12, fontWeight: '700', color: c.outcome }}
+          >
             {outcomeLabel}
-          </Text>
+          </Typography>
         ) : null}
-      </View>
+      </Stack>
 
-      <View style={styles.healthBlock}>
-        <Text style={[styles.healthLabel, isEmbedded && styles.healthLabelEmbedded]}>Party HP</Text>
-        <View style={styles.healthBar}>
-          <AnimatedBarFill percent={partyPercent} style={styles.healthFill} />
-        </View>
-        <Text style={[styles.healthValue, isEmbedded && styles.healthValueEmbedded]}>
-          {combatState.partyHp}/{combatState.partyHpMax}
-        </Text>
-      </View>
+      <StatBar
+        label="Party HP"
+        current={combatState.partyHp}
+        max={combatState.partyHpMax}
+        fillColor={colors.combatHealthFill}
+        trackColor={colors.combatHealthBarBg}
+        labelColor={c.healthLabel}
+        valueColor={c.healthValue}
+      />
 
-      <View style={styles.healthBlock}>
-        <Text style={[styles.healthLabel, isEmbedded && styles.healthLabelEmbedded]}>
-          {combatState.enemyName}
-        </Text>
-        <View style={styles.healthBar}>
-          <AnimatedBarFill percent={enemyPercent} style={styles.enemyFill} />
-        </View>
-        <Text style={[styles.healthValue, isEmbedded && styles.healthValueEmbedded]}>
-          {combatState.enemyHp}/{combatState.enemyHpMax}
-        </Text>
-      </View>
+      <StatBar
+        label={combatState.enemyName}
+        current={combatState.enemyHp}
+        max={combatState.enemyHpMax}
+        fillColor={colors.combatEnemyFill}
+        trackColor={colors.combatHealthBarBg}
+        labelColor={c.healthLabel}
+        valueColor={c.healthValue}
+      />
 
       {combatLog.length > 0 ? (
-        <View style={styles.logBlock}>
+        <Stack gap={4}>
           {combatLog.slice(-4).map((entry) => (
-            <Text key={entry.id} style={[styles.logText, isEmbedded && styles.logTextEmbedded]}>
+            <Typography key={entry.id} variant="body" style={{ fontSize: 12, color: c.log }}>
               {entry.text}
-            </Text>
+            </Typography>
           ))}
-        </View>
+        </Stack>
       ) : (
-        <Text style={[styles.logText, isEmbedded && styles.logTextEmbedded]}>
+        <Typography variant="body" style={{ fontSize: 12, color: c.log }}>
           No rounds resolved yet.
-        </Text>
+        </Typography>
       )}
 
-      {showResolutionStatus ? (
-        resolvedOption ? (
-          <Text style={[styles.waitingText, isEmbedded && styles.waitingTextEmbedded]}>
-            Moving to the next scene...
-          </Text>
-        ) : combatState.outcome ? (
-          <Text style={[styles.waitingText, isEmbedded && styles.waitingTextEmbedded]}>
-            Resolving combat outcome...
-          </Text>
-        ) : null
+      {resolutionText ? (
+        <Typography
+          variant="body"
+          style={{ fontSize: 12, color: c.waiting, fontFamily: 'BesleyItalic' }}
+        >
+          {resolutionText}
+        </Typography>
       ) : null}
-    </View>
+    </Card>
   );
-}
+};
 
-const styles = StyleSheet.create({
-  card: {
-    backgroundColor: '#2a1d14',
-    borderRadius: 12,
-    padding: 12,
-    gap: 10,
-    borderWidth: 1,
-    borderColor: '#6f4e2e',
-  },
-  embeddedCard: {
-    backgroundColor: 'transparent',
-    borderWidth: 0,
-    padding: 0,
-  },
-  sectionTitle: {
-    fontSize: 17,
-    fontWeight: '700',
-    color: '#f3e8d0',
-    fontFamily: 'Besley',
-  },
-  sectionTitleEmbedded: {
-    color: '#47332a',
-  },
-  headerRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  roundText: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: '#422c05',
-    textTransform: 'uppercase',
-    fontFamily: 'Besley',
-  },
-  roundTextEmbedded: {
-    color: '#3f270c',
-  },
-  outcomeText: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: '#9ad18b',
-    textTransform: 'uppercase',
-    fontFamily: 'Besley',
-  },
-  outcomeTextEmbedded: {
-    color: '#5f7a45',
-  },
-  healthBlock: {
-    gap: 6,
-  },
-  healthLabel: {
-    fontSize: 12,
-    color: '#e8d7bf',
-    fontWeight: '700',
-    textTransform: 'uppercase',
-    fontFamily: 'Besley',
-  },
-  healthLabelEmbedded: {
-    color: '#6b4a2a',
-  },
-  healthBar: {
-    height: 8,
-    borderRadius: 999,
-    backgroundColor: '#371c0087',
-    overflow: 'hidden',
-  },
-  healthFill: {
-    height: '100%',
-    backgroundColor: '#1ccf1669',
-  },
-  enemyFill: {
-    height: '100%',
-    backgroundColor: '#f4000057',
-  },
-  healthValue: {
-    fontSize: 13,
-    color: '#d3c2a4',
-    fontFamily: 'Besley',
-    fontWeight: '700',
-  },
-  healthValueEmbedded: {
-    color: '#6e5043',
-  },
-  logBlock: {
-    gap: 4,
-  },
-  logText: {
-    fontSize: 12,
-    color: '#d8c8b0',
-    fontFamily: 'Besley',
-  },
-  logTextEmbedded: {
-    color: '#5a4330',
-  },
-  waitingText: {
-    fontSize: 12,
-    color: '#d3c2a4',
-    fontFamily: 'BesleyItalic',
-  },
-  waitingTextEmbedded: {
-    color: '#6e5043',
-  },
-});
+export default CombatStatusCard;

@@ -19,7 +19,7 @@ import {
 } from 'react-native';
 import dividerLarge from '@/assets/images/T_Divider_L.png';
 import dividerSmall from '@/assets/images/T_Divider_S.png';
-import { CombatStatusCard } from '@/features/combat/CombatStatusCard';
+import CombatStatusCard from '@/features/combat/CombatStatusCard';
 
 type SceneHistoryItem = {
   sceneId: string;

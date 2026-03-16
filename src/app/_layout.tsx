@@ -4,7 +4,7 @@ import { Slot } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import 'react-native-reanimated';
 import AppLoader from '@/components/utils/AppLoader';
-import { GameProvider } from '@/contexts/GameProvider';
+import { GameProvider } from '@/contexts/GameContext';
 import { useColorScheme } from '@/hooks/useColorScheme';
 
 const RootLayout = () => {

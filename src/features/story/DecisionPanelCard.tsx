@@ -12,7 +12,7 @@ import {
 import buttonTexture from '@/assets/images/T_Button.png';
 import buttonTextureDisabled from '@/assets/images/T_Button_Disabled.png';
 import buttonTextureSelected from '@/assets/images/T_Button_Selected.png';
-import { CombatStatusCard } from '@/features/combat/CombatStatusCard';
+import CombatStatusCard from '@/features/combat/CombatStatusCard';
 import {
   type ChoiceIntentPortraitPlayer,
   ChoiceIntentPortraits,

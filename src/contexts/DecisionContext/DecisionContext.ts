@@ -5,7 +5,7 @@ import type {
   SceneState,
   TimedData,
   VoteState,
-} from '@/features/story/types';
+} from '@/features/story/types/types';
 import type { OptionId } from '@/types/story';
 
 export type TabId = 'actions' | 'decisions';

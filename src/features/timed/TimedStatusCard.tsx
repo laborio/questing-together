@@ -1,7 +1,9 @@
-import { useEffect, useMemo, useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
-
-import { AnimatedBarFill } from '@/components/display';
+import { useMemo } from 'react';
+import { Pressable } from 'react-native';
+import { AnimatedBarFill, Card, Stack, Typography } from '@/components';
+import { colors } from '@/constants/colors';
+import { useTick } from '@/hooks/useTick';
+import { formatRemaining } from '@/utils/formatRemaining';
 
 type TimedStatusCardProps = {
   label: string;
@@ -17,18 +19,7 @@ type TimedStatusCardProps = {
   embedded?: boolean;
 };
 
-function formatRemaining(ms: number): string {
-  const totalSeconds = Math.max(0, Math.ceil(ms / 1000));
-  const hours = Math.floor(totalSeconds / 3600);
-  const minutes = Math.floor((totalSeconds % 3600) / 60);
-  const seconds = totalSeconds % 60;
-
-  if (hours > 0) return `${hours}h ${minutes}m`;
-  if (minutes > 0) return `${minutes}m ${seconds}s`;
-  return `${seconds}s`;
-}
-
-export function TimedStatusCard({
+const TimedStatusCard = ({
   label,
   endAt,
   durationSeconds = null,
@@ -40,13 +31,8 @@ export function TimedStatusCard({
   allowEarly,
   onFinishEarly,
   embedded = false,
-}: TimedStatusCardProps) {
-  const [now, setNow] = useState(() => Date.now());
-
-  useEffect(() => {
-    const timer = setInterval(() => setNow(Date.now()), 1000);
-    return () => clearInterval(timer);
-  }, []);
+}: TimedStatusCardProps) => {
+  const now = useTick(1000);
 
   const remainingMs = useMemo(() => {
     if (!endAt) return null;
@@ -54,146 +40,99 @@ export function TimedStatusCard({
     if (!Number.isFinite(endMs)) return null;
     return endMs - now;
   }, [endAt, now]);
-  const totalMs = durationSeconds && durationSeconds > 0 ? durationSeconds * 1000 : null;
 
+  const totalMs = durationSeconds && durationSeconds > 0 ? durationSeconds * 1000 : null;
   const isComplete = remainingMs !== null && remainingMs <= 0;
   const timePercent =
     remainingMs === null || totalMs === null || totalMs <= 0
       ? null
       : Math.max(0, Math.min(1, remainingMs / totalMs));
   const timeLabel = remainingMs === null ? null : isComplete ? '0s' : formatRemaining(remainingMs);
-  const isEmbedded = embedded;
 
   return (
-    <View style={[styles.card, embedded && styles.embeddedCard]}>
+    <Card gap={8} embedded={embedded} backgroundColor={colors.backgroundCombatCard}>
       {!embedded ? (
-        <Text style={[styles.sectionTitle, isEmbedded && styles.sectionTitleEmbedded]}>
+        <Typography variant="sectionTitle" style={{ color: colors.textStatus }}>
           {label}
-        </Text>
+        </Typography>
       ) : null}
-      <Text style={[styles.statusText, statusStyle === 'journal' && styles.statusTextJournal]}>
+
+      <Typography
+        variant={statusStyle === 'journal' ? 'sectionTitle' : 'caption'}
+        style={
+          statusStyle === 'journal'
+            ? { lineHeight: 28, color: colors.textDialogue, fontWeight: '500', textAlign: 'center' }
+            : { color: colors.textRole }
+        }
+      >
         {statusText}
-      </Text>
+      </Typography>
+
       {showTime && timeLabel && timePercent !== null ? (
-        <View style={styles.timeBlock}>
-          <Text style={[styles.timeLabel, isEmbedded && styles.timeLabelEmbedded]}>
+        <Stack gap={6}>
+          <Typography
+            variant="caption"
+            style={{
+              color: embedded ? colors.combatHealthLabelEmbedded : colors.combatHealthLabel,
+              fontWeight: '700',
+              textTransform: 'uppercase',
+            }}
+          >
             {timePrefix}
-          </Text>
-          <View style={styles.timeBar}>
+          </Typography>
+          <Stack
+            style={{
+              height: 8,
+              borderRadius: 999,
+              backgroundColor: colors.timedBarBg,
+              overflow: 'hidden',
+            }}
+          >
             <AnimatedBarFill
               percent={timePercent}
-              style={styles.timeFill}
+              style={{ height: '100%', backgroundColor: colors.timedBarFill }}
               decreaseDuration={850}
               increaseDuration={180}
             />
-          </View>
-          <Text style={[styles.timeValue, isEmbedded && styles.timeValueEmbedded]}>
+          </Stack>
+          <Typography
+            variant="bodySm"
+            style={{
+              fontWeight: '700',
+              color: embedded ? colors.combatHealthValueEmbedded : colors.textRole,
+            }}
+          >
             {timeLabel}
-          </Text>
-        </View>
+          </Typography>
+        </Stack>
       ) : null}
+
       {showFinishButton && allowEarly && remainingMs !== null && remainingMs > 0 ? (
         <Pressable
           onPress={onFinishEarly}
-          style={[styles.finishButton, embedded && styles.finishButtonEmbedded]}
+          style={{
+            alignSelf: 'flex-end',
+            borderRadius: 999,
+            paddingVertical: 4,
+            paddingHorizontal: 8,
+            alignItems: 'center',
+            borderWidth: 1,
+            borderColor: embedded ? colors.timedFinishBorderEmbedded : colors.timedFinishBorder,
+          }}
         >
-          <Text style={[styles.finishButtonText, embedded && styles.finishButtonTextEmbedded]}>
+          <Typography
+            variant="captionSm"
+            style={{
+              fontWeight: '600',
+              color: embedded ? colors.timedFinishTextEmbedded : colors.timedFinishText,
+            }}
+          >
             Skip timer
-          </Text>
+          </Typography>
         </Pressable>
       ) : null}
-    </View>
+    </Card>
   );
-}
+};
 
-const styles = StyleSheet.create({
-  card: {
-    backgroundColor: '#2a1d14',
-    borderRadius: 12,
-    padding: 12,
-    gap: 8,
-    borderWidth: 1,
-    borderColor: '#6f4e2e',
-  },
-  embeddedCard: {
-    backgroundColor: 'transparent',
-    borderWidth: 0,
-    padding: 0,
-  },
-  sectionTitle: {
-    fontSize: 17,
-    fontWeight: '700',
-    color: '#f3e8d0',
-    fontFamily: 'Besley',
-  },
-  sectionTitleEmbedded: {
-    color: '#47332a',
-  },
-  statusText: {
-    fontSize: 12,
-    color: '#d3c2a4',
-    fontFamily: 'Besley',
-  },
-  statusTextJournal: {
-    fontSize: 17,
-    lineHeight: 28,
-    color: '#413129',
-    fontWeight: '500',
-    fontFamily: 'Besley',
-    textAlign: 'center',
-  },
-  timeBlock: {
-    gap: 6,
-  },
-  timeLabel: {
-    fontSize: 12,
-    color: '#e8d7bf',
-    fontWeight: '700',
-    textTransform: 'uppercase',
-    fontFamily: 'Besley',
-  },
-  timeLabelEmbedded: {
-    color: '#6b4a2a',
-  },
-  timeBar: {
-    height: 8,
-    borderRadius: 999,
-    backgroundColor: '#4a270f66',
-    overflow: 'hidden',
-  },
-  timeFill: {
-    height: '100%',
-    backgroundColor: '#f08d2b',
-  },
-  timeValue: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: '#d3c2a4',
-    fontFamily: 'Besley',
-  },
-  timeValueEmbedded: {
-    color: '#6e5043',
-  },
-  finishButton: {
-    alignSelf: 'flex-end',
-    borderRadius: 999,
-    backgroundColor: 'transparent',
-    paddingVertical: 4,
-    paddingHorizontal: 8,
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: '#a57a4a66',
-  },
-  finishButtonEmbedded: {
-    borderColor: '#8b674866',
-  },
-  finishButtonText: {
-    color: '#d6b48d',
-    fontSize: 11,
-    fontWeight: '600',
-    fontFamily: 'Besley',
-  },
-  finishButtonTextEmbedded: {
-    color: '#7b5d46',
-  },
-});
+export default TimedStatusCard;

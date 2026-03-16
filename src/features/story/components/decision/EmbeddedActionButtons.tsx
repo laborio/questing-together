@@ -1,6 +1,6 @@
 import { ActionSubText, Stack, TexturedButton, Typography } from '@/components';
 import { colors } from '@/constants/colors';
-import type { ActionState } from '@/features/story/types';
+import type { ActionState } from '@/features/story/types/types';
 import {
   formatHpLabel,
   getActionOpacity,

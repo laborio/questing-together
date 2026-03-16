@@ -4,7 +4,7 @@ import { Pressable } from 'react-native';
 import { Stack, Typography } from '@/components';
 import { colors } from '@/constants/colors';
 import { ChoiceIntentPortraits } from '@/features/party/ChoiceIntentPortraits';
-import type { VoteState } from '@/features/story/types';
+import type { VoteState } from '@/features/story/types/types';
 import type { OptionId } from '@/types/story';
 
 type SceneOptionsCardProps = {

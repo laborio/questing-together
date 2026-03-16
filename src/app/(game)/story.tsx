@@ -18,7 +18,7 @@ import type {
   SceneState,
   TimedData,
   VoteState,
-} from '@/features/story/types';
+} from '@/features/story/types/types';
 
 export default function StoryScreen() {
   const game = useGame();

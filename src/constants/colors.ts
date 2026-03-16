@@ -157,6 +157,14 @@ const colors = {
   textTransition: '#7a5c39',
   textDialogue: '#413129',
 
+  // Timed
+  timedBarBg: '#4a270f66',
+  timedBarFill: '#f08d2b',
+  timedFinishBorder: '#a57a4a66',
+  timedFinishBorderEmbedded: '#8b674866',
+  timedFinishText: '#d6b48d',
+  timedFinishTextEmbedded: '#7b5d46',
+
   // Header
   dotsButtonBg: 'rgba(36, 27, 19, 0.55)',
 } as const;

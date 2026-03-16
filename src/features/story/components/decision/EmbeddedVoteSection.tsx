@@ -1,7 +1,7 @@
 import { Stack, TexturedButton, Typography } from '@/components';
 import { colors } from '@/constants/colors';
 import { ChoiceIntentPortraits } from '@/features/party/ChoiceIntentPortraits';
-import type { VoteState } from '@/features/story/types';
+import type { VoteState } from '@/features/story/types/types';
 import { getOptionOpacity, getOptionVariant } from '@/features/story/utils/decisionHelpers';
 import type { OptionId } from '@/types/story';
 

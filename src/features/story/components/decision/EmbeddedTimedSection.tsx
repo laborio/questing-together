@@ -1,6 +1,6 @@
 import { Stack } from '@/components';
-import type { TimedData } from '@/features/story/types';
-import { TimedStatusCard } from '@/features/timed/TimedStatusCard';
+import type { TimedData } from '@/features/story/types/types';
+import TimedStatusCard from '@/features/timed/TimedStatusCard';
 
 type EmbeddedTimedSectionProps = {
   timed: TimedData;

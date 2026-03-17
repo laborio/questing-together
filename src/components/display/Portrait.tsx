@@ -12,6 +12,7 @@ type PortraitProps = {
   nameFontSize?: number;
   highlighted?: boolean;
   highlightColor?: string;
+  hideName?: boolean;
   style?: ViewStyle;
 };
 
@@ -23,6 +24,7 @@ const Portrait = ({
   nameFontSize = 16,
   highlighted = false,
   highlightColor,
+  hideName = false,
   style,
 }: PortraitProps) => {
   return (
@@ -47,7 +49,7 @@ const Portrait = ({
           style={{ position: 'absolute', width: '100%', height: '100%', zIndex: 2 }}
         />
       </Stack>
-      {name ? (
+      {name && !hideName ? (
         <Typography
           variant="body"
           style={{ marginTop: 4, fontSize: nameFontSize, fontWeight: '600', color: nameColor }}

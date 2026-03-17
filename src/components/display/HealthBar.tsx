@@ -1,4 +1,4 @@
-import { Image, StyleSheet, View, type ViewStyle } from 'react-native';
+import { Image, View, type ViewStyle } from 'react-native';
 import partyHealthFrame from '@/assets/images/T_PartyHealthFrame.png';
 import AnimatedBarFill from '@/components/display/AnimatedBarFill';
 import Typography from '@/components/display/Typography';
@@ -45,10 +45,11 @@ const HealthBar = ({
           style={{ height: '100%', backgroundColor: colors.hpFill }}
         />
       </View>
+
       <Image
         source={partyHealthFrame}
         resizeMode="stretch"
-        style={[StyleSheet.absoluteFillObject, { width: undefined, height: undefined }]}
+        style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: compact ? 32 : 36 }}
       />
       <Typography
         variant="body"

@@ -42,8 +42,18 @@ const PartyTopBar = ({ partyHp, partyHpMax, rows, variant = 'default' }: PartyTo
 
   const { barBg, nameColor, hpTextColor } = variantStyles[variant];
 
+  const hpLabel =
+    rows.length === 1
+      ? `${rows[0].name} ${partyHp}/${partyHpMax}`
+      : `Party Health ${partyHp}/${partyHpMax}`;
+
   return (
-    <Stack direction="row" gap={isCompact ? 4 : 8} style={{ backgroundColor: barBg }}>
+    <Stack
+      direction="row"
+      align="center"
+      gap={isCompact ? 4 : 8}
+      style={{ backgroundColor: barBg }}
+    >
       {rows.map((row) => (
         <Portrait
           key={row.id}
@@ -52,10 +62,17 @@ const PartyTopBar = ({ partyHp, partyHpMax, rows, variant = 'default' }: PartyTo
           size={isCompact ? 52 : 84}
           nameColor={nameColor}
           nameFontSize={isCompact ? 9 : 16}
+          hideName
           style={{ width: isCompact ? 66 : 96, flexShrink: 0 }}
         />
       ))}
-      <HealthBar current={partyHp} max={partyHpMax} compact={isCompact} textColor={hpTextColor} />
+      <HealthBar
+        current={partyHp}
+        max={partyHpMax}
+        label={hpLabel}
+        compact={isCompact}
+        textColor={hpTextColor}
+      />
     </Stack>
   );
 };

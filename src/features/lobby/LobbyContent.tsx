@@ -56,8 +56,11 @@ const LobbyContent = () => {
   const normalizedName = (nameInput || existingName).trim();
   const nameError = localPlayerId ? getNameError(normalizedName, players, localPlayerId) : null;
   const hasName = Boolean(existingName) || (normalizedName.length > 0 && nameError === null);
+  const localHasRole = Boolean(selectedRoleId || focusedRoleId);
   const allPicked =
-    players.length === targetPlayerCount && players.every((p) => Boolean(p.role_id)) && hasName;
+    players.length === targetPlayerCount &&
+    players.every((p) => (p.player_id === localPlayerId ? localHasRole : Boolean(p.role_id))) &&
+    hasName;
   const focusedRole = focusedRoleId ? roles.find((r) => r.id === focusedRoleId) : null;
 
   // Handlers
@@ -140,6 +143,18 @@ const LobbyContent = () => {
                   <TextField
                     value={nameInput}
                     onChangeText={(text) => setNameInput(text.replace(/\s+/g, '-'))}
+                    onBlur={() => {
+                      const name = nameInput.trim();
+                      if (name.length > 0 && !nameError) {
+                        roomConnection.setDisplayName(name);
+                      }
+                    }}
+                    onSubmitEditing={() => {
+                      const name = nameInput.trim();
+                      if (name.length > 0 && !nameError) {
+                        roomConnection.setDisplayName(name);
+                      }
+                    }}
                     autoCorrect={false}
                     autoCapitalize="words"
                     maxLength={20}

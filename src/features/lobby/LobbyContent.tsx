@@ -64,7 +64,7 @@ const LobbyContent = () => {
   // Handlers
   const handlePortraitPress = (roleId: RoleId) => {
     setFocusedRoleId(roleId);
-    roomConnection.selectRole(roleId);
+    void roomConnection.selectRole(roleId);
   };
 
   // Early returns
@@ -143,6 +143,7 @@ const LobbyContent = () => {
                     onChangeText={(text) => setNameInput(text.replace(/\s+/g, '-'))}
                     onBlur={() => {
                       const name = nameInput.trim();
+                      console.log('onBlur name:', name, 'nameError:', nameError);
                       if (name.length > 0 && !nameError) {
                         roomConnection.setDisplayName(name);
                       }

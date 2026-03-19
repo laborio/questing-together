@@ -1,5 +1,4 @@
-import { StatBar, Typography } from '@/components/display';
-import { Card, Stack } from '@/components/layout';
+import { Card, Stack, StatBar, Typography } from '@/components';
 import { colors } from '@/constants/colors';
 import type { OptionId } from '@/types/story';
 

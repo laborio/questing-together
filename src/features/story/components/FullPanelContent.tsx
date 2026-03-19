@@ -1,7 +1,7 @@
 import { Typography } from '@/components';
 import { colors } from '@/constants/colors';
 import { useDecision } from '@/contexts/DecisionContext';
-import CombatStatusCard from '@/features/combat/CombatStatusCard';
+import CombatStatusCard from '@/features/combat/components/CombatStatusCard';
 import EndingContent from '@/features/story/components/decision/EndingContent';
 import SceneActionsCard from '@/features/story/components/scene/SceneActionsCard';
 import SceneOptionsCard from '@/features/story/components/scene/SceneOptionsCard';

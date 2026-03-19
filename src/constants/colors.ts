@@ -84,6 +84,12 @@ const colors = {
   combatLogEmbedded: '#5a4330',
   combatWaiting: '#d3c2a4',
   combatWaitingEmbedded: '#6e5043',
+  combatDamage: '#f44',
+  combatHeal: '#2ecc40',
+  combatAbilityDamage: '#ff8800',
+  combatAbilityBuff: '#ffb300',
+  combatEnemySelectedBg: '#3a1a1a',
+  overlayDark: 'rgba(0, 0, 0, 0.6)',
 
   // Emote
   emoteLauncherBg: '#403108',

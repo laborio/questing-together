@@ -322,6 +322,7 @@ export type Database = {
         Args: { p_enemy_id: string; p_room_id: string };
         Returns: Json;
       };
+      combat_check_level_up: { Args: { p_char_id: string }; Returns: undefined };
       combat_heal: {
         Args: {
           p_room_id: string;

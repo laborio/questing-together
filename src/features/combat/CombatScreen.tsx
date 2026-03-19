@@ -1,51 +1,59 @@
 import { useState } from 'react';
-import { Pressable, ScrollView, View } from 'react-native';
+import { ScrollView } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { BottomSheet, Stack, Typography } from '@/components';
+import { BottomSheet, ModalBackdrop, Stack, StatusBadge, Typography } from '@/components';
 import { colors } from '@/constants/colors';
+import { COMBAT } from '@/constants/combatSettings';
 import { useGame } from '@/contexts/GameContext';
-import CombatActionGrid from '@/features/combat/CombatActionGrid';
-import CombatHeader from '@/features/combat/CombatHeader';
-import type { CombatPlayer } from '@/features/combat/CombatPortraitStrip';
-import CombatPortraitStrip from '@/features/combat/CombatPortraitStrip';
-import EnemyList from '@/features/combat/EnemyList';
+import CombatActionGrid from '@/features/combat/components/CombatActionGrid';
+import CombatHeader from '@/features/combat/components/CombatHeader';
+import CombatPortraitStrip from '@/features/combat/components/CombatPortraitStrip';
+import EnemyList from '@/features/combat/components/EnemyList';
+import { useCombatAnimations } from '@/features/combat/hooks/useCombatAnimations';
+import { buildCombatPlayers } from '@/features/combat/utils/buildCombatPlayers';
+import { getEffectiveEnemyId } from '@/features/combat/utils/getEffectiveEnemyId';
 
 const CombatScreen = () => {
   const insets = useSafeAreaInsets();
-  const { roomConnection, localPlayerId, playerDisplayNameById } = useGame();
+  const { roomConnection, localPlayerId, localRole, playerDisplayNameById } = useGame();
   const [selectedEnemyId, setSelectedEnemyId] = useState<string | null>(null);
+  const anim = useCombatAnimations();
 
   const localCharacter =
     roomConnection.characters.find((c) => c.playerId === localPlayerId) ?? null;
 
-  // Auto-select first alive enemy, reset if selected enemy died
-  const aliveEnemies = roomConnection.enemies.filter((e) => !e.isDead);
-  const selectedIsAlive = aliveEnemies.some((e) => e.id === selectedEnemyId);
-  const effectiveEnemyId = selectedIsAlive ? selectedEnemyId : (aliveEnemies[0]?.id ?? null);
-
-  const combatPlayers: CombatPlayer[] = roomConnection.players
-    .filter((p) => p.role_id)
-    .map((p) => ({
-      playerId: p.player_id,
-      roleId: p.role_id as NonNullable<typeof p.role_id>,
-      displayName: playerDisplayNameById[p.player_id] ?? p.player_id,
-    }));
-
+  const effectiveEnemyId = getEffectiveEnemyId(roomConnection.enemies, selectedEnemyId);
+  const combatPlayers = buildCombatPlayers(roomConnection.players, playerDisplayNameById);
   const isDead = (localCharacter?.hp ?? 0) <= 0;
 
-  const handleAttack = () => {
-    if (!effectiveEnemyId || isDead) return;
-    void roomConnection.combatAttack(effectiveEnemyId);
+  const handleAttack = async () => {
+    if (!effectiveEnemyId || isDead || anim.isAnimating) return;
+    const result = await roomConnection.combatAttack(effectiveEnemyId);
+    if (result) {
+      const r = result as { enemyDamage: number; counterDamage: number };
+      anim.playAttack(r.enemyDamage, r.counterDamage);
+    }
   };
 
-  const handleAbility = () => {
-    if (isDead) return;
-    void roomConnection.combatAbility(effectiveEnemyId);
+  const handleAbility = async () => {
+    if (isDead || anim.isAnimating) return;
+    const result = await roomConnection.combatAbility(effectiveEnemyId);
+    if (result) {
+      const r = result as { damage?: number; damagePerEnemy?: number; ability: string };
+      const damage = r.damage ?? r.damagePerEnemy ?? 0;
+      const abilityLabel =
+        localRole && COMBAT.abilities[localRole] ? COMBAT.abilities[localRole].label : 'Ability';
+      anim.playAbility(damage, abilityLabel);
+    }
   };
 
-  const handleHeal = () => {
-    if (isDead) return;
-    void roomConnection.combatHeal();
+  const handleHeal = async () => {
+    if (isDead || anim.isAnimating) return;
+    const result = await roomConnection.combatHeal();
+    if (result) {
+      const r = result as { hpRestored: number };
+      anim.playHeal(r.hpRestored);
+    }
   };
 
   return (
@@ -82,60 +90,38 @@ const CombatScreen = () => {
           </Typography>
         </Stack>
 
-        <EnemyList selectedEnemyId={effectiveEnemyId} onSelectEnemy={setSelectedEnemyId} />
+        <EnemyList
+          selectedEnemyId={effectiveEnemyId}
+          onSelectEnemy={setSelectedEnemyId}
+          enemyShake={anim.enemyShake}
+          enemyFlash={anim.enemyFlash}
+          floatingTexts={anim.floatingTexts}
+        />
 
-        <CombatPortraitStrip players={combatPlayers} localPlayerId={localPlayerId} />
+        <CombatPortraitStrip
+          players={combatPlayers}
+          localPlayerId={localPlayerId}
+          playerLunge={anim.playerLunge}
+          playerFlash={anim.playerFlash}
+          floatingTexts={anim.floatingTexts}
+        />
       </ScrollView>
 
       {!isDead ? (
         <BottomSheet size="sm">
           <CombatActionGrid
-            onAttack={handleAttack}
-            onAbility={handleAbility}
-            onHeal={handleHeal}
-            disabled={isDead}
+            onAttack={() => void handleAttack()}
+            onAbility={() => void handleAbility()}
+            onHeal={() => void handleHeal()}
+            disabled={isDead || anim.isAnimating}
           />
         </BottomSheet>
       ) : null}
 
       {isDead ? (
-        <Pressable
-          onPress={() => roomConnection.cancelAdventure()}
-          style={{
-            position: 'absolute',
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            zIndex: 100,
-            backgroundColor: 'rgba(0, 0, 0, 0.6)',
-            alignItems: 'center',
-            justifyContent: 'center',
-          }}
-        >
-          <View
-            style={{
-              width: 200,
-              padding: 16,
-              borderRadius: 12,
-              backgroundColor: colors.backgroundCombatCard,
-              borderWidth: 1,
-              borderColor: colors.errorDark,
-              alignItems: 'center',
-              gap: 12,
-            }}
-          >
-            <Typography variant="body" style={{ fontSize: 20 }}>
-              🏃
-            </Typography>
-            <Typography
-              variant="heading"
-              style={{ color: '#f44', fontSize: 22, fontWeight: '800', textAlign: 'center' }}
-            >
-              YOU DIED
-            </Typography>
-          </View>
-        </Pressable>
+        <ModalBackdrop onPress={() => roomConnection.cancelAdventure()}>
+          <StatusBadge icon="🏃" title="YOU DIED" titleColor={colors.combatDamage} />
+        </ModalBackdrop>
       ) : null}
     </Stack>
   );

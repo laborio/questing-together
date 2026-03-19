@@ -4,7 +4,7 @@ import dividerSmall from '@/assets/images/T_Divider_S.png';
 import { Stack, StoryText, Typography } from '@/components';
 import { colors } from '@/constants/colors';
 import { useGame } from '@/contexts/GameContext';
-import CombatStatusCard from '@/features/combat/CombatStatusCard';
+import CombatStatusCard from '@/features/combat/components/CombatStatusCard';
 import DecisionPanelCard from '@/features/story/DecisionPanelCard';
 import { quoted, useSceneFeedAnimation } from '@/hooks/useSceneFeedAnimation';
 

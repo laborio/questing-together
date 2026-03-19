@@ -6,9 +6,62 @@ begin;
 -- ----------------------------
 -- Add HP + taunt to characters
 -- ----------------------------
-alter table public.characters add column if not exists hp int not null default 100;
-alter table public.characters add column if not exists hp_max int not null default 100;
+alter table public.characters add column if not exists hp int not null default 50;
+alter table public.characters add column if not exists hp_max int not null default 50;
 alter table public.characters add column if not exists taunt_turns_left int not null default 0;
+
+-- ----------------------------
+-- Helper: check level up after XP gain
+-- ----------------------------
+create or replace function public.combat_check_level_up(p_char_id uuid)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_char record;
+  v_xp_needed int;
+  v_new_level int;
+  v_new_hp_max int;
+  v_role_id public.role_id;
+  v_base_hp int;
+begin
+  select c.level, c.exp, c.hp, c.hp_max, c.player_id, c.room_id
+  into v_char
+  from public.characters c where c.id = p_char_id;
+
+  -- Get role for base HP
+  select rp.role_id into v_role_id
+  from public.room_players rp
+  where rp.room_id = v_char.room_id and rp.player_id = v_char.player_id;
+
+  -- Base HP per role: warrior=60, ranger=50, sage=40
+  v_base_hp := case v_role_id
+    when 'warrior' then 60
+    when 'ranger' then 50
+    when 'sage' then 40
+    else 50
+  end;
+
+  -- Level up loop: XP needed = level * 100
+  v_new_level := v_char.level;
+  loop
+    v_xp_needed := v_new_level * 100;
+    exit when v_char.exp < v_xp_needed;
+    v_new_level := v_new_level + 1;
+  end loop;
+
+  if v_new_level > v_char.level then
+    v_new_hp_max := v_base_hp + (v_new_level - 1) * 10;
+    update public.characters
+    set level = v_new_level,
+        hp_max = v_new_hp_max,
+        hp = least(hp + (v_new_hp_max - hp_max), v_new_hp_max)
+    where id = p_char_id;
+  end if;
+end;
+$$;
 
 -- ----------------------------
 -- RPC: combat_attack
@@ -27,6 +80,8 @@ declare
   v_player_id public.player_id;
   v_char_id uuid;
   v_char_hp int;
+  v_char_level int;
+  v_attack_damage int;
   v_enemy_hp int;
   v_enemy_attack int;
   v_enemy_level int;
@@ -52,13 +107,16 @@ begin
   end if;
 
   -- Get caller's character
-  select c.id, c.hp into v_char_id, v_char_hp
+  select c.id, c.hp, c.level into v_char_id, v_char_hp, v_char_level
   from public.characters c
   where c.room_id = p_room_id and c.player_id = v_player_id;
 
   if v_char_hp <= 0 then
     raise exception 'Your character is dead';
   end if;
+
+  -- Base 3 + 1 per level
+  v_attack_damage := 3 + (v_char_level - 1);
 
   -- Get enemy
   select e.hp, e.attack, e.level, e.is_dead
@@ -70,13 +128,13 @@ begin
     raise exception 'Enemy is already dead';
   end if;
 
-  -- Deal 3 damage to enemy
+  -- Deal scaled damage to enemy
   update public.enemies
-  set hp = greatest(0, hp - 3)
+  set hp = greatest(0, hp - v_attack_damage)
   where id = p_enemy_id;
 
   -- Check if killed
-  if v_enemy_hp - 3 <= 0 then
+  if v_enemy_hp - v_attack_damage <= 0 then
     update public.enemies set is_dead = true where id = p_enemy_id;
     v_killed := true;
     v_xp_gained := v_enemy_level * 10;
@@ -86,6 +144,8 @@ begin
     set exp = exp + v_xp_gained,
         gold = gold + v_gold_gained
     where id = v_char_id;
+
+    perform public.combat_check_level_up(v_char_id);
   end if;
 
   -- Counter-attack (only if enemy still alive)
@@ -110,7 +170,7 @@ begin
   where room_id = p_room_id and taunt_turns_left > 0;
 
   return jsonb_build_object(
-    'enemyDamage', 3,
+    'enemyDamage', v_attack_damage,
     'counterDamage', v_counter_damage,
     'enemyKilled', v_killed,
     'xpGained', v_xp_gained,
@@ -203,6 +263,7 @@ begin
       update public.characters
       set exp = exp + v_total_xp, gold = gold + v_total_gold
       where id = v_char_id;
+      perform public.combat_check_level_up(v_char_id);
     end if;
 
     return jsonb_build_object(
@@ -234,6 +295,7 @@ begin
       update public.characters
       set exp = exp + v_total_xp, gold = gold + v_total_gold
       where id = v_char_id;
+      perform public.combat_check_level_up(v_char_id);
     end if;
 
     return jsonb_build_object(

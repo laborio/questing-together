@@ -1,7 +1,6 @@
 import { View } from 'react-native';
 import type { Character } from '@/api/models/character';
-import { AnimatedBarFill, Typography } from '@/components/display';
-import { Stack } from '@/components/layout';
+import { AnimatedBarFill, Stack, Typography } from '@/components';
 import { colors } from '@/constants/colors';
 
 type CombatHeaderProps = {

@@ -3,6 +3,7 @@ export { default as BackgroundArt } from '@/components/layout/BackgroundArt';
 export { default as BottomSheet } from '@/components/layout/BottomSheet';
 export { default as Card } from '@/components/layout/Card';
 export { default as ContentContainer } from '@/components/layout/ContentContainer';
+export { default as ModalBackdrop } from '@/components/layout/ModalBackdrop';
 export { default as ScreenContainer } from '@/components/layout/ScreenContainer';
 export { default as Stack } from '@/components/layout/Stack';
 export { default as TiledBackground } from '@/components/layout/TiledBackground';

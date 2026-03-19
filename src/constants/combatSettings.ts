@@ -1,7 +1,10 @@
 import type { RoleId } from '@/types/player';
 
 export const COMBAT = {
+  baseHpByRole: { warrior: 60, ranger: 50, sage: 40 } as Record<RoleId, number>,
+  hpPerLevel: 10,
   attackDamage: 3,
+  damagePerLevel: 1,
   healAmount: 10,
   abilityCooldown: 5,
   healCooldown: 3,

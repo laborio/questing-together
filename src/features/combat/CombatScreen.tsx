@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { ScrollView } from 'react-native';
+import { Pressable, ScrollView, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { BottomSheet, Stack, Typography } from '@/components';
 import { colors } from '@/constants/colors';
@@ -18,9 +18,10 @@ const CombatScreen = () => {
   const localCharacter =
     roomConnection.characters.find((c) => c.playerId === localPlayerId) ?? null;
 
-  // Auto-select first alive enemy if none selected
+  // Auto-select first alive enemy, reset if selected enemy died
   const aliveEnemies = roomConnection.enemies.filter((e) => !e.isDead);
-  const effectiveEnemyId = selectedEnemyId ?? aliveEnemies[0]?.id ?? null;
+  const selectedIsAlive = aliveEnemies.some((e) => e.id === selectedEnemyId);
+  const effectiveEnemyId = selectedIsAlive ? selectedEnemyId : (aliveEnemies[0]?.id ?? null);
 
   const combatPlayers: CombatPlayer[] = roomConnection.players
     .filter((p) => p.role_id)
@@ -30,16 +31,20 @@ const CombatScreen = () => {
       displayName: playerDisplayNameById[p.player_id] ?? p.player_id,
     }));
 
+  const isDead = (localCharacter?.hp ?? 0) <= 0;
+
   const handleAttack = () => {
-    if (!effectiveEnemyId) return;
+    if (!effectiveEnemyId || isDead) return;
     void roomConnection.combatAttack(effectiveEnemyId);
   };
 
   const handleAbility = () => {
+    if (isDead) return;
     void roomConnection.combatAbility(effectiveEnemyId);
   };
 
   const handleHeal = () => {
+    if (isDead) return;
     void roomConnection.combatHeal();
   };
 
@@ -82,9 +87,56 @@ const CombatScreen = () => {
         <CombatPortraitStrip players={combatPlayers} localPlayerId={localPlayerId} />
       </ScrollView>
 
-      <BottomSheet size="sm">
-        <CombatActionGrid onAttack={handleAttack} onAbility={handleAbility} onHeal={handleHeal} />
-      </BottomSheet>
+      {!isDead ? (
+        <BottomSheet size="sm">
+          <CombatActionGrid
+            onAttack={handleAttack}
+            onAbility={handleAbility}
+            onHeal={handleHeal}
+            disabled={isDead}
+          />
+        </BottomSheet>
+      ) : null}
+
+      {isDead ? (
+        <Pressable
+          onPress={() => roomConnection.cancelAdventure()}
+          style={{
+            position: 'absolute',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            zIndex: 100,
+            backgroundColor: 'rgba(0, 0, 0, 0.6)',
+            alignItems: 'center',
+            justifyContent: 'center',
+          }}
+        >
+          <View
+            style={{
+              width: 200,
+              padding: 16,
+              borderRadius: 12,
+              backgroundColor: colors.backgroundCombatCard,
+              borderWidth: 1,
+              borderColor: colors.errorDark,
+              alignItems: 'center',
+              gap: 12,
+            }}
+          >
+            <Typography variant="body" style={{ fontSize: 20 }}>
+              🏃
+            </Typography>
+            <Typography
+              variant="heading"
+              style={{ color: '#f44', fontSize: 22, fontWeight: '800', textAlign: 'center' }}
+            >
+              YOU DIED
+            </Typography>
+          </View>
+        </Pressable>
+      ) : null}
     </Stack>
   );
 };

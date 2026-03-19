@@ -23,7 +23,7 @@ const EnemyList = ({ selectedEnemyId, onSelectEnemy }: EnemyListProps) => {
   const effectiveSelected = selectedEnemyId ?? firstAliveId;
 
   return (
-    <Stack gap={8}>
+    <Stack gap={4}>
       <Stack direction="row" justify="space-between" align="center">
         <Typography
           variant="body"

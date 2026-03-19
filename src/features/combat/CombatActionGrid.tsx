@@ -7,9 +7,15 @@ type CombatActionGridProps = {
   onAttack: () => void;
   onAbility: () => void;
   onHeal: () => void;
+  disabled?: boolean;
 };
 
-const CombatActionGrid = ({ onAttack, onAbility, onHeal }: CombatActionGridProps) => {
+const CombatActionGrid = ({
+  onAttack,
+  onAbility,
+  onHeal,
+  disabled = false,
+}: CombatActionGridProps) => {
   const { localRole, roomConnection } = useGame();
   const [abilityCooldown, setAbilityCooldown] = useState(0);
   const [healCooldown, setHealCooldown] = useState(0);
@@ -47,6 +53,7 @@ const CombatActionGrid = ({ onAttack, onAbility, onHeal }: CombatActionGridProps
           label="Attack"
           icon="⚔️"
           subtitle={`${COMBAT.attackDamage} Damage`}
+          disabled={disabled}
           onPress={handleAttack}
         />
 
@@ -54,7 +61,7 @@ const CombatActionGrid = ({ onAttack, onAbility, onHeal }: CombatActionGridProps
           label={ability?.label ?? 'Ability'}
           icon={ability?.icon ?? '✨'}
           subtitle={ability?.subtitle ?? ''}
-          disabled={abilityCooldown > 0}
+          disabled={disabled || abilityCooldown > 0}
           cooldownText={
             abilityCooldown > 0
               ? `cd: ${COMBAT.abilityCooldown - abilityCooldown}/${COMBAT.abilityCooldown}`
@@ -69,7 +76,7 @@ const CombatActionGrid = ({ onAttack, onAbility, onHeal }: CombatActionGridProps
           label="Heal"
           icon="💚"
           subtitle={`Heal ${COMBAT.healAmount} HP`}
-          disabled={healCooldown > 0}
+          disabled={disabled || healCooldown > 0}
           cooldownText={
             healCooldown > 0
               ? `cd: ${COMBAT.healCooldown - healCooldown}/${COMBAT.healCooldown}`

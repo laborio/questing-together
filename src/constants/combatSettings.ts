@@ -9,7 +9,7 @@ export const COMBAT = {
   abilityCooldown: 5,
   healCooldown: 3,
   abilities: {
-    warrior: { label: 'Taunt', icon: '🛡️', subtitle: 'Taunt 3 turns', damage: 0, aoe: false },
+    warrior: { label: 'Taunt', icon: '🛡️', subtitle: 'Taunt 5t · -60% dmg', damage: 0, aoe: false },
     sage: { label: 'Fireball', icon: '🔥', subtitle: '6 Damage', damage: 6, aoe: false },
     ranger: { label: 'Arrows', icon: '🏹', subtitle: '3 Damage AoE', damage: 3, aoe: true },
   } satisfies Record<

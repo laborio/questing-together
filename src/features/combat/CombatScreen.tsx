@@ -9,7 +9,7 @@ import CombatActionGrid from '@/features/combat/components/CombatActionGrid';
 import CombatHeader from '@/features/combat/components/CombatHeader';
 import CombatPortraitStrip from '@/features/combat/components/CombatPortraitStrip';
 import EnemyList from '@/features/combat/components/EnemyList';
-import { useCombatAnimations } from '@/features/combat/hooks/useCombatAnimations';
+import useCombatAnimations from '@/features/combat/hooks/useCombatAnimations';
 import { buildCombatPlayers } from '@/features/combat/utils/buildCombatPlayers';
 import { getEffectiveEnemyId } from '@/features/combat/utils/getEffectiveEnemyId';
 
@@ -39,11 +39,17 @@ const CombatScreen = () => {
     if (isDead || anim.isAnimating) return;
     const result = await roomConnection.combatAbility(effectiveEnemyId);
     if (result) {
-      const r = result as { damage?: number; damagePerEnemy?: number; ability: string };
+      const r = result as {
+        damage?: number;
+        damagePerEnemy?: number;
+        counterDamage?: number;
+        ability: string;
+      };
       const damage = r.damage ?? r.damagePerEnemy ?? 0;
+      const counterDamage = r.counterDamage ?? 0;
       const abilityLabel =
         localRole && COMBAT.abilities[localRole] ? COMBAT.abilities[localRole].label : 'Ability';
-      anim.playAbility(damage, abilityLabel);
+      anim.playAbility(damage, abilityLabel, counterDamage);
     }
   };
 

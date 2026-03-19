@@ -7,6 +7,7 @@ import {
   withTiming,
 } from 'react-native-reanimated';
 import { colors } from '@/constants/colors';
+import { scheduleCallback } from '@/features/combat/utils/scheduleCallback';
 
 type FloatingText = {
   id: number;
@@ -23,7 +24,7 @@ type CombatAnimations = {
   floatingTexts: FloatingText[];
   isAnimating: boolean;
   playAttack: (enemyDamage: number, counterDamage: number) => void;
-  playAbility: (damage: number, abilityName: string) => void;
+  playAbility: (damage: number, abilityName: string, counterDamage: number) => void;
   playHeal: (amount: number) => void;
 };
 
@@ -38,25 +39,7 @@ const ABILITY_FLASH_TOTAL = 460;
 const HEAL_FLASH_TOTAL = 400;
 const FLOATING_LIFETIME = 1000;
 
-/**
- * Schedules a JS callback after a delay using a Reanimated shared value
- * with a withTiming callback (no setTimeout).
- */
-const useAnimScheduler = () => {
-  return useCallback((delayMs: number, fn: () => void) => {
-    const start = performance.now();
-    const poll = () => {
-      if (performance.now() - start >= delayMs) {
-        fn();
-      } else {
-        requestAnimationFrame(poll);
-      }
-    };
-    requestAnimationFrame(poll);
-  }, []);
-};
-
-export function useCombatAnimations(): CombatAnimations {
+const useCombatAnimations = (): CombatAnimations => {
   const playerLunge = useSharedValue(0);
   const playerFlash = useSharedValue(0);
   const enemyShake = useSharedValue(0);
@@ -65,19 +48,14 @@ export function useCombatAnimations(): CombatAnimations {
   const [isAnimating, setIsAnimating] = useState(false);
   const floatingIdRef = useRef(0);
 
-  const schedule = useAnimScheduler();
-
-  const addFloating = useCallback(
-    (text: string, color: string, target: 'enemy' | 'player') => {
-      floatingIdRef.current += 1;
-      const id = floatingIdRef.current;
-      setFloatingTexts((prev) => [...prev, { id, text, color, target }]);
-      schedule(FLOATING_LIFETIME, () => {
-        setFloatingTexts((prev) => prev.filter((t) => t.id !== id));
-      });
-    },
-    [schedule],
-  );
+  const addFloating = useCallback((text: string, color: string, target: 'enemy' | 'player') => {
+    floatingIdRef.current += 1;
+    const id = floatingIdRef.current;
+    setFloatingTexts((prev) => [...prev, { id, text, color, target }]);
+    scheduleCallback(FLOATING_LIFETIME, () => {
+      setFloatingTexts((prev) => prev.filter((t) => t.id !== id));
+    });
+  }, []);
 
   const playAttack = useCallback(
     (enemyDamage: number, counterDamage: number) => {
@@ -106,7 +84,7 @@ export function useCombatAnimations(): CombatAnimations {
       );
 
       // 3. Floating damage on enemy
-      schedule(LUNGE_IN + 30, () => {
+      scheduleCallback(LUNGE_IN + 30, () => {
         addFloating(`-${enemyDamage}`, colors.combatDamage, 'enemy');
       });
 
@@ -120,7 +98,7 @@ export function useCombatAnimations(): CombatAnimations {
           ),
         );
 
-        schedule(COUNTER_DELAY + 50, () => {
+        scheduleCallback(COUNTER_DELAY + 50, () => {
           addFloating(`-${counterDamage}`, colors.combatDamage, 'player');
         });
       }
@@ -131,15 +109,15 @@ export function useCombatAnimations(): CombatAnimations {
           ? COUNTER_DELAY + FLASH_IN + COUNTER_FLASH_OUT
           : LUNGE_IN + LUNGE_OUT + FLASH_OUT;
 
-      schedule(totalDuration, () => {
+      scheduleCallback(totalDuration, () => {
         setIsAnimating(false);
       });
     },
-    [playerLunge, enemyShake, enemyFlash, playerFlash, addFloating, schedule],
+    [playerLunge, enemyShake, enemyFlash, playerFlash, addFloating],
   );
 
   const playAbility = useCallback(
-    (damage: number, abilityName: string) => {
+    (damage: number, abilityName: string, counterDamage: number) => {
       setIsAnimating(true);
 
       enemyFlash.value = withSequence(
@@ -157,7 +135,7 @@ export function useCombatAnimations(): CombatAnimations {
         withTiming(0, { duration: 50 }),
       );
 
-      schedule(100, () => {
+      scheduleCallback(100, () => {
         if (damage > 0) {
           addFloating(`-${damage}`, colors.combatAbilityDamage, 'enemy');
         } else {
@@ -165,11 +143,29 @@ export function useCombatAnimations(): CombatAnimations {
         }
       });
 
-      schedule(ABILITY_FLASH_TOTAL, () => {
+      // Counter-attack from targeted enemy
+      if (counterDamage > 0) {
+        playerFlash.value = withDelay(
+          COUNTER_DELAY,
+          withSequence(
+            withTiming(1, { duration: FLASH_IN }),
+            withTiming(0, { duration: COUNTER_FLASH_OUT }),
+          ),
+        );
+
+        scheduleCallback(COUNTER_DELAY + 50, () => {
+          addFloating(`-${counterDamage}`, colors.combatDamage, 'player');
+        });
+      }
+
+      const totalDuration =
+        counterDamage > 0 ? COUNTER_DELAY + FLASH_IN + COUNTER_FLASH_OUT : ABILITY_FLASH_TOTAL;
+
+      scheduleCallback(totalDuration, () => {
         setIsAnimating(false);
       });
     },
-    [enemyFlash, enemyShake, addFloating, schedule],
+    [enemyFlash, enemyShake, playerFlash, addFloating],
   );
 
   const playHeal = useCallback(
@@ -181,15 +177,15 @@ export function useCombatAnimations(): CombatAnimations {
         withTiming(0, { duration: 300 }),
       );
 
-      schedule(100, () => {
+      scheduleCallback(100, () => {
         addFloating(`+${amount}`, colors.combatHeal, 'player');
       });
 
-      schedule(HEAL_FLASH_TOTAL, () => {
+      scheduleCallback(HEAL_FLASH_TOTAL, () => {
         setIsAnimating(false);
       });
     },
-    [playerFlash, addFloating, schedule],
+    [playerFlash, addFloating],
   );
 
   return {
@@ -203,4 +199,6 @@ export function useCombatAnimations(): CombatAnimations {
     playAbility,
     playHeal,
   };
-}
+};
+
+export default useCombatAnimations;

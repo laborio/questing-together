@@ -159,6 +159,11 @@ begin
     v_counter_target := coalesce(v_taunter_id, v_char_id);
     v_counter_damage := v_enemy_attack;
 
+    -- 60% damage reduction when taunter absorbs
+    if v_taunter_id is not null then
+      v_counter_damage := greatest(1, (v_counter_damage * 4) / 10);
+    end if;
+
     update public.characters
     set hp = greatest(0, hp - v_counter_damage)
     where id = v_counter_target;
@@ -203,6 +208,11 @@ declare
   v_total_xp int := 0;
   v_total_gold int := 0;
   v_kills int := 0;
+  v_counter_damage int := 0;
+  v_counter_target uuid;
+  v_taunter_id uuid;
+  v_target_attack int;
+  v_target_dead boolean;
   v_enemy_record record;
 begin
   if v_user_id is null then
@@ -229,22 +239,22 @@ begin
     raise exception 'Your character is dead';
   end if;
 
-  -- WARRIOR: Taunt 3 turns
+  -- WARRIOR: Taunt 5 turns, redirects all damage + 60% reduction
   if v_role_id = 'warrior' then
     update public.characters
-    set taunt_turns_left = 3
+    set taunt_turns_left = 5
     where id = v_char_id;
 
-    return jsonb_build_object('ability', 'taunt', 'tauntTurns', 3);
+    return jsonb_build_object('ability', 'taunt', 'tauntTurns', 5);
   end if;
 
-  -- SAGE: Fireball 20 damage to single target
+  -- SAGE: Fireball 6 damage to single target + counter-attack from target
   if v_role_id = 'sage' then
     if p_enemy_id is null then
       raise exception 'Select a target';
     end if;
 
-    select e.level, e.hp, e.is_dead into v_enemy_record
+    select e.level, e.hp, e.attack, e.is_dead into v_enemy_record
     from public.enemies e
     where e.id = p_enemy_id and e.room_id = p_room_id;
 
@@ -264,16 +274,52 @@ begin
       set exp = exp + v_total_xp, gold = gold + v_total_gold
       where id = v_char_id;
       perform public.combat_check_level_up(v_char_id);
+    else
+      -- Counter-attack from targeted enemy
+      select c.id into v_taunter_id
+      from public.characters c
+      where c.room_id = p_room_id and c.taunt_turns_left > 0 and c.hp > 0
+      limit 1;
+
+      v_counter_target := coalesce(v_taunter_id, v_char_id);
+      v_counter_damage := v_enemy_record.attack;
+
+      -- 60% damage reduction when taunter absorbs
+      if v_taunter_id is not null then
+        v_counter_damage := greatest(1, (v_counter_damage * 4) / 10);
+      end if;
+
+      update public.characters
+      set hp = greatest(0, hp - v_counter_damage)
+      where id = v_counter_target;
+
+      update public.characters
+      set taunt_turns_left = greatest(0, taunt_turns_left - 1)
+      where room_id = p_room_id and taunt_turns_left > 0;
     end if;
 
     return jsonb_build_object(
       'ability', 'fireball', 'damage', v_damage,
+      'counterDamage', v_counter_damage,
       'kills', v_kills, 'xpGained', v_total_xp, 'goldGained', v_total_gold
     );
   end if;
 
-  -- RANGER: Arrows 7 damage to ALL alive enemies
+  -- RANGER: Arrows 3 damage to ALL alive enemies + counter from targeted enemy
   if v_role_id = 'ranger' then
+    if p_enemy_id is null then
+      raise exception 'Select a target';
+    end if;
+
+    -- Get targeted enemy's attack for counter
+    select e.attack, e.is_dead into v_target_attack, v_target_dead
+    from public.enemies e
+    where e.id = p_enemy_id and e.room_id = p_room_id;
+
+    if v_target_dead then
+      raise exception 'Enemy is already dead';
+    end if;
+
     v_damage := 3;
 
     for v_enemy_record in
@@ -298,8 +344,33 @@ begin
       perform public.combat_check_level_up(v_char_id);
     end if;
 
+    -- Counter-attack from targeted enemy (if still alive)
+    if not v_target_dead and v_target_attack > 0 then
+      select c.id into v_taunter_id
+      from public.characters c
+      where c.room_id = p_room_id and c.taunt_turns_left > 0 and c.hp > 0
+      limit 1;
+
+      v_counter_target := coalesce(v_taunter_id, v_char_id);
+      v_counter_damage := v_target_attack;
+
+      -- 60% damage reduction when taunter absorbs
+      if v_taunter_id is not null then
+        v_counter_damage := greatest(1, (v_counter_damage * 4) / 10);
+      end if;
+
+      update public.characters
+      set hp = greatest(0, hp - v_counter_damage)
+      where id = v_counter_target;
+
+      update public.characters
+      set taunt_turns_left = greatest(0, taunt_turns_left - 1)
+      where room_id = p_room_id and taunt_turns_left > 0;
+    end if;
+
     return jsonb_build_object(
       'ability', 'arrows', 'damagePerEnemy', v_damage,
+      'counterDamage', v_counter_damage,
       'kills', v_kills, 'xpGained', v_total_xp, 'goldGained', v_total_gold
     );
   end if;

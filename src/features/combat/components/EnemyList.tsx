@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { LayoutAnimation, View } from 'react-native';
+import { View } from 'react-native';
 import type { SharedValue } from 'react-native-reanimated';
 import Animated, {
   useAnimatedStyle,
@@ -88,12 +88,6 @@ const EnemyList = ({
         ...newlyDead.map((e) => ({ id: e.id, name: e.name, level: e.level, hpMax: e.hpMax })),
       ]);
 
-      // Animate layout shift for the preview sliding down
-      LayoutAnimation.configureNext({
-        duration: DEATH_ANIM_MS,
-        update: { type: LayoutAnimation.Types.easeInEaseOut },
-      });
-
       // Remove dying enemies after animation
       const start = performance.now();
       const poll = () => {
@@ -159,12 +153,13 @@ const EnemyList = ({
       })}
 
       {dyingEnemies.map((enemy) => (
-        <DyingEnemy
+        <View
           key={`dying-${enemy.id}`}
-          name={enemy.name}
-          level={enemy.level}
-          hpMax={enemy.hpMax}
-        />
+          style={{ position: 'absolute', bottom: 0, left: 0, right: 0 }}
+          pointerEvents="none"
+        >
+          <DyingEnemy name={enemy.name} level={enemy.level} hpMax={enemy.hpMax} />
+        </View>
       ))}
     </Stack>
   );

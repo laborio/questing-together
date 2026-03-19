@@ -1,7 +1,7 @@
 import { View } from 'react-native';
 import type { SharedValue } from 'react-native-reanimated';
 import Animated, { useAnimatedStyle } from 'react-native-reanimated';
-import { Portrait, Stack, Typography } from '@/components';
+import { CircularHealthBar, Portrait, Stack, Typography } from '@/components';
 import { colors } from '@/constants/colors';
 import { useGame } from '@/contexts/GameContext';
 import FloatingDamage from '@/features/combat/components/FloatingDamage';
@@ -31,44 +31,6 @@ type CombatPortraitStripProps = {
 
 const RING_SIZE = 80;
 const PORTRAIT_SIZE = 72;
-const RING_WIDTH = 3;
-
-const HpRing = ({ hp, hpMax }: { hp: number; hpMax: number }) => {
-  const percent = Math.max(0, Math.min(1, hp / Math.max(1, hpMax)));
-  const hpColor = percent > 0.25 ? colors.combatHeal : colors.combatDamage;
-
-  return (
-    <>
-      <View
-        style={{
-          position: 'absolute',
-          top: 0,
-          left: 0,
-          width: RING_SIZE,
-          height: RING_SIZE,
-          borderRadius: RING_SIZE / 2,
-          borderWidth: RING_WIDTH,
-          borderColor: colors.combatHealthBarBg,
-        }}
-      />
-      <View
-        style={{
-          position: 'absolute',
-          top: 0,
-          left: 0,
-          width: RING_SIZE,
-          height: RING_SIZE,
-          borderRadius: RING_SIZE / 2,
-          borderWidth: RING_WIDTH,
-          borderColor: hpColor,
-          borderTopColor: percent >= 1 ? hpColor : 'transparent',
-          transform: [{ rotate: '-90deg' }],
-          opacity: percent > 0 ? 0.8 : 0,
-        }}
-      />
-    </>
-  );
-};
 
 const CombatPortraitStrip = ({
   players,
@@ -90,7 +52,7 @@ const CombatPortraitStrip = ({
   const playerFloats = floatingTexts.filter((t) => t.target === 'player');
 
   return (
-    <Stack direction="row" justify="space-evenly" style={{ paddingTop: 16, paddingBottom: 8 }}>
+    <Stack direction="row" justify="space-evenly" style={{ paddingTop: 48, paddingBottom: 8 }}>
       {players.map((player) => {
         const isLocal = player.playerId === localPlayerId;
         const character = roomConnection.characters.find((c) => c.playerId === player.playerId);
@@ -110,7 +72,7 @@ const CombatPortraitStrip = ({
                   opacity: isDead ? 0.4 : 1,
                 }}
               >
-                <HpRing hp={hp} hpMax={hpMax} />
+                <CircularHealthBar hp={hp} hpMax={hpMax} size={RING_SIZE} />
                 <Portrait
                   source={portraitByRole(player.roleId)}
                   size={PORTRAIT_SIZE}

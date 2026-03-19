@@ -1,3 +1,4 @@
+import { StatusBar } from 'expo-status-bar';
 import { useState } from 'react';
 import { ScrollView } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -15,9 +16,10 @@ import { getEffectiveEnemyId } from '@/features/combat/utils/getEffectiveEnemyId
 
 const CombatScreen = () => {
   const insets = useSafeAreaInsets();
-  const { roomConnection, localPlayerId, localRole, playerDisplayNameById } = useGame();
-  const [selectedEnemyId, setSelectedEnemyId] = useState<string | null>(null);
   const anim = useCombatAnimations();
+  const { roomConnection, localPlayerId, localRole, playerDisplayNameById } = useGame();
+
+  const [selectedEnemyId, setSelectedEnemyId] = useState<string | null>(null);
 
   const localCharacter =
     roomConnection.characters.find((c) => c.playerId === localPlayerId) ?? null;
@@ -64,6 +66,7 @@ const CombatScreen = () => {
 
   return (
     <Stack flex={1} style={{ backgroundColor: colors.backgroundDark }}>
+      <StatusBar hidden />
       <Stack style={{ paddingTop: insets.top }}>
         <CombatHeader character={localCharacter} />
       </Stack>

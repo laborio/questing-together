@@ -1,6 +1,7 @@
 export { default as ActionSubText } from '@/components/display/ActionSubText';
 export { default as Alert } from '@/components/display/Alert';
 export { default as AnimatedBarFill } from '@/components/display/AnimatedBarFill';
+export { default as CircularHealthBar } from '@/components/display/CircularHealthBar';
 export { default as Divider } from '@/components/display/Divider';
 export { default as EmptyState } from '@/components/display/EmptyState';
 export { default as EnemyCard } from '@/components/display/EnemyCard';

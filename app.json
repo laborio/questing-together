@@ -3,7 +3,7 @@
     "owner": "kouignamann-studio",
     "name": "questing-together",
     "slug": "questing-together",
-    "version": "1.0.6",
+    "version": "1.0.7",
     "orientation": "portrait",
     "icon": "./src/assets/images/questing-together-icon.png",
     "scheme": "questingtogether",
@@ -46,7 +46,8 @@
             "backgroundColor": "#000000"
           }
         }
-      ]
+      ],
+      "expo-localization"
     ],
     "experiments": {
       "typedRoutes": true,

@@ -330,50 +330,46 @@ export type Database = {
         };
         Returns: Json;
       };
-      create_room:
-        | {
-            Args: { p_player_id?: Database['public']['Enums']['player_id'] };
-            Returns: {
-              room_code: string;
-              room_id: string;
-            }[];
-          }
-        | {
-            Args: {
-              p_display_name?: string;
-              p_player_id?: Database['public']['Enums']['player_id'];
-              p_role_id?: Database['public']['Enums']['role_id'];
-            };
-            Returns: {
-              room_code: string;
-              room_id: string;
-            }[];
-          };
+      create_room: {
+        Args: {
+          p_display_name?: string;
+          p_player_id?: Database['public']['Enums']['player_id'];
+          p_role_id?: Database['public']['Enums']['role_id'];
+        };
+        Returns: {
+          room_code: string;
+          room_id: string;
+        }[];
+      };
       delete_room: { Args: { p_room_id: string }; Returns: boolean };
       generate_room_code: { Args: { p_length?: number }; Returns: string };
       is_room_member: { Args: { p_room_id: string }; Returns: boolean };
-      join_room:
-        | {
-            Args: {
-              p_code: string;
-              p_player_id?: Database['public']['Enums']['player_id'];
-            };
-            Returns: string;
-          }
-        | {
-            Args: {
-              p_code: string;
-              p_display_name?: string;
-              p_player_id?: Database['public']['Enums']['player_id'];
-              p_role_id?: Database['public']['Enums']['role_id'];
-            };
-            Returns: string;
-          };
+      join_room: {
+        Args: {
+          p_code: string;
+          p_display_name?: string;
+          p_player_id?: Database['public']['Enums']['player_id'];
+          p_role_id?: Database['public']['Enums']['role_id'];
+        };
+        Returns: string;
+      };
       leave_room: { Args: { p_room_id: string }; Returns: boolean };
+      list_available_rooms: {
+        Args: never;
+        Returns: {
+          created_at: string;
+          host_name: string;
+          player_count: number;
+          room_code: string;
+          room_id: string;
+          room_status: Database['public']['Enums']['room_status'];
+        }[];
+      };
       list_my_rooms: {
         Args: never;
         Returns: {
           created_at: string;
+          host_name: string;
           is_host: boolean;
           player_count: number;
           room_code: string;

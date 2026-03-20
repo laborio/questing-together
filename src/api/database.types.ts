@@ -8,6 +8,53 @@ export type Database = {
   };
   public: {
     Tables: {
+      adventure_screens: {
+        Row: {
+          bloc: number;
+          config_json: Json;
+          created_at: string;
+          id: string;
+          is_completed: boolean;
+          phase: Database['public']['Enums']['phase_type'];
+          position: number;
+          result_json: Json | null;
+          room_id: string;
+          screen_type: Database['public']['Enums']['screen_type'];
+        };
+        Insert: {
+          bloc: number;
+          config_json?: Json;
+          created_at?: string;
+          id?: string;
+          is_completed?: boolean;
+          phase: Database['public']['Enums']['phase_type'];
+          position: number;
+          result_json?: Json | null;
+          room_id: string;
+          screen_type: Database['public']['Enums']['screen_type'];
+        };
+        Update: {
+          bloc?: number;
+          config_json?: Json;
+          created_at?: string;
+          id?: string;
+          is_completed?: boolean;
+          phase?: Database['public']['Enums']['phase_type'];
+          position?: number;
+          result_json?: Json | null;
+          room_id?: string;
+          screen_type?: Database['public']['Enums']['screen_type'];
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'adventure_screens_room_id_fkey';
+            columns: ['room_id'];
+            isOneToOne: false;
+            referencedRelation: 'rooms';
+            referencedColumns: ['id'];
+          },
+        ];
+      };
       characters: {
         Row: {
           created_at: string;
@@ -73,6 +120,7 @@ export type Database = {
           name: string;
           position: number;
           room_id: string;
+          screen_id: string | null;
         };
         Insert: {
           attack?: number;
@@ -85,6 +133,7 @@ export type Database = {
           name: string;
           position: number;
           room_id: string;
+          screen_id?: string | null;
         };
         Update: {
           attack?: number;
@@ -97,6 +146,7 @@ export type Database = {
           name?: string;
           position?: number;
           room_id?: string;
+          screen_id?: string | null;
         };
         Relationships: [
           {
@@ -104,6 +154,13 @@ export type Database = {
             columns: ['room_id'];
             isOneToOne: false;
             referencedRelation: 'rooms';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'enemies_screen_id_fkey';
+            columns: ['screen_id'];
+            isOneToOne: false;
+            referencedRelation: 'adventure_screens';
             referencedColumns: ['id'];
           },
         ];
@@ -282,6 +339,8 @@ export type Database = {
         Row: {
           code: string;
           created_at: string;
+          current_bloc: number;
+          current_screen_position: number;
           host_user_id: string;
           id: string;
           status: Database['public']['Enums']['room_status'];
@@ -291,6 +350,8 @@ export type Database = {
         Insert: {
           code: string;
           created_at?: string;
+          current_bloc?: number;
+          current_screen_position?: number;
           host_user_id: string;
           id?: string;
           status?: Database['public']['Enums']['room_status'];
@@ -300,6 +361,8 @@ export type Database = {
         Update: {
           code?: string;
           created_at?: string;
+          current_bloc?: number;
+          current_screen_position?: number;
           host_user_id?: string;
           id?: string;
           status?: Database['public']['Enums']['room_status'];
@@ -313,6 +376,16 @@ export type Database = {
       [_ in never]: never;
     };
     Functions: {
+      advance_screen: { Args: { p_room_id: string }; Returns: Json };
+      apply_screen_effect: {
+        Args: {
+          p_exp_delta?: number;
+          p_gold_delta?: number;
+          p_hp_delta?: number;
+          p_room_id: string;
+        };
+        Returns: Json;
+      };
       cancel_adventure: { Args: { p_room_id: string }; Returns: boolean };
       combat_ability: {
         Args: { p_enemy_id?: string; p_room_id: string };
@@ -330,6 +403,15 @@ export type Database = {
         };
         Returns: Json;
       };
+      create_playtest: {
+        Args: {
+          p_bloc?: number;
+          p_display_name?: string;
+          p_role_id?: Database['public']['Enums']['role_id'];
+          p_screen_type: Database['public']['Enums']['screen_type'];
+        };
+        Returns: string;
+      };
       create_room: {
         Args: {
           p_display_name?: string;
@@ -341,6 +423,7 @@ export type Database = {
         }[];
       };
       delete_room: { Args: { p_room_id: string }; Returns: boolean };
+      generate_adventure: { Args: { p_room_id: string }; Returns: number };
       generate_room_code: { Args: { p_length?: number }; Returns: string };
       is_room_member: { Args: { p_room_id: string }; Returns: boolean };
       join_room: {
@@ -384,8 +467,21 @@ export type Database = {
           taken_roles: Database['public']['Enums']['role_id'][];
         }[];
       };
+      random_core_screen_type: {
+        Args: never;
+        Returns: Database['public']['Enums']['screen_type'];
+      };
+      random_int: { Args: { p_max: number; p_min: number }; Returns: number };
       reset_combat: { Args: { p_room_id: string }; Returns: boolean };
+      rest_heal: {
+        Args: { p_restore_percent?: number; p_room_id: string };
+        Returns: number;
+      };
       seed_enemies: { Args: { p_room_id: string }; Returns: number };
+      seed_enemies_for_screen: {
+        Args: { p_room_id: string; p_screen_id: string };
+        Returns: number;
+      };
       send_room_emote: {
         Args: { p_emote: string; p_room_id: string; p_scene_id: string };
         Returns: number;
@@ -393,6 +489,15 @@ export type Database = {
       set_push_subscription: {
         Args: { p_platform?: string; p_token: string };
         Returns: boolean;
+      };
+      shop_purchase: {
+        Args: {
+          p_exp_delta?: number;
+          p_hp_delta?: number;
+          p_item_cost: number;
+          p_room_id: string;
+        };
+        Returns: Json;
       };
       story_confirm_option: {
         Args: {
@@ -482,10 +587,12 @@ export type Database = {
       };
     };
     Enums: {
+      phase_type: 'early' | 'core' | 'resolve';
       player_id: 'p1' | 'p2' | 'p3';
       role_id: 'sage' | 'warrior' | 'ranger';
       room_message_kind: 'player' | 'separator' | 'system';
       room_status: 'lobby' | 'in_progress' | 'finished';
+      screen_type: 'combat' | 'narrative_choice' | 'puzzle' | 'shop' | 'boss_fight' | 'rest';
     };
     CompositeTypes: {
       [_ in never]: never;
@@ -611,10 +718,12 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
+      phase_type: ['early', 'core', 'resolve'],
       player_id: ['p1', 'p2', 'p3'],
       role_id: ['sage', 'warrior', 'ranger'],
       room_message_kind: ['player', 'separator', 'system'],
       room_status: ['lobby', 'in_progress', 'finished'],
+      screen_type: ['combat', 'narrative_choice', 'puzzle', 'shop', 'boss_fight', 'rest'],
     },
   },
 } as const;

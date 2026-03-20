@@ -11,7 +11,7 @@ const LobbyScreen = () => {
   if (!room) return null;
 
   if (isStoryView) {
-    return <Redirect href="/(game)/adventure-setup" />;
+    return <Redirect href="/(game)/adventure" />;
   }
 
   if (!roomStory.isReady) {

@@ -7,7 +7,7 @@ const PublicLayout = () => {
   if (!game.auth.isAuthReady) return null;
 
   if (game.room) {
-    return <Redirect href={game.isLobby ? '/(game)/lobby' : '/(game)/adventure-setup'} />;
+    return <Redirect href={game.isLobby ? '/(game)/lobby' : '/(game)/adventure'} />;
   }
 
   return (

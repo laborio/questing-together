@@ -17,9 +17,10 @@ import { useHomeScreenLayout } from '@/utils/homeScreenLayout';
 type TitleScreenProps = {
   onCreate: () => void;
   onBrowse: () => void;
+  onPlayTest: () => void;
 };
 
-const TitleScreen = ({ onCreate, onBrowse }: TitleScreenProps) => {
+const TitleScreen = ({ onCreate, onBrowse, onPlayTest }: TitleScreenProps) => {
   const {
     minHeight,
     titleTopOffset,
@@ -67,6 +68,13 @@ const TitleScreen = ({ onCreate, onBrowse }: TitleScreenProps) => {
             onPress={onBrowse}
             label="Join Room"
             hint="Browse available rooms"
+          />
+          <Button
+            size="lg"
+            disabled={isBusy}
+            onPress={onPlayTest}
+            label="Sandbox"
+            hint="Test any screen solo"
           />
           {roomError ? <Typography variant="error">{roomError}</Typography> : null}
         </ActionGroup>

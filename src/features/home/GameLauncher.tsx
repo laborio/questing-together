@@ -1,11 +1,13 @@
 import { useState } from 'react';
 import { useGame } from '@/contexts/GameContext';
 import CharacterPicker from '@/features/home/components/CharacterPicker';
+import PlayTestMenu from '@/features/home/components/PlayTestMenu';
 import RoomBrowser from '@/features/home/components/RoomBrowser';
 import TitleScreen from '@/features/home/components/TitleScreen';
+import type { ScreenType } from '@/types/adventure';
 import type { RoleId } from '@/types/player';
 
-type Step = 'home' | 'browse' | 'pick';
+type Step = 'home' | 'browse' | 'pick' | 'playtest';
 
 const GameLauncher = () => {
   const { roomConnection } = useGame();
@@ -46,6 +48,10 @@ const GameLauncher = () => {
     }
   };
 
+  const handlePlayTest = (screenType: ScreenType, bloc: number) => {
+    void roomConnection.createPlaytest(screenType, bloc);
+  };
+
   if (step === 'pick') {
     return (
       <CharacterPicker
@@ -61,7 +67,19 @@ const GameLauncher = () => {
     return <RoomBrowser onSelectRoom={(code) => void handleSelectRoom(code)} onBack={handleBack} />;
   }
 
-  return <TitleScreen onCreate={handleCreate} onBrowse={() => setStep('browse')} />;
+  if (step === 'playtest') {
+    return (
+      <PlayTestMenu isBusy={roomConnection.isBusy} onSelect={handlePlayTest} onBack={handleBack} />
+    );
+  }
+
+  return (
+    <TitleScreen
+      onCreate={handleCreate}
+      onBrowse={() => setStep('browse')}
+      onPlayTest={() => setStep('playtest')}
+    />
+  );
 };
 
 export default GameLauncher;

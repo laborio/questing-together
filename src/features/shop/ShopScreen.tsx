@@ -3,12 +3,14 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ActionButton, BottomSheet, Button, Stack, Typography } from '@/components';
 import { colors } from '@/constants/colors';
 import { useGame } from '@/contexts/GameContext';
+import { useTranslation } from '@/contexts/I18nContext';
 import type { ShopScreenConfig } from '@/types/adventure';
 
 const ShopScreen = () => {
   const insets = useSafeAreaInsets();
   const { roomConnection, localPlayerId, isHost } = useGame();
   const { currentScreen } = roomConnection;
+  const { t } = useTranslation();
 
   const config = currentScreen?.config as ShopScreenConfig | undefined;
   const localCharacter = roomConnection.characters.find((c) => c.playerId === localPlayerId);
@@ -27,6 +29,9 @@ const ShopScreen = () => {
     }
   };
 
+  const translateItemName = (nameKey: string) =>
+    t(`shop.${nameKey}` as 'shop.potion_small') || nameKey;
+
   return (
     <Stack flex={1}>
       <ScrollView
@@ -38,13 +43,13 @@ const ShopScreen = () => {
         }}
       >
         <Typography variant="h4" style={{ color: colors.combatTitle, textAlign: 'center' }}>
-          🛒 Shop
+          {t('playTest.shop')}
         </Typography>
         <Typography
           variant="caption"
           style={{ color: colors.intentConfirmedBorder, textAlign: 'center' }}
         >
-          Your gold: {gold} g.
+          {t('combat.goldLabel')}: {gold} g.
         </Typography>
 
         <Stack gap={8} style={{ marginTop: 12 }}>
@@ -57,7 +62,7 @@ const ShopScreen = () => {
             return (
               <ActionButton
                 key={item.id}
-                label={`${item.name} (${item.cost}g)`}
+                label={`${translateItemName(item.name)} (${item.cost}g)`}
                 subtitle={effectParts.join(' · ')}
                 disabled={!canAfford || roomConnection.isBusy}
                 onPress={() => handleBuy(item.id)}
@@ -73,7 +78,7 @@ const ShopScreen = () => {
             size="sm"
             disabled={roomConnection.isBusy}
             onPress={() => void roomConnection.advanceScreen()}
-            label="Continue"
+            label={t('combat.continue')}
           />
         </BottomSheet>
       ) : (
@@ -82,7 +87,7 @@ const ShopScreen = () => {
             variant="caption"
             style={{ color: colors.combatWaiting, textAlign: 'center' }}
           >
-            Waiting for host to continue...
+            {t('combat.waitingHost')}
           </Typography>
         </BottomSheet>
       )}

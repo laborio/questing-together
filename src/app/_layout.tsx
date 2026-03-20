@@ -7,6 +7,7 @@ import 'react-native-reanimated';
 import { queryClient } from '@/api/queryClient';
 import AppLoader from '@/components/utils/AppLoader';
 import { GameProvider } from '@/contexts/GameContext';
+import { I18nProvider } from '@/contexts/I18nContext';
 import { useColorScheme } from '@/hooks/useColorScheme';
 
 const RootLayout = () => {
@@ -15,12 +16,14 @@ const RootLayout = () => {
   return (
     <QueryClientProvider client={queryClient}>
       <AppLoader>
-        <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
-          <GameProvider>
-            <Slot />
-            <StatusBar style="auto" />
-          </GameProvider>
-        </ThemeProvider>
+        <I18nProvider>
+          <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
+            <GameProvider>
+              <Slot />
+              <StatusBar style="auto" />
+            </GameProvider>
+          </ThemeProvider>
+        </I18nProvider>
       </AppLoader>
     </QueryClientProvider>
   );

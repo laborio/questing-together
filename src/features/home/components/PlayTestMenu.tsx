@@ -2,6 +2,7 @@ import { ScrollView } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ActionButton, BottomSheet, Button, Stack, Typography } from '@/components';
 import { colors } from '@/constants/colors';
+import { useTranslation } from '@/contexts/I18nContext';
 import type { ScreenType } from '@/types/adventure';
 
 type PlayTestMenuProps = {
@@ -10,20 +11,35 @@ type PlayTestMenuProps = {
   onBack: () => void;
 };
 
-const TESTS: { label: string; icon: string; screenType: ScreenType; bloc: number }[] = [
-  { label: 'Combat Bloc 1', icon: '⚔️', screenType: 'combat', bloc: 1 },
-  { label: 'Combat Bloc 2', icon: '⚔️', screenType: 'combat', bloc: 2 },
-  { label: 'Combat Bloc 3', icon: '⚔️', screenType: 'combat', bloc: 3 },
-  { label: 'Boss Bloc 1', icon: '🐉', screenType: 'boss_fight', bloc: 1 },
-  { label: 'Boss Final', icon: '💀', screenType: 'boss_fight', bloc: 3 },
-  { label: 'Narrative Choice', icon: '📜', screenType: 'narrative_choice', bloc: 1 },
-  { label: 'Shop', icon: '🛒', screenType: 'shop', bloc: 1 },
-  { label: 'Rest', icon: '🏕️', screenType: 'rest', bloc: 1 },
-  { label: 'Puzzle', icon: '🧩', screenType: 'puzzle', bloc: 1 },
+type TestEntry = {
+  labelKey:
+    | 'combatBloc'
+    | 'bossBloc'
+    | 'bossFinal'
+    | 'narrativeChoice'
+    | 'shop'
+    | 'rest'
+    | 'puzzle';
+  icon: string;
+  screenType: ScreenType;
+  bloc: number;
+};
+
+const TESTS: TestEntry[] = [
+  { labelKey: 'combatBloc', icon: '⚔️', screenType: 'combat', bloc: 1 },
+  { labelKey: 'combatBloc', icon: '⚔️', screenType: 'combat', bloc: 2 },
+  { labelKey: 'combatBloc', icon: '⚔️', screenType: 'combat', bloc: 3 },
+  { labelKey: 'bossBloc', icon: '🐉', screenType: 'boss_fight', bloc: 1 },
+  { labelKey: 'bossFinal', icon: '💀', screenType: 'boss_fight', bloc: 3 },
+  { labelKey: 'narrativeChoice', icon: '📜', screenType: 'narrative_choice', bloc: 1 },
+  { labelKey: 'shop', icon: '🛒', screenType: 'shop', bloc: 1 },
+  { labelKey: 'rest', icon: '🏕️', screenType: 'rest', bloc: 1 },
+  { labelKey: 'puzzle', icon: '🧩', screenType: 'puzzle', bloc: 1 },
 ];
 
 const PlayTestMenu = ({ isBusy, onSelect, onBack }: PlayTestMenuProps) => {
   const insets = useSafeAreaInsets();
+  const { t } = useTranslation();
 
   return (
     <Stack flex={1} style={{ backgroundColor: colors.backgroundDark }}>
@@ -36,22 +52,22 @@ const PlayTestMenu = ({ isBusy, onSelect, onBack }: PlayTestMenuProps) => {
         }}
       >
         <Typography variant="h4" style={{ color: colors.combatTitle, textAlign: 'center' }}>
-          Play Test
+          {t('playTest.title')}
         </Typography>
         <Typography
           variant="caption"
           style={{ color: colors.combatWaiting, textAlign: 'center', marginBottom: 8 }}
         >
-          Launch a specific screen directly
+          {t('playTest.subtitle')}
         </Typography>
 
         <Stack gap={8}>
           {TESTS.map((test) => (
             <ActionButton
               key={`${test.screenType}-${test.bloc}`}
-              label={test.label}
+              label={t(`playTest.${test.labelKey}`, { bloc: test.bloc })}
               icon={test.icon}
-              subtitle={`Bloc ${test.bloc}`}
+              subtitle={t('playTest.bloc', { bloc: test.bloc })}
               disabled={isBusy}
               onPress={() => onSelect(test.screenType, test.bloc)}
             />
@@ -60,7 +76,13 @@ const PlayTestMenu = ({ isBusy, onSelect, onBack }: PlayTestMenuProps) => {
       </ScrollView>
 
       <BottomSheet size="xs">
-        <Button size="sm" variant="ghost" disabled={isBusy} onPress={onBack} label="Back" />
+        <Button
+          size="sm"
+          variant="ghost"
+          disabled={isBusy}
+          onPress={onBack}
+          label={t('common.back')}
+        />
       </BottomSheet>
     </Stack>
   );

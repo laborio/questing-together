@@ -1,4 +1,5 @@
 import Constants from 'expo-constants';
+import { useRouter } from 'expo-router';
 import homeScreenArt from '@/assets/images/T_HomeScreen_Art.png';
 import homeScreenTitleFrame from '@/assets/images/T_HomeScreen_TitleFrame.png';
 import {
@@ -12,6 +13,7 @@ import {
 } from '@/components';
 import { colors } from '@/constants/colors';
 import { useGame } from '@/contexts/GameContext';
+import { useTranslation } from '@/contexts/I18nContext';
 import { useHomeScreenLayout } from '@/utils/homeScreenLayout';
 
 type TitleScreenProps = {
@@ -31,6 +33,8 @@ const TitleScreen = ({ onCreate, onBrowse, onPlayTest }: TitleScreenProps) => {
   } = useHomeScreenLayout();
   const { roomConnection } = useGame();
   const { isBusy, roomError } = roomConnection;
+  const { t } = useTranslation();
+  const router = useRouter();
 
   return (
     <BackgroundArt
@@ -44,11 +48,11 @@ const TitleScreen = ({ onCreate, onBrowse, onPlayTest }: TitleScreenProps) => {
             style={{ height: titleFrameHeight, width: titleFrameWidth, marginTop: 2 }}
           >
             <Stack style={{ marginBottom: -16 }}>
-              <Typography variant="title">À L'AVENTURE,</Typography>
-              <Typography variant="title">COMPAGNONS</Typography>
+              <Typography variant="title">{t('title.heading1')}</Typography>
+              <Typography variant="title">{t('title.heading2')}</Typography>
             </Stack>
           </FramedTitle>
-          <Typography variant="subtitle">Multiplayer Text RPG Adventure</Typography>
+          <Typography variant="subtitle">{t('title.subtitle')}</Typography>
           <Typography variant="micro" style={{ color: colors.textDisabled }}>
             v{Constants.expoConfig?.version ?? '0.0.0'}
           </Typography>
@@ -59,22 +63,28 @@ const TitleScreen = ({ onCreate, onBrowse, onPlayTest }: TitleScreenProps) => {
             size="lg"
             disabled={isBusy}
             onPress={onCreate}
-            label="Create Room"
-            hint="Start a new party"
+            label={t('home.createRoom')}
+            hint={t('home.createRoomHint')}
           />
           <Button
             size="lg"
             disabled={isBusy}
             onPress={onBrowse}
-            label="Join Room"
-            hint="Browse available rooms"
+            label={t('home.joinRoom')}
+            hint={t('home.joinRoomHint')}
           />
           <Button
             size="lg"
             disabled={isBusy}
             onPress={onPlayTest}
-            label="Sandbox"
-            hint="Test any screen solo"
+            label={t('home.sandbox')}
+            hint={t('home.sandboxHint')}
+          />
+          <Button
+            size="sm"
+            variant="ghost"
+            onPress={() => router.push('/(public)/settings')}
+            label={`⚙ ${t('settings.title')}`}
           />
           {roomError ? <Typography variant="error">{roomError}</Typography> : null}
         </ActionGroup>

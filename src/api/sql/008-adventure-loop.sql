@@ -214,7 +214,7 @@ begin
           'enemyCount', 1,
           'levelRange', jsonb_build_array(v_base_level + 4, v_base_level + 4),
           'isBoss', true,
-          'bossName', 'The Dark Lord'
+          'bossName', 'lich_commander'
         )
       );
       v_position := v_position + 1;
@@ -227,7 +227,7 @@ begin
           'enemyCount', 1,
           'levelRange', jsonb_build_array(v_base_level + 4, v_base_level + 4),
           'isBoss', true,
-          'bossName', 'Guardian of Bloc ' || v_bloc
+          'bossName', 'forest_guardian'
         )
       );
       v_position := v_position + 1;
@@ -238,8 +238,8 @@ begin
         p_room_id, v_bloc, 'resolve', v_position, 'shop',
         jsonb_build_object(
           'items', jsonb_build_array(
-            jsonb_build_object('id', 'potion', 'name', 'Health Potion', 'cost', 20, 'effect', jsonb_build_object('hpDelta', 30)),
-            jsonb_build_object('id', 'elixir', 'name', 'Power Elixir', 'cost', 40, 'effect', jsonb_build_object('expDelta', 50))
+            jsonb_build_object('id', 'potion_medium', 'name', 'potion_medium', 'cost', 20, 'effect', jsonb_build_object('hpDelta', 30)),
+            jsonb_build_object('id', 'elixir', 'name', 'elixir', 'cost', 40, 'effect', jsonb_build_object('expDelta', 50))
           )
         )
       );
@@ -292,10 +292,10 @@ declare
   v_boss_name text;
   v_existing int;
   v_names text[] := array[
-    'Goule', 'Goule Massive', 'Squelette', 'Squelette Archer',
-    'Loup Noir', 'Araignée Géante', 'Bandit', 'Spectre',
-    'Ogre', 'Gobelin', 'Rat Géant', 'Chauve-souris',
-    'Slime', 'Troll', 'Ombre Errante'
+    'goule', 'goule_massive', 'squelette', 'squelette_archer',
+    'loup_noir', 'araignee_geante', 'bandit', 'spectre',
+    'ogre', 'gobelin', 'rat_geant', 'chauve_souris',
+    'slime', 'troll', 'ombre_errante'
   ];
   v_name text;
   v_level int;
@@ -345,7 +345,7 @@ begin
     end if;
 
     insert into public.enemies (room_id, screen_id, position, name, level, hp, hp_max, attack)
-    values (p_room_id, p_screen_id, i, v_name || ' (Lv.' || v_level || ')', v_level, v_hp, v_hp, v_attack);
+    values (p_room_id, p_screen_id, i, v_name, v_level, v_hp, v_hp, v_attack);
   end loop;
 
   return v_enemy_count;

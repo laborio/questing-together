@@ -10,6 +10,7 @@ import Animated, {
 import { EnemyCard, Stack, Typography } from '@/components';
 import { colors } from '@/constants/colors';
 import { useGame } from '@/contexts/GameContext';
+import { useTranslation } from '@/contexts/I18nContext';
 import FloatingDamage from '@/features/combat/components/FloatingDamage';
 
 const VISIBLE_COUNT = 3;
@@ -30,10 +31,19 @@ type EnemyListProps = {
   floatingTexts: FloatingText[];
 };
 
-const DyingEnemy = ({ name, level, hpMax }: { name: string; level: number; hpMax: number }) => {
+const DyingEnemy = ({
+  nameKey,
+  level,
+  hpMax,
+}: {
+  nameKey: string;
+  level: number;
+  hpMax: number;
+}) => {
   const translateY = useSharedValue(0);
   const opacity = useSharedValue(1);
   const shake = useSharedValue(0);
+  const { t } = useTranslation();
 
   useEffect(() => {
     shake.value = withSequence(
@@ -52,9 +62,11 @@ const DyingEnemy = ({ name, level, hpMax }: { name: string; level: number; hpMax
     opacity: opacity.value,
   }));
 
+  const displayName = t(`enemies.${nameKey}` as 'enemies.goule') || nameKey;
+
   return (
     <Animated.View style={style}>
-      <EnemyCard name={name} level={level} hp={0} hpMax={hpMax} />
+      <EnemyCard name={displayName} level={level} hp={0} hpMax={hpMax} />
     </Animated.View>
   );
 };
@@ -67,9 +79,10 @@ const EnemyList = ({
   floatingTexts,
 }: EnemyListProps) => {
   const { roomConnection } = useGame();
+  const { t } = useTranslation();
   const prevAliveIdsRef = useRef<Set<string>>(new Set());
   const [dyingEnemies, setDyingEnemies] = useState<
-    { id: string; name: string; level: number; hpMax: number }[]
+    { id: string; nameKey: string; level: number; hpMax: number }[]
   >([]);
 
   const allEnemies = roomConnection.enemies;
@@ -85,7 +98,7 @@ const EnemyList = ({
     if (newlyDead.length > 0) {
       setDyingEnemies((prev) => [
         ...prev,
-        ...newlyDead.map((e) => ({ id: e.id, name: e.name, level: e.level, hpMax: e.hpMax })),
+        ...newlyDead.map((e) => ({ id: e.id, nameKey: e.name, level: e.level, hpMax: e.hpMax })),
       ]);
 
       // Remove dying enemies after animation
@@ -109,16 +122,18 @@ const EnemyList = ({
   const firstAliveId = aliveEnemies[0]?.id ?? null;
   const effectiveSelected = selectedEnemyId ?? firstAliveId;
 
-  const enemyFloats = floatingTexts.filter((t) => t.target === 'enemy');
+  const enemyFloats = floatingTexts.filter((ft) => ft.target === 'enemy');
+
+  const translateName = (nameKey: string) => t(`enemies.${nameKey}` as 'enemies.goule') || nameKey;
 
   return (
     <Stack gap={4}>
       <Stack direction="row" justify="space-between" align="center">
         <Typography variant="sectionTitle" style={{ color: colors.combatTitle, fontWeight: '700' }}>
-          Combat
+          {t('combat.title')}
         </Typography>
         <Typography variant="caption" style={{ color: colors.combatRound, fontWeight: '700' }}>
-          ! {killCount} ennemis tués
+          ! {t('combat.enemiesKilled', { count: killCount })}
         </Typography>
       </Stack>
 
@@ -130,7 +145,7 @@ const EnemyList = ({
         return (
           <View key={enemy.id} style={{ position: 'relative' }}>
             <EnemyCard
-              name={enemy.name}
+              name={translateName(enemy.name)}
               level={enemy.level}
               hp={enemy.hp}
               hpMax={enemy.hpMax}
@@ -152,7 +167,7 @@ const EnemyList = ({
           style={{ position: 'absolute', bottom: 0, left: 0, right: 0 }}
           pointerEvents="none"
         >
-          <DyingEnemy name={enemy.name} level={enemy.level} hpMax={enemy.hpMax} />
+          <DyingEnemy nameKey={enemy.nameKey} level={enemy.level} hpMax={enemy.hpMax} />
         </View>
       ))}
     </Stack>

@@ -1,0 +1,52 @@
+{
+  "id": "comet_trail_test",
+  "label": "Comet Trail Test",
+  "durationMs": 2200,
+  "loop": true,
+  "tracks": {
+    "x": [
+      { "at": 0, "value": 0.14 },
+      { "at": 0.28, "value": 0.28 },
+      { "at": 0.52, "value": 0.54 },
+      { "at": 0.78, "value": 0.72 },
+      { "at": 1, "value": 0.86 }
+    ],
+    "y": [
+      { "at": 0, "value": 0.78 },
+      { "at": 0.28, "value": 0.6 },
+      { "at": 0.52, "value": 0.35 },
+      { "at": 0.78, "value": 0.5 },
+      { "at": 1, "value": 0.24 }
+    ],
+    "scale": [
+      { "at": 0, "value": 0.45 },
+      { "at": 0.22, "value": 0.7 },
+      { "at": 0.55, "value": 1 },
+      { "at": 0.82, "value": 1.18 },
+      { "at": 1, "value": 0.86 }
+    ],
+    "alpha": [
+      { "at": 0, "value": 0.12 },
+      { "at": 0.1, "value": 0.9 },
+      { "at": 0.76, "value": 1 },
+      { "at": 1, "value": 0.55 }
+    ],
+    "glow": [
+      { "at": 0, "value": 0.1 },
+      { "at": 0.28, "value": 0.55 },
+      { "at": 0.58, "value": 1 },
+      { "at": 1, "value": 0.3 }
+    ],
+    "ring": [
+      { "at": 0, "value": 0 },
+      { "at": 0.7, "value": 0 },
+      { "at": 0.86, "value": 0.5 },
+      { "at": 1, "value": 1 }
+    ]
+  },
+  "trail": {
+    "segments": 7,
+    "spacing": 0.065,
+    "baseRadius": 18
+  }
+}

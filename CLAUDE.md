@@ -25,12 +25,54 @@ BLOC 3: CORE → FINAL BOSS
 - **Sage** — 40 HP, Fireball (6 damage single target)
 - **Ranger** — 50 HP, Arrows (3 damage AoE)
 
-### Combat
-- Actions are independent per player (not turn-based)
-- Attack (3 dmg + level scaling), Ability (role-dependent, cooldown), Heal (10 HP, cooldown), Run Away
-- Enemy counter-attacks after each action (taunt redirects counter-attacks)
-- Level up: XP needed = level × 100, HP scales with level (+10/level)
-- Settings in `src/constants/combatSettings.ts`
+### Combat (turn-based)
+
+Each combat encounter alternates between **Player Phase** and **Enemy Phase**.
+
+#### Turn flow
+```
+TURN N
+├── Player Phase (simultaneous)
+│   ├── Each player has 3 actions (attack, ability, heal — any mix)
+│   ├── Actions apply damage immediately on enemies
+│   ├── Cooldowns decrement once per turn (not per action)
+│   ├── Player presses "End Turn" when done (can skip remaining actions)
+│   └── Wait until ALL alive players have ended their turn
+│
+├── Enemy Phase (automatic, host-triggered)
+│   ├── Each alive enemy attacks ALL alive players
+│   ├── Taunt redirects all damage to Warrior (-60% reduction)
+│   ├── Taunt/ability/heal cooldowns decrement by 1
+│   └── Check party wipe → resolved or next turn
+│
+└── TURN N+1 (reset 3 actions per player)
+```
+
+#### Actions
+- **Attack** — 3 dmg + (level - 1) to single target. No cooldown.
+- **Ability** — role-dependent, 2-turn cooldown (server-enforced):
+  - Warrior: Taunt (5 turns, redirects all enemy attacks, -60% reduction)
+  - Sage: Fireball (6 damage, single target)
+  - Ranger: Arrows (3 damage, AoE all enemies)
+- **Heal** — +10 HP (capped at hp_max), 2-turn cooldown (server-enforced)
+
+#### State tracking
+- `combat_turns` table — turn number, phase (`player`/`enemy`/`resolved`), per room+screen
+- `player_turn_state` table — actions remaining, has_ended_turn, per player per turn
+- `characters` columns — `ability_cooldown_left`, `heal_cooldown_left` (server-authoritative)
+- Realtime subscriptions on both tables for live sync
+
+#### Key RPCs
+- `combat_init_turn(room_id, screen_id)` — creates turn 1, player states
+- `combat_attack/ability/heal` — check actions remaining + cooldowns, apply effect, decrement action
+- `combat_end_turn(room_id)` — marks player done, if all done → phase = 'enemy'
+- `combat_enemy_phase(room_id)` — all enemies attack, decrement cooldowns, next turn or party wipe
+
+#### Level up
+- XP needed = level × 100, HP scales with level (+10/level)
+
+#### Settings
+- `src/constants/combatSettings.ts` — damage values, cooldowns, actions per turn
 - Adventure settings in `src/constants/adventureSettings.ts`
 
 ### Content system (`src/content/`)
@@ -49,14 +91,16 @@ BLOC 3: CORE → FINAL BOSS
 - `characters` — name, level, hp, hp_max, gold, exp, taunt_turns_left
 - `enemies` — per-screen enemies, hp, attack, is_dead, screen_id
 - `adventure_screens` — bloc, phase, position, screen_type, config_json, is_completed
-- Key RPCs: `create_room`, `join_room`, `peek_room`, `start_adventure`, `cancel_adventure`, `generate_adventure`, `advance_screen`, `seed_enemies_for_screen`, `combat_attack`, `combat_ability`, `combat_heal`, `reset_combat`, `list_my_rooms`, `list_available_rooms`, `delete_room`
-- SQL migrations in `src/api/sql/` (numbered 001-008), applied via `bun run db:migrate`
+- `combat_turns` — turn_number, phase (player/enemy/resolved), per room+screen
+- `player_turn_state` — actions_remaining, has_ended_turn, per player per combat turn
+- Key RPCs: `create_room`, `join_room`, `peek_room`, `start_adventure`, `cancel_adventure`, `generate_adventure`, `advance_screen`, `seed_enemies_for_screen`, `combat_init_turn`, `combat_attack`, `combat_ability`, `combat_heal`, `combat_end_turn`, `combat_enemy_phase`, `reset_combat`, `list_my_rooms`, `list_available_rooms`, `delete_room`
+- SQL migrations in `src/api/sql/` (numbered 001-009), applied via `bun run db:migrate`
 
 ### State management
 - TanStack Query for all Supabase data (queries + mutations)
 - `useRoomConnection` hook — room state, players, characters, enemies, currentScreen, all mutations
 - `GameContext` — wraps everything, exposed via `useGame()`
-- Supabase Realtime subscriptions for live sync (rooms, room_players, characters, enemies, adventure_screens)
+- Supabase Realtime subscriptions for live sync (rooms, room_players, characters, enemies, adventure_screens, combat_turns, player_turn_state)
 
 ## Project structure
 

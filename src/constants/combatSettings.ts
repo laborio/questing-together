@@ -6,8 +6,9 @@ export const COMBAT = {
   attackDamage: 3,
   damagePerLevel: 1,
   healAmount: 10,
-  abilityCooldown: 5,
-  healCooldown: 3,
+  abilityCooldown: 3,
+  healCooldown: 2,
+  actionsPerTurn: 3,
   abilities: {
     warrior: { label: 'Taunt', icon: '🛡️', subtitle: 'Taunt 5t · -60% dmg', damage: 0, aoe: false },
     sage: { label: 'Fireball', icon: '🔥', subtitle: '6 Damage', damage: 6, aoe: false },

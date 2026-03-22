@@ -5,6 +5,7 @@ import type { Character } from '@/api/models/character';
 import type { Enemy } from '@/api/models/enemy';
 import { supabase } from '@/api/supabaseClient';
 import type { AdventureScreen, ScreenConfig, ScreenType } from '@/types/adventure';
+import type { CombatTurn, PlayerTurnState } from '@/types/combatTurn';
 import type { PlayerId, RoleId } from '@/types/player';
 import { getErrorMessage } from '@/utils/getErrorMessage';
 import { STORY_CONFIG } from '@/utils/storyConfig';
@@ -46,6 +47,8 @@ type RoomState = {
   characters: Character[];
   enemies: Enemy[];
   currentScreen: AdventureScreen | null;
+  combatTurn: CombatTurn | null;
+  playerTurnStates: PlayerTurnState[];
 };
 
 type MyRoom = {
@@ -76,7 +79,13 @@ type UseRoomConnectionResult = {
   isBusy: boolean;
   roomError: string | null;
   createRoom: (displayName: string, roleId: RoleId) => Promise<void>;
-  createPlaytest: (screenType: ScreenType, bloc: number) => Promise<void>;
+  createPlaytest: (
+    screenType: ScreenType,
+    bloc: number,
+    displayName?: string,
+    roleId?: RoleId,
+    enemyCount?: number,
+  ) => Promise<void>;
   joinRoom: (code: string, displayName: string, roleId: RoleId) => Promise<void>;
   rejoinRoom: (roomId: string) => Promise<void>;
   deleteRoom: (roomId: string) => Promise<void>;
@@ -90,6 +99,10 @@ type UseRoomConnectionResult = {
   combatAttack: (enemyId: string) => Promise<unknown>;
   combatAbility: (enemyId: string | null) => Promise<unknown>;
   combatHeal: (targetPlayerId?: PlayerId) => Promise<unknown>;
+  combatEndTurn: () => Promise<unknown>;
+  combatEnemyPhase: () => Promise<unknown>;
+  combatTurn: CombatTurn | null;
+  playerTurnStates: PlayerTurnState[];
   leaveRoom: () => Promise<void>;
 };
 
@@ -139,7 +152,9 @@ async function fetchRoomPlayers(roomId: string): Promise<RoomPlayerRecord[]> {
 async function fetchCharacters(roomId: string): Promise<Character[]> {
   const { data, error } = await supabase
     .from('characters')
-    .select('id, room_id, player_id, name, level, gold, exp, hp, hp_max, taunt_turns_left')
+    .select(
+      'id, room_id, player_id, name, level, gold, exp, hp, hp_max, taunt_turns_left, ability_cooldown_left, heal_cooldown_left',
+    )
     .eq('room_id', roomId)
     .order('player_id', { ascending: true });
 
@@ -156,6 +171,8 @@ async function fetchCharacters(roomId: string): Promise<Character[]> {
       hp: number;
       hp_max: number;
       taunt_turns_left: number;
+      ability_cooldown_left: number;
+      heal_cooldown_left: number;
     }[]
   ).map((row) => ({
     id: row.id,
@@ -168,6 +185,8 @@ async function fetchCharacters(roomId: string): Promise<Character[]> {
     hp: row.hp,
     hpMax: row.hp_max,
     tauntTurnsLeft: row.taunt_turns_left,
+    abilityCooldownLeft: row.ability_cooldown_left,
+    healCooldownLeft: row.heal_cooldown_left,
   }));
 }
 
@@ -232,6 +251,49 @@ async function fetchCurrentScreen(
   };
 }
 
+async function fetchCombatTurn(roomId: string): Promise<CombatTurn | null> {
+  const { data, error } = await supabase
+    .from('combat_turns')
+    .select('id, room_id, screen_id, turn_number, phase')
+    .eq('room_id', roomId)
+    .maybeSingle();
+
+  if (error || !data) return null;
+  return {
+    id: data.id as string,
+    roomId: data.room_id as string,
+    screenId: data.screen_id as string,
+    turnNumber: data.turn_number as number,
+    phase: data.phase as CombatTurn['phase'],
+  };
+}
+
+async function fetchPlayerTurnStates(roomId: string): Promise<PlayerTurnState[]> {
+  const { data, error } = await supabase
+    .from('player_turn_state')
+    .select(
+      'id, combat_turn_id, player_id, actions_remaining, has_ended_turn, combat_turns!inner(room_id)',
+    )
+    .eq('combat_turns.room_id', roomId);
+
+  if (error || !data) return [];
+  return (
+    data as {
+      id: string;
+      combat_turn_id: string;
+      player_id: PlayerId;
+      actions_remaining: number;
+      has_ended_turn: boolean;
+    }[]
+  ).map((row) => ({
+    id: row.id,
+    combatTurnId: row.combat_turn_id,
+    playerId: row.player_id,
+    actionsRemaining: row.actions_remaining,
+    hasEndedTurn: row.has_ended_turn,
+  }));
+}
+
 async function fetchRoomState(roomId: string): Promise<RoomState | null> {
   const [room, players, characters, enemies] = await Promise.all([
     fetchRoomSnapshot(roomId),
@@ -246,7 +308,12 @@ async function fetchRoomState(roomId: string): Promise<RoomState | null> {
       ? await fetchCurrentScreen(roomId, room.current_screen_position)
       : null;
 
-  return { room, players, characters, enemies, currentScreen };
+  const [combatTurn, playerTurnStates] = await Promise.all([
+    fetchCombatTurn(roomId),
+    fetchPlayerTurnStates(roomId),
+  ]);
+
+  return { room, players, characters, enemies, currentScreen, combatTurn, playerTurnStates };
 }
 
 async function fetchMyRooms(): Promise<MyRoom[]> {
@@ -340,6 +407,8 @@ export function useRoomConnection(): UseRoomConnectionResult {
   const characters = roomState?.characters ?? [];
   const enemies = roomState?.enemies ?? [];
   const currentScreen = roomState?.currentScreen ?? null;
+  const combatTurn = roomState?.combatTurn ?? null;
+  const playerTurnStates = roomState?.playerTurnStates ?? [];
 
   // Realtime: invalidate room state on DB changes
   useEffect(() => {
@@ -383,6 +452,25 @@ export function useRoomConnection(): UseRoomConnectionResult {
           schema: 'public',
           table: 'adventure_screens',
           filter: `room_id=eq.${room.id}`,
+        },
+        invalidate,
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'combat_turns',
+          filter: `room_id=eq.${room.id}`,
+        },
+        invalidate,
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'player_turn_state',
         },
         invalidate,
       )
@@ -432,10 +520,25 @@ export function useRoomConnection(): UseRoomConnectionResult {
   });
 
   const createPlaytestMutation = useMutation({
-    mutationFn: async ({ screenType, bloc }: { screenType: ScreenType; bloc: number }) => {
+    mutationFn: async ({
+      screenType,
+      bloc,
+      displayName,
+      roleId,
+      enemyCount,
+    }: {
+      screenType: ScreenType;
+      bloc: number;
+      displayName?: string;
+      roleId?: RoleId;
+      enemyCount?: number;
+    }) => {
       const { data, error } = await supabase.rpc('create_playtest', {
         p_screen_type: screenType,
         p_bloc: bloc,
+        p_display_name: displayName ?? 'Tester',
+        p_role_id: roleId ?? 'warrior',
+        p_enemy_count: enemyCount ?? null,
       });
       if (error) throw error;
       if (!data) throw new Error('Playtest room was not created');
@@ -554,8 +657,12 @@ export function useRoomConnection(): UseRoomConnectionResult {
       if (error) throw error;
       return data as { finished: boolean };
     },
-    onSuccess: () => {
-      if (room?.id) void qc.invalidateQueries({ queryKey: roomKeys.roomState(room.id) });
+    onSuccess: (data) => {
+      if (data?.finished) {
+        clearRoom();
+      } else if (room?.id) {
+        void qc.invalidateQueries({ queryKey: roomKeys.roomState(room.id) });
+      }
     },
     onError: (error) => setRoomError(getErrorMessage(error, 'Failed to advance screen')),
   });
@@ -682,6 +789,32 @@ export function useRoomConnection(): UseRoomConnectionResult {
     onError: (error) => setRoomError(getErrorMessage(error, 'Heal failed')),
   });
 
+  const combatEndTurnMutation = useMutation({
+    mutationFn: async () => {
+      if (!room?.id) throw new Error('No room');
+      const { data, error } = await supabase.rpc('combat_end_turn', { p_room_id: room.id });
+      if (error) throw error;
+      return data as { allReady: boolean };
+    },
+    onSuccess: () => {
+      if (room?.id) void qc.invalidateQueries({ queryKey: roomKeys.roomState(room.id) });
+    },
+    onError: (error) => setRoomError(getErrorMessage(error, 'End turn failed')),
+  });
+
+  const combatEnemyPhaseMutation = useMutation({
+    mutationFn: async () => {
+      if (!room?.id) throw new Error('No room');
+      const { data, error } = await supabase.rpc('combat_enemy_phase', { p_room_id: room.id });
+      if (error) throw error;
+      return data as { partyWiped: boolean; turnNumber: number; attacks: unknown[] };
+    },
+    onSuccess: () => {
+      if (room?.id) void qc.invalidateQueries({ queryKey: roomKeys.roomState(room.id) });
+    },
+    onError: (error) => setRoomError(getErrorMessage(error, 'Enemy phase failed')),
+  });
+
   // ---------------------------------------------------------------------------
   // peekRoom (standalone, no cache)
   // ---------------------------------------------------------------------------
@@ -724,9 +857,21 @@ export function useRoomConnection(): UseRoomConnectionResult {
   );
 
   const createPlaytest = useCallback(
-    async (screenType: ScreenType, bloc: number) => {
+    async (
+      screenType: ScreenType,
+      bloc: number,
+      displayName?: string,
+      roleId?: RoleId,
+      enemyCount?: number,
+    ) => {
       setRoomError(null);
-      await createPlaytestMutation.mutateAsync({ screenType, bloc });
+      await createPlaytestMutation.mutateAsync({
+        screenType,
+        bloc,
+        displayName,
+        roleId,
+        enemyCount,
+      });
     },
     [createPlaytestMutation],
   );
@@ -823,6 +968,16 @@ export function useRoomConnection(): UseRoomConnectionResult {
     [combatHealMutation],
   );
 
+  const combatEndTurn = useCallback(async () => {
+    setRoomError(null);
+    return combatEndTurnMutation.mutateAsync();
+  }, [combatEndTurnMutation]);
+
+  const combatEnemyPhase = useCallback(async () => {
+    setRoomError(null);
+    return combatEnemyPhaseMutation.mutateAsync();
+  }, [combatEnemyPhaseMutation]);
+
   // ---------------------------------------------------------------------------
   // Derived
   // ---------------------------------------------------------------------------
@@ -845,6 +1000,8 @@ export function useRoomConnection(): UseRoomConnectionResult {
       characters,
       enemies,
       currentScreen,
+      combatTurn,
+      playerTurnStates,
       myRooms,
       availableRooms,
       isBusy,
@@ -864,6 +1021,8 @@ export function useRoomConnection(): UseRoomConnectionResult {
       combatAttack,
       combatAbility,
       combatHeal,
+      combatEndTurn,
+      combatEnemyPhase,
       leaveRoom,
     }),
     [
@@ -872,6 +1031,8 @@ export function useRoomConnection(): UseRoomConnectionResult {
       characters,
       enemies,
       currentScreen,
+      combatTurn,
+      playerTurnStates,
       myRooms,
       availableRooms,
       isBusy,
@@ -891,6 +1052,8 @@ export function useRoomConnection(): UseRoomConnectionResult {
       combatAttack,
       combatAbility,
       combatHeal,
+      combatEndTurn,
+      combatEnemyPhase,
       leaveRoom,
     ],
   );

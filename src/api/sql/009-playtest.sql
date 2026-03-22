@@ -3,11 +3,14 @@
 
 begin;
 
+drop function if exists public.create_playtest(public.screen_type, int, text, public.role_id);
+drop function if exists public.create_playtest(public.screen_type, int, text, public.role_id, int);
 create or replace function public.create_playtest(
   p_screen_type public.screen_type,
   p_bloc int default 1,
   p_display_name text default 'Tester',
-  p_role_id public.role_id default 'warrior'
+  p_role_id public.role_id default 'warrior',
+  p_enemy_count int default null
 )
 returns uuid
 language plpgsql
@@ -65,7 +68,7 @@ begin
   -- Build screen config based on type
   if p_screen_type in ('combat', 'boss_fight') then
     v_config := jsonb_build_object(
-      'enemyCount', case when p_screen_type = 'boss_fight' then 1 else public.random_int(2, 4) end,
+      'enemyCount', coalesce(p_enemy_count, case when p_screen_type = 'boss_fight' then 1 else public.random_int(2, 4) end),
       'levelRange', jsonb_build_array(v_base_level, v_base_level + 2),
       'isBoss', p_screen_type = 'boss_fight',
       'bossName', case when p_screen_type = 'boss_fight' then 'Test Boss Lv.' || (v_base_level + 4) else null end
@@ -114,6 +117,6 @@ begin
 end;
 $$;
 
-grant execute on function public.create_playtest(public.screen_type, int, text, public.role_id) to authenticated;
+grant execute on function public.create_playtest(public.screen_type, int, text, public.role_id, int) to authenticated;
 
 commit;

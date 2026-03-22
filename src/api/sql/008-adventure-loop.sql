@@ -448,6 +448,14 @@ grant execute on function public.advance_screen(uuid) to authenticated;
 
 -- Fix unique constraint: per screen, not per room
 alter table public.enemies drop constraint if exists enemies_room_id_position_key;
-alter table public.enemies add constraint enemies_room_screen_position_key unique (room_id, screen_id, position);
+do $$
+begin
+  if not exists (
+    select 1 from pg_constraint where conname = 'enemies_room_screen_position_key'
+  ) then
+    alter table public.enemies add constraint enemies_room_screen_position_key unique (room_id, screen_id, position);
+  end if;
+end
+$$;
 
 commit;

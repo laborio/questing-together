@@ -57,9 +57,11 @@ export type Database = {
       };
       characters: {
         Row: {
+          ability_cooldown_left: number;
           created_at: string;
           exp: number;
           gold: number;
+          heal_cooldown_left: number;
           hp: number;
           hp_max: number;
           id: string;
@@ -71,9 +73,11 @@ export type Database = {
           updated_at: string;
         };
         Insert: {
+          ability_cooldown_left?: number;
           created_at?: string;
           exp?: number;
           gold?: number;
+          heal_cooldown_left?: number;
           hp?: number;
           hp_max?: number;
           id?: string;
@@ -85,9 +89,11 @@ export type Database = {
           updated_at?: string;
         };
         Update: {
+          ability_cooldown_left?: number;
           created_at?: string;
           exp?: number;
           gold?: number;
+          heal_cooldown_left?: number;
           hp?: number;
           hp_max?: number;
           id?: string;
@@ -104,6 +110,48 @@ export type Database = {
             columns: ['room_id'];
             isOneToOne: false;
             referencedRelation: 'rooms';
+            referencedColumns: ['id'];
+          },
+        ];
+      };
+      combat_turns: {
+        Row: {
+          created_at: string;
+          id: string;
+          phase: string;
+          room_id: string;
+          screen_id: string;
+          turn_number: number;
+        };
+        Insert: {
+          created_at?: string;
+          id?: string;
+          phase?: string;
+          room_id: string;
+          screen_id: string;
+          turn_number?: number;
+        };
+        Update: {
+          created_at?: string;
+          id?: string;
+          phase?: string;
+          room_id?: string;
+          screen_id?: string;
+          turn_number?: number;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'combat_turns_room_id_fkey';
+            columns: ['room_id'];
+            isOneToOne: false;
+            referencedRelation: 'rooms';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'combat_turns_screen_id_fkey';
+            columns: ['screen_id'];
+            isOneToOne: false;
+            referencedRelation: 'adventure_screens';
             referencedColumns: ['id'];
           },
         ];
@@ -161,6 +209,38 @@ export type Database = {
             columns: ['screen_id'];
             isOneToOne: false;
             referencedRelation: 'adventure_screens';
+            referencedColumns: ['id'];
+          },
+        ];
+      };
+      player_turn_state: {
+        Row: {
+          actions_remaining: number;
+          combat_turn_id: string;
+          has_ended_turn: boolean;
+          id: string;
+          player_id: Database['public']['Enums']['player_id'];
+        };
+        Insert: {
+          actions_remaining?: number;
+          combat_turn_id: string;
+          has_ended_turn?: boolean;
+          id?: string;
+          player_id: Database['public']['Enums']['player_id'];
+        };
+        Update: {
+          actions_remaining?: number;
+          combat_turn_id?: string;
+          has_ended_turn?: boolean;
+          id?: string;
+          player_id?: Database['public']['Enums']['player_id'];
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'player_turn_state_combat_turn_id_fkey';
+            columns: ['combat_turn_id'];
+            isOneToOne: false;
+            referencedRelation: 'combat_turns';
             referencedColumns: ['id'];
           },
         ];
@@ -396,6 +476,8 @@ export type Database = {
         Returns: Json;
       };
       combat_check_level_up: { Args: { p_char_id: string }; Returns: undefined };
+      combat_end_turn: { Args: { p_room_id: string }; Returns: Json };
+      combat_enemy_phase: { Args: { p_room_id: string }; Returns: Json };
       combat_heal: {
         Args: {
           p_room_id: string;
@@ -403,10 +485,15 @@ export type Database = {
         };
         Returns: Json;
       };
+      combat_init_turn: {
+        Args: { p_room_id: string; p_screen_id: string };
+        Returns: undefined;
+      };
       create_playtest: {
         Args: {
           p_bloc?: number;
           p_display_name?: string;
+          p_enemy_count?: number;
           p_role_id?: Database['public']['Enums']['role_id'];
           p_screen_type: Database['public']['Enums']['screen_type'];
         };
@@ -472,7 +559,7 @@ export type Database = {
         Returns: Database['public']['Enums']['screen_type'];
       };
       random_int: { Args: { p_max: number; p_min: number }; Returns: number };
-      reset_combat: { Args: { p_room_id: string }; Returns: boolean };
+      reset_combat: { Args: { p_room_id: string }; Returns: undefined };
       rest_heal: {
         Args: { p_restore_percent?: number; p_room_id: string };
         Returns: number;

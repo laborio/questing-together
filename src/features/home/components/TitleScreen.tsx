@@ -1,5 +1,4 @@
 import Constants from 'expo-constants';
-import { useRouter } from 'expo-router';
 import homeScreenArt from '@/assets/images/T_HomeScreen_Art.png';
 import homeScreenTitleFrame from '@/assets/images/T_HomeScreen_TitleFrame.png';
 import {
@@ -21,7 +20,6 @@ type TitleScreenProps = {
 };
 
 const TitleScreen = ({ onCreate, onBrowse }: TitleScreenProps) => {
-  const router = useRouter();
   const {
     minHeight,
     titleTopOffset,
@@ -69,14 +67,6 @@ const TitleScreen = ({ onCreate, onBrowse }: TitleScreenProps) => {
             onPress={onBrowse}
             label="Join Room"
             hint="Browse available rooms"
-          />
-          <Button
-            size="sm"
-            variant="ghost"
-            textured={false}
-            onPress={() => router.push('/fx-test' as never)}
-            label="FX Test"
-            hint="Open animation spike"
           />
           {roomError ? <Typography variant="error">{roomError}</Typography> : null}
         </ActionGroup>

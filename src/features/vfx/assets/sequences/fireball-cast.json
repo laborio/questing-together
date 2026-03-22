@@ -11,14 +11,14 @@
     {
       "id": "fireball-travel-cue-3",
       "assetId": "fireball-travel",
-      "atMs": 50,
+      "atMs": 0,
       "anchor": "caster",
       "targetAnchor": "target"
     },
     {
       "id": "impact",
       "assetId": "fireball-impact",
-      "atMs": 1340,
+      "atMs": 1300,
       "anchor": "target"
     }
   ]

@@ -6,6 +6,7 @@ begin;
 -- ----------------------------
 -- RPC: list_my_rooms (rooms the user is in)
 -- ----------------------------
+drop function if exists public.list_my_rooms();
 create or replace function public.list_my_rooms()
 returns table(
   room_id uuid,
@@ -52,6 +53,7 @@ grant execute on function public.list_my_rooms() to authenticated;
 -- ----------------------------
 -- RPC: list_available_rooms (rooms open to join, not full, user not already in)
 -- ----------------------------
+drop function if exists public.list_available_rooms();
 create or replace function public.list_available_rooms()
 returns table(
   room_id uuid,

@@ -12,6 +12,7 @@ import {
 import { colors } from '@/constants/colors';
 import { playerNameById, roles } from '@/constants/constants';
 import { useGame } from '@/contexts/GameContext';
+import { useTranslation } from '@/contexts/I18nContext';
 import { portraitByRole } from '@/utils/portraitByRole';
 
 const LobbyContent = () => {
@@ -27,17 +28,18 @@ const LobbyContent = () => {
   } = useGame();
   const insets = useSafeAreaInsets();
   const { players, isBusy } = roomConnection;
+  const { t } = useTranslation();
 
   // Early returns
   if (!isLobby) {
     if (!localPlayerId) {
-      return <EmptyState text="Syncing your player slot..." />;
+      return <EmptyState text={t('lobby.syncingSlot')} />;
     }
 
     if (!isAdventureStarted || !localRole) {
       const statusText = !isAdventureStarted
-        ? 'Waiting for adventure to start...'
-        : 'This room is in progress but your role is not assigned.';
+        ? t('lobby.waitingAdventure')
+        : t('lobby.roleNotAssigned');
 
       return <EmptyState text={statusText} />;
     }
@@ -65,7 +67,7 @@ const LobbyContent = () => {
           }}
         >
           <Typography variant="heading" style={{ color: colors.textOverlayHeading }}>
-            {"À l'Aventure Compagnons"}
+            {t('lobby.heading')}
           </Typography>
 
           {localPlayerId ? (
@@ -74,13 +76,13 @@ const LobbyContent = () => {
               bold
               style={{ marginTop: -2, textAlign: 'center', color: colors.textOverlayAccent }}
             >
-              Signed in as {localDisplayName}
+              {t('lobby.signedInAs', { name: localDisplayName })}
             </Typography>
           ) : null}
 
           {room?.code ? (
             <Typography variant="body" bold style={{ color: colors.textOverlayHeading }}>
-              Room code: {room.code}
+              {t('lobby.roomCode', { code: room.code })}
             </Typography>
           ) : null}
 
@@ -90,11 +92,12 @@ const LobbyContent = () => {
 
               {/* Party members */}
               <Typography variant="caption" bold style={{ color: colors.textAvatarNameParchment }}>
-                Party
+                {t('lobby.party')}
               </Typography>
               <Stack direction="row" justify="space-evenly">
                 {players.map((p) => {
                   const role = roles.find((r) => r.id === p.role_id);
+                  const roleKey = p.role_id as 'warrior' | 'sage' | 'ranger' | undefined;
                   return (
                     <Stack key={p.player_id} align="center" gap={2}>
                       {p.role_id ? (
@@ -103,7 +106,7 @@ const LobbyContent = () => {
                           size={80}
                           highlighted
                           highlightColor={colors.success}
-                          name={role?.label ?? ''}
+                          name={roleKey ? t(`roles.${roleKey}`) : (role?.label ?? '')}
                           nameColor={colors.success}
                           nameFontSize={12}
                         />
@@ -125,12 +128,12 @@ const LobbyContent = () => {
                 style={{ textAlign: 'center', color: colors.textOverlayAccent }}
               >
                 {players.length === 1
-                  ? 'Waiting for companions to join...'
-                  : `${players.length} adventurers ready`}
+                  ? t('lobby.waitingCompanions')
+                  : t('lobby.adventurersReady', { count: players.length })}
               </Typography>
             </>
           ) : (
-            <EmptyState text="Syncing your player slot..." />
+            <EmptyState text={t('lobby.syncingSlot')} />
           )}
         </Stack>
       </ScrollView>
@@ -140,7 +143,7 @@ const LobbyContent = () => {
         <Stack direction="row" gap={10}>
           <Stack flex={1}>
             <Button
-              label={isBusy ? 'Leaving...' : 'Leave Room'}
+              label={isBusy ? t('lobby.leaving') : t('lobby.leaveRoom')}
               variant="danger"
               size="sm"
               disabled={isBusy}
@@ -150,14 +153,14 @@ const LobbyContent = () => {
           <Stack flex={1}>
             {isHost ? (
               <Button
-                label={isBusy ? 'Starting...' : 'Start Adventure'}
+                label={isBusy ? t('lobby.starting') : t('lobby.startAdventure')}
                 variant="validation"
                 size="sm"
                 disabled={isBusy}
                 onPress={() => roomConnection.startAdventure()}
               />
             ) : (
-              <Button label="Waiting for host..." variant="ghost" size="sm" disabled />
+              <Button label={t('lobby.waitingHost')} variant="ghost" size="sm" disabled />
             )}
           </Stack>
         </Stack>

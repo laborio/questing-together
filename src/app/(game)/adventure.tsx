@@ -1,15 +1,15 @@
 import { Redirect } from 'expo-router';
 import { useGame } from '@/contexts/GameContext';
-import CombatScreen from '@/features/combat/CombatScreen';
+import AdventureDispatcher from '@/features/adventure/AdventureDispatcher';
 
-const AdventureSetupScreen = () => {
+const AdventureScreen = () => {
   const { isLobby } = useGame();
 
   if (isLobby) {
     return <Redirect href="/(game)/lobby" />;
   }
 
-  return <CombatScreen />;
+  return <AdventureDispatcher />;
 };
 
-export default AdventureSetupScreen;
+export default AdventureScreen;

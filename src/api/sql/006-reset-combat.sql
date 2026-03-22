@@ -3,6 +3,7 @@
 
 begin;
 
+drop function if exists public.reset_combat(uuid);
 create or replace function public.reset_combat(p_room_id uuid)
 returns boolean
 language plpgsql

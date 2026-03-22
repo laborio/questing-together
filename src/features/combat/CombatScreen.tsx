@@ -1,24 +1,33 @@
 import { StatusBar } from 'expo-status-bar';
-import { useEffect, useRef, useState } from 'react';
-import { ScrollView, useWindowDimensions } from 'react-native';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { ScrollView, StyleSheet, useWindowDimensions } from 'react-native';
+import type { SharedValue } from 'react-native-reanimated';
+import Animated, { useAnimatedStyle } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { BottomSheet, ModalBackdrop, Stack, StatusBadge, Typography } from '@/components';
+import { BottomSheet, Button, ModalBackdrop, Stack, StatusBadge, Typography } from '@/components';
 import { colors } from '@/constants/colors';
 import { COMBAT } from '@/constants/combatSettings';
 import { useGame } from '@/contexts/GameContext';
+import { useTranslation } from '@/contexts/I18nContext';
 import CombatActionGrid from '@/features/combat/components/CombatActionGrid';
 import CombatHeader from '@/features/combat/components/CombatHeader';
 import CombatPortraitStrip from '@/features/combat/components/CombatPortraitStrip';
 import EnemyList from '@/features/combat/components/EnemyList';
 import useCombatAnimations from '@/features/combat/hooks/useCombatAnimations';
+import useCombatTurnPhase from '@/features/combat/hooks/useCombatTurnPhase';
 import { buildCombatPlayers } from '@/features/combat/utils/buildCombatPlayers';
 import { getEffectiveEnemyId } from '@/features/combat/utils/getEffectiveEnemyId';
 import { playCombatAbilityVfx } from '@/features/combat/utils/playCombatAbilityVfx';
 import { useVfx } from '@/features/vfx';
 
-type Point = {
-  x: number;
-  y: number;
+type Position = { x: number; y: number };
+
+const computeDirection = (from: Position, to: Position): { x: number; y: number } => {
+  const dx = to.x - from.x;
+  const dy = to.y - from.y;
+  const dist = Math.sqrt(dx * dx + dy * dy);
+  if (dist === 0) return { x: 0, y: -1 };
+  return { x: dx / dist, y: dy / dist };
 };
 
 const CombatScreen = () => {
@@ -26,19 +35,19 @@ const CombatScreen = () => {
   const { width, height } = useWindowDimensions();
   const anim = useCombatAnimations();
   const { playEffect } = useVfx();
-  const { roomConnection, localPlayerId, localRole, playerDisplayNameById } = useGame();
-  const localAnchorRef = useRef<Point | null>(null);
-  const selectedEnemyAnchorRef = useRef<Point | null>(null);
-  const timeoutIdsRef = useRef<ReturnType<typeof setTimeout>[]>([]);
+  const { roomConnection, localPlayerId, localRole, playerDisplayNameById, isHost } = useGame();
+  const { t } = useTranslation();
 
   const [selectedEnemyId, setSelectedEnemyId] = useState<string | null>(null);
 
-  const localCharacter =
-    roomConnection.characters.find((c) => c.playerId === localPlayerId) ?? null;
+  // Position tracking for directional lunge
+  const enemyPositionsRef = useRef<Record<string, Position>>({});
+  const playerPositionRef = useRef<Position>({ x: 0, y: 0 });
 
-  const effectiveEnemyId = getEffectiveEnemyId(roomConnection.enemies, selectedEnemyId);
-  const combatPlayers = buildCombatPlayers(roomConnection.players, playerDisplayNameById);
-  const isDead = (localCharacter?.hp ?? 0) <= 0;
+  // VFX anchor refs
+  const localAnchorRef = useRef<Position | null>(null);
+  const selectedEnemyAnchorRef = useRef<Position | null>(null);
+  const timeoutIdsRef = useRef<ReturnType<typeof setTimeout>[]>([]);
 
   useEffect(() => {
     return () => {
@@ -48,30 +57,82 @@ const CombatScreen = () => {
     };
   }, []);
 
+  const handleEnemyLayout = useCallback((enemyId: string, x: number, y: number) => {
+    enemyPositionsRef.current[enemyId] = { x, y };
+  }, []);
+
+  const handlePlayerLayout = useCallback((x: number, y: number) => {
+    playerPositionRef.current = { x, y };
+  }, []);
+
+  const localCharacter =
+    roomConnection.characters.find((c) => c.playerId === localPlayerId) ?? null;
+
+  const effectiveEnemyId = getEffectiveEnemyId(roomConnection.enemies, selectedEnemyId);
+  const combatPlayers = buildCombatPlayers(roomConnection.players, playerDisplayNameById);
+  const isDead = (localCharacter?.hp ?? 0) <= 0;
+  const allEnemiesDead =
+    roomConnection.enemies.length > 0 && roomConnection.enemies.every((e) => e.isDead);
+
+  const combatTurn = roomConnection.combatTurn;
+  const turnPhase = combatTurn?.phase ?? 'player';
+  const turnNumber = combatTurn?.turnNumber ?? 1;
+
+  const localTurnState = roomConnection.playerTurnStates.find(
+    (pts) => pts.playerId === localPlayerId,
+  );
+  const actionsRemaining = localTurnState?.actionsRemaining ?? 0;
+  const hasEndedTurn = localTurnState?.hasEndedTurn ?? false;
+
+  const abilityCooldown = localCharacter?.abilityCooldownLeft ?? 0;
+  const healCooldown = localCharacter?.healCooldownLeft ?? 0;
+
+  const getLungeToEnemy = useCallback((): { x: number; y: number } => {
+    const targetPos = effectiveEnemyId ? enemyPositionsRef.current[effectiveEnemyId] : null;
+    if (!targetPos) return { x: 0, y: -1 };
+    return computeDirection(playerPositionRef.current, targetPos);
+  }, [effectiveEnemyId]);
+
+  const getDirectionForEnemy = useCallback((enemyId: string): { x: number; y: number } => {
+    const enemyPos = enemyPositionsRef.current[enemyId];
+    if (!enemyPos) return { x: 0, y: 1 };
+    return computeDirection(enemyPos, playerPositionRef.current);
+  }, []);
+
+  useCombatTurnPhase({
+    isHost,
+    turnPhase,
+    localHp: localCharacter?.hp ?? 0,
+    combatEnemyPhase: roomConnection.combatEnemyPhase,
+    playEnemyPhase: anim.playEnemyPhase,
+    getDirectionForEnemy,
+  });
+
   const handleAttack = async () => {
-    if (!effectiveEnemyId || isDead || anim.isAnimating) return;
+    if (!effectiveEnemyId || isDead || anim.isAnimating || hasEndedTurn) return;
+    const direction = getLungeToEnemy();
     const result = await roomConnection.combatAttack(effectiveEnemyId);
     if (result) {
-      const r = result as { enemyDamage: number; counterDamage: number };
-      anim.playAttack(r.enemyDamage, r.counterDamage);
+      const r = result as { enemyDamage: number; roll: number; rollLabel: string };
+      anim.playAttack(r.enemyDamage, direction, r.roll, r.rollLabel);
     }
   };
 
   const handleAbility = async () => {
-    if (isDead || anim.isAnimating) return;
+    if (isDead || anim.isAnimating || hasEndedTurn) return;
     const result = await roomConnection.combatAbility(effectiveEnemyId);
     if (result) {
       const r = result as {
         damage?: number;
         damagePerEnemy?: number;
-        counterDamage?: number;
         ability: string;
+        roll: number;
+        rollLabel: string;
       };
       const damage = r.damage ?? r.damagePerEnemy ?? 0;
-      const counterDamage = r.counterDamage ?? 0;
       const abilityLabel =
         localRole && COMBAT.abilities[localRole] ? COMBAT.abilities[localRole].label : 'Ability';
-      anim.playAbility(damage, abilityLabel, counterDamage);
+      anim.playAbility(damage, abilityLabel, r.roll, r.rollLabel);
 
       playCombatAbilityVfx({
         role: localRole,
@@ -92,7 +153,7 @@ const CombatScreen = () => {
   };
 
   const handleHeal = async () => {
-    if (isDead || anim.isAnimating) return;
+    if (isDead || anim.isAnimating || hasEndedTurn) return;
     const result = await roomConnection.combatHeal();
     if (result) {
       const r = result as { hpRestored: number };
@@ -100,11 +161,115 @@ const CombatScreen = () => {
     }
   };
 
+  const handleEndTurn = () => {
+    void roomConnection.combatEndTurn();
+  };
+
+  const renderTurnBanner = () => {
+    if (turnPhase === 'enemy') {
+      return (
+        <Stack align="center" style={{ paddingVertical: 4 }}>
+          <Typography variant="caption" bold style={{ color: colors.combatDamage }}>
+            Enemy Phase
+          </Typography>
+        </Stack>
+      );
+    }
+
+    const endedCount = roomConnection.playerTurnStates.filter((pts) => pts.hasEndedTurn).length;
+    const totalPlayers = roomConnection.playerTurnStates.length;
+
+    return (
+      <Stack
+        direction="row"
+        justify="space-between"
+        align="center"
+        style={{ paddingHorizontal: 12, paddingVertical: 4 }}
+      >
+        <Typography variant="caption" bold style={{ color: colors.intentConfirmedBorder }}>
+          Turn {turnNumber}
+        </Typography>
+        <Typography variant="caption" style={{ color: colors.combatWaiting }}>
+          {endedCount}/{totalPlayers} ready
+        </Typography>
+      </Stack>
+    );
+  };
+
+  const renderBottomContent = () => {
+    if (allEnemiesDead) {
+      return (
+        <BottomSheet size="sm">
+          <Stack gap={12} align="center" style={{ paddingVertical: 8 }}>
+            <StatusBadge icon="⚔️" title="Victory!" titleColor={colors.combatOutcome} />
+            <Typography variant="caption" style={{ color: colors.combatWaiting }}>
+              {t('combat.enemiesKilled', { count: roomConnection.enemies.length })}
+            </Typography>
+            {isHost ? (
+              <Button
+                size="md"
+                onPress={() => void roomConnection.advanceScreen()}
+                label={t('combat.continue')}
+                disabled={roomConnection.isBusy}
+              />
+            ) : (
+              <Typography variant="caption" style={{ color: colors.combatWaiting }}>
+                {t('combat.waitingHost')}
+              </Typography>
+            )}
+          </Stack>
+        </BottomSheet>
+      );
+    }
+
+    if (isDead) return null;
+
+    if (turnPhase === 'enemy') {
+      return (
+        <BottomSheet size="sm">
+          <Stack align="center" style={{ paddingVertical: 16 }}>
+            <Typography variant="caption" style={{ color: colors.combatWaiting }}>
+              Enemies are attacking...
+            </Typography>
+          </Stack>
+        </BottomSheet>
+      );
+    }
+
+    if (hasEndedTurn) {
+      return (
+        <BottomSheet size="sm">
+          <Stack align="center" style={{ paddingVertical: 16 }}>
+            <Typography variant="caption" style={{ color: colors.combatWaiting }}>
+              Waiting for other players...
+            </Typography>
+          </Stack>
+        </BottomSheet>
+      );
+    }
+
+    return (
+      <BottomSheet size="sm">
+        <CombatActionGrid
+          onAttack={() => void handleAttack()}
+          onAbility={() => void handleAbility()}
+          onHeal={() => void handleHeal()}
+          onEndTurn={handleEndTurn}
+          actionsRemaining={actionsRemaining}
+          abilityCooldown={abilityCooldown}
+          healCooldown={healCooldown}
+          disabled={anim.isAnimating}
+        />
+      </BottomSheet>
+    );
+  };
+
   return (
     <Stack flex={1} style={{ backgroundColor: colors.backgroundDark }}>
       <StatusBar hidden />
       <Stack style={{ paddingTop: insets.top }}>
-        <CombatHeader character={localCharacter} />
+        <CombatHeader character={localCharacter} onFlee={() => roomConnection.leaveRoom()} />
+        {renderTurnBanner()}
       </Stack>
 
       <ScrollView
@@ -115,31 +280,15 @@ const CombatScreen = () => {
           paddingTop: 8,
         }}
       >
-        <Stack gap={4} align="center" style={{ paddingHorizontal: 12, paddingVertical: 8 }}>
-          <Typography
-            variant="body"
-            style={{
-              color: colors.combatTitle,
-              fontWeight: '700',
-              fontSize: 15,
-              textAlign: 'center',
-            }}
-          >
-            Zone de combat
-          </Typography>
-          <Typography
-            variant="caption"
-            style={{ color: colors.combatWaiting, textAlign: 'center' }}
-          >
-            Vous êtes dans une zone de combat libre
-          </Typography>
-        </Stack>
-
         <EnemyList
           selectedEnemyId={effectiveEnemyId}
           onSelectEnemy={setSelectedEnemyId}
           enemyShake={anim.enemyShake}
           enemyFlash={anim.enemyFlash}
+          enemyLungeX={anim.enemyLungeX}
+          enemyLungeY={anim.enemyLungeY}
+          attackingEnemyId={anim.attackingEnemyId}
+          onEnemyLayout={handleEnemyLayout}
           floatingTexts={anim.floatingTexts}
           onSelectedAnchorChange={(point) => {
             selectedEnemyAnchorRef.current = point;
@@ -149,8 +298,13 @@ const CombatScreen = () => {
         <CombatPortraitStrip
           players={combatPlayers}
           localPlayerId={localPlayerId}
-          playerLunge={anim.playerLunge}
+          playerLungeX={anim.playerLungeX}
+          playerLungeY={anim.playerLungeY}
           playerFlash={anim.playerFlash}
+          localHpOverride={
+            anim.prePhaseHp !== null ? anim.prePhaseHp - anim.enemyPhaseDamageDealt : null
+          }
+          onPlayerLayout={handlePlayerLayout}
           floatingTexts={anim.floatingTexts}
           onLocalAnchorChange={(point) => {
             localAnchorRef.current = point;
@@ -158,23 +312,29 @@ const CombatScreen = () => {
         />
       </ScrollView>
 
-      {!isDead ? (
-        <BottomSheet size="sm">
-          <CombatActionGrid
-            onAttack={() => void handleAttack()}
-            onAbility={() => void handleAbility()}
-            onHeal={() => void handleHeal()}
-            disabled={isDead || anim.isAnimating}
-          />
-        </BottomSheet>
-      ) : null}
+      {renderBottomContent()}
 
-      {isDead ? (
+      {isDead && !allEnemiesDead ? (
         <ModalBackdrop onPress={() => roomConnection.cancelAdventure()}>
           <StatusBadge icon="🏃" title="YOU DIED" titleColor={colors.combatDamage} />
         </ModalBackdrop>
       ) : null}
+
+      <ScreenFlashOverlay flash={anim.screenFlash} color={anim.screenFlashColor} />
     </Stack>
+  );
+};
+
+const ScreenFlashOverlay = ({ flash, color }: { flash: SharedValue<number>; color: string }) => {
+  const style = useAnimatedStyle(() => ({
+    opacity: flash.value,
+  }));
+
+  return (
+    <Animated.View
+      style={[StyleSheet.absoluteFill, { backgroundColor: color, zIndex: 200 }, style]}
+      pointerEvents="none"
+    />
   );
 };
 

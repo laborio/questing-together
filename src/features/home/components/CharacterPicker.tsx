@@ -8,6 +8,7 @@ import {
   Button,
   Portrait,
   Stack,
+  Stepper,
   TextField,
   TiledBackground,
   Typography,
@@ -15,37 +16,57 @@ import {
 import { colors } from '@/constants/colors';
 import { roles } from '@/constants/constants';
 import { useGame } from '@/contexts/GameContext';
+import { useTranslation } from '@/contexts/I18nContext';
+import type { ScreenType } from '@/types/adventure';
 import type { RoleId } from '@/types/player';
 import { portraitByRole } from '@/utils/portraitByRole';
 
 type CharacterPickerProps = {
-  mode: 'create' | 'join';
+  mode: 'create' | 'join' | 'playtest';
   takenRoles: RoleId[];
-  onConfirm: (name: string, roleId: RoleId) => void;
+  onConfirm: (name: string, roleId: RoleId, enemyCount?: number) => void;
   onBack: () => void;
+  playtestScreenType?: ScreenType;
 };
 
-const CharacterPicker = ({ mode, takenRoles, onConfirm, onBack }: CharacterPickerProps) => {
+const CharacterPicker = ({
+  mode,
+  takenRoles,
+  onConfirm,
+  onBack,
+  playtestScreenType,
+}: CharacterPickerProps) => {
   const insets = useSafeAreaInsets();
   const { roomConnection } = useGame();
   const { isBusy, roomError } = roomConnection;
+  const { t } = useTranslation();
 
   const [nameInput, setNameInput] = useState('');
   const [selectedRole, setSelectedRole] = useState<RoleId | null>(null);
+  const [enemyCount, setEnemyCount] = useState(3);
 
   const trimmedName = nameInput.replace(/\s+/g, '-').trim();
   const canConfirm = trimmedName.length > 0 && trimmedName.length <= 20 && selectedRole !== null;
   const focusedRole = selectedRole ? roles.find((r) => r.id === selectedRole) : null;
-  const title = mode === 'create' ? 'Create Adventure' : 'Join Adventure';
+  const showEnemyStepper =
+    mode === 'playtest' && (playtestScreenType === 'combat' || playtestScreenType === 'boss_fight');
+
+  const getTitle = () => {
+    if (mode === 'playtest') return t('playTest.title');
+    if (mode === 'create') return t('characterPicker.createAdventure');
+    return t('characterPicker.joinAdventure');
+  };
 
   const getConfirmLabel = () => {
-    if (isBusy) return mode === 'create' ? 'Creating...' : 'Joining...';
-    return mode === 'create' ? 'Create Room' : 'Join Room';
+    if (isBusy)
+      return mode === 'create' ? t('characterPicker.creating') : t('characterPicker.joining');
+    if (mode === 'playtest') return t('playTest.title');
+    return mode === 'create' ? t('home.createRoom') : t('home.joinRoom');
   };
 
   const handleConfirm = () => {
     if (canConfirm) {
-      onConfirm(trimmedName, selectedRole);
+      onConfirm(trimmedName, selectedRole, showEnemyStepper ? enemyCount : undefined);
     }
   };
 
@@ -69,11 +90,11 @@ const CharacterPicker = ({ mode, takenRoles, onConfirm, onBack }: CharacterPicke
           }}
         >
           <Typography variant="heading" style={{ color: colors.textOverlayHeading }}>
-            {title}
+            {getTitle()}
           </Typography>
 
           <Typography variant="caption" bold style={{ color: colors.textAvatarNameParchment }}>
-            Your Name
+            {t('characterPicker.yourName')}
           </Typography>
           <TextField
             value={nameInput}
@@ -82,16 +103,17 @@ const CharacterPicker = ({ mode, takenRoles, onConfirm, onBack }: CharacterPicke
             autoCapitalize="words"
             maxLength={20}
             editable={!isBusy}
-            placeholder="Your adventurer name"
+            placeholder={t('characterPicker.namePlaceholder')}
           />
 
           <Typography variant="caption" bold style={{ color: colors.textAvatarNameParchment }}>
-            Pick Your Class
+            {t('characterPicker.pickClass')}
           </Typography>
           <Stack direction="row" justify="space-evenly">
             {roles.map((role) => {
               const isTaken = takenRoles.includes(role.id);
               const isSelected = selectedRole === role.id;
+              const roleKey = role.id as 'warrior' | 'sage' | 'ranger';
 
               return (
                 <Pressable
@@ -111,7 +133,7 @@ const CharacterPicker = ({ mode, takenRoles, onConfirm, onBack }: CharacterPicke
                           ? colors.errorDark
                           : colors.textInputDark
                     }
-                    name={role.label}
+                    name={t(`roles.${roleKey}`)}
                     nameColor={
                       isSelected
                         ? colors.success
@@ -127,7 +149,7 @@ const CharacterPicker = ({ mode, takenRoles, onConfirm, onBack }: CharacterPicke
                       bold
                       style={{ color: colors.errorDark, marginTop: 2 }}
                     >
-                      Taken
+                      {t('characterPicker.taken')}
                     </Typography>
                   ) : null}
                 </Pressable>
@@ -135,9 +157,21 @@ const CharacterPicker = ({ mode, takenRoles, onConfirm, onBack }: CharacterPicke
             })}
           </Stack>
 
+          {showEnemyStepper ? (
+            <Stack gap={4} align="center" style={{ paddingTop: 8 }}>
+              <Typography variant="caption" bold style={{ color: colors.textAvatarNameParchment }}>
+                Enemies
+              </Typography>
+              <Stepper value={enemyCount} min={1} max={8} onValueChange={setEnemyCount} />
+            </Stack>
+          ) : null}
+
           {focusedRole ? (
-            <Alert variant="warning" title={focusedRole.label}>
-              {focusedRole.summary}
+            <Alert
+              variant="warning"
+              title={t(`roles.${focusedRole.id as 'warrior' | 'sage' | 'ranger'}`)}
+            >
+              {t(`roles.${focusedRole.id as 'warrior' | 'sage' | 'ranger'}Summary`)}
             </Alert>
           ) : null}
         </Stack>
@@ -146,7 +180,13 @@ const CharacterPicker = ({ mode, takenRoles, onConfirm, onBack }: CharacterPicke
       <BottomSheet size="xs">
         <Stack direction="row" gap={10}>
           <Stack flex={1}>
-            <Button size="sm" variant="ghost" disabled={isBusy} onPress={onBack} label="Back" />
+            <Button
+              size="sm"
+              variant="ghost"
+              disabled={isBusy}
+              onPress={onBack}
+              label={t('common.back')}
+            />
           </Stack>
           <Stack flex={1}>
             <Button

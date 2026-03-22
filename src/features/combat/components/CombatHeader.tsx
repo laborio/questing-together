@@ -1,10 +1,11 @@
-import { View } from 'react-native';
+import { Pressable, View } from 'react-native';
 import type { Character } from '@/api/models/character';
 import { AnimatedBarFill, Stack, Typography } from '@/components';
 import { colors } from '@/constants/colors';
 
 type CombatHeaderProps = {
   character: Character | null;
+  onFlee: () => void;
 };
 
 const badgeStyle = {
@@ -21,7 +22,7 @@ const badgeText = {
   fontWeight: '700' as const,
 };
 
-const CombatHeader = ({ character }: CombatHeaderProps) => {
+const CombatHeader = ({ character, onFlee }: CombatHeaderProps) => {
   const level = character?.level ?? 1;
   const gold = character?.gold ?? 0;
   const exp = character?.exp ?? 0;
@@ -70,6 +71,12 @@ const CombatHeader = ({ character }: CombatHeaderProps) => {
           {gold} g.
         </Typography>
       </Stack>
+
+      <Pressable onPress={onFlee} style={[badgeStyle, { backgroundColor: colors.riskyBadgeBg }]}>
+        <Typography variant="bodySm" style={{ color: colors.riskyBadgeText, fontWeight: '700' }}>
+          🏃
+        </Typography>
+      </Pressable>
     </Stack>
   );
 };

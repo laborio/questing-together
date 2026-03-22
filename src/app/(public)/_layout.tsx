@@ -7,12 +7,13 @@ const PublicLayout = () => {
   if (!game.auth.isAuthReady) return null;
 
   if (game.room) {
-    return <Redirect href={game.isLobby ? '/(game)/lobby' : '/(game)/adventure-setup'} />;
+    return <Redirect href={game.isLobby ? '/(game)/lobby' : '/(game)/adventure'} />;
   }
 
   return (
     <Stack screenOptions={{ headerShown: false }}>
       <Stack.Screen name="index" />
+      <Stack.Screen name="settings" />
     </Stack>
   );
 };

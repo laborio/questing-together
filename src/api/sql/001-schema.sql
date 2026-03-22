@@ -34,6 +34,7 @@ $$;
 create or replace function public.set_updated_at()
 returns trigger
 language plpgsql
+set search_path = public
 as $$
 begin
   new.updated_at = now();
@@ -44,6 +45,7 @@ $$;
 create or replace function public.generate_room_code(p_length int default 6)
 returns text
 language plpgsql
+set search_path = public
 as $$
 declare
   chars text := 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';

@@ -109,8 +109,9 @@ grant execute on function public.peek_room(text) to authenticated;
 -- ----------------------------
 -- create_room: requires display_name + role_id, seeds character
 -- ----------------------------
+drop function if exists public.create_room(public.player_id);
+drop function if exists public.create_room(public.player_id, text, public.role_id);
 create or replace function public.create_room(
-  p_player_id public.player_id default null,
   p_display_name text default null,
   p_role_id public.role_id default null
 )
@@ -176,9 +177,10 @@ $$;
 -- ----------------------------
 -- join_room: requires display_name + role_id, seeds character, hard cap 3
 -- ----------------------------
+drop function if exists public.join_room(text, public.player_id);
+drop function if exists public.join_room(text, public.player_id, text, public.role_id);
 create or replace function public.join_room(
   p_code text,
-  p_player_id public.player_id default null,
   p_display_name text default null,
   p_role_id public.role_id default null
 )
@@ -410,5 +412,7 @@ end;
 $$;
 
 grant execute on function public.cancel_adventure(uuid) to authenticated;
+grant execute on function public.create_room(text, public.role_id) to authenticated;
+grant execute on function public.join_room(text, text, public.role_id) to authenticated;
 
 commit;

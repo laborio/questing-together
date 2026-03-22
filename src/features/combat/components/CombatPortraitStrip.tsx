@@ -26,8 +26,11 @@ type FloatingText = {
 type CombatPortraitStripProps = {
   players: CombatPlayer[];
   localPlayerId: PlayerId | null;
-  playerLunge: SharedValue<number>;
+  playerLungeX: SharedValue<number>;
+  playerLungeY: SharedValue<number>;
   playerFlash: SharedValue<number>;
+  localHpOverride: number | null;
+  onPlayerLayout: (x: number, y: number) => void;
   floatingTexts: FloatingText[];
   onLocalAnchorChange?: (point: { x: number; y: number } | null) => void;
 };
@@ -38,8 +41,11 @@ const PORTRAIT_SIZE = 72;
 const CombatPortraitStrip = ({
   players,
   localPlayerId,
-  playerLunge,
+  playerLungeX,
+  playerLungeY,
   playerFlash,
+  localHpOverride,
+  onPlayerLayout,
   floatingTexts,
   onLocalAnchorChange,
 }: CombatPortraitStripProps) => {
@@ -47,7 +53,7 @@ const CombatPortraitStrip = ({
   const localPortraitRef = useRef<View>(null);
 
   const lungeStyle = useAnimatedStyle(() => ({
-    transform: [{ translateY: playerLunge.value }],
+    transform: [{ translateX: playerLungeX.value }, { translateY: playerLungeY.value }],
   }));
 
   const flashStyle = useAnimatedStyle(() => ({
@@ -78,12 +84,26 @@ const CombatPortraitStrip = ({
       {players.map((player) => {
         const isLocal = player.playerId === localPlayerId;
         const character = roomConnection.characters.find((c) => c.playerId === player.playerId);
-        const hp = character?.hp ?? 0;
+        const serverHp = character?.hp ?? 0;
         const hpMax = character?.hpMax ?? 100;
+        const hp = isLocal && localHpOverride !== null ? Math.max(0, localHpOverride) : serverHp;
         const isDead = hp <= 0;
 
         return (
-          <Stack key={player.playerId} align="center" gap={2} style={{ position: 'relative' }}>
+          <Stack
+            key={player.playerId}
+            align="center"
+            gap={2}
+            style={{ position: 'relative' }}
+            onLayout={
+              isLocal
+                ? (e) => {
+                    const { x, y, width } = e.nativeEvent.layout;
+                    onPlayerLayout(x + width / 2, y);
+                  }
+                : undefined
+            }
+          >
             <Animated.View style={isLocal ? lungeStyle : undefined}>
               <View
                 ref={isLocal ? localPortraitRef : undefined}

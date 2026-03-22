@@ -3,6 +3,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { BottomSheet, Button, RoomCard, Stack, Typography } from '@/components';
 import { colors } from '@/constants/colors';
 import { useGame } from '@/contexts/GameContext';
+import { useTranslation } from '@/contexts/I18nContext';
 
 type RoomBrowserProps = {
   onSelectRoom: (code: string) => void;
@@ -13,6 +14,7 @@ const RoomBrowser = ({ onSelectRoom, onBack }: RoomBrowserProps) => {
   const insets = useSafeAreaInsets();
   const { roomConnection } = useGame();
   const { myRooms, availableRooms, isBusy, roomError } = roomConnection;
+  const { t } = useTranslation();
 
   return (
     <Stack flex={1} style={{ backgroundColor: colors.backgroundDark }}>
@@ -27,7 +29,7 @@ const RoomBrowser = ({ onSelectRoom, onBack }: RoomBrowserProps) => {
         {myRooms.length > 0 ? (
           <Stack gap={8}>
             <Typography variant="h4" style={{ color: colors.combatTitle }}>
-              Your Rooms
+              {t('roomBrowser.yourRooms')}
             </Typography>
             {myRooms.map((r) => (
               <RoomCard
@@ -47,7 +49,7 @@ const RoomBrowser = ({ onSelectRoom, onBack }: RoomBrowserProps) => {
 
         <Stack gap={8}>
           <Typography variant="h4" style={{ color: colors.combatTitle }}>
-            Available Rooms
+            {t('roomBrowser.availableRooms')}
           </Typography>
           {availableRooms.length > 0 ? (
             availableRooms.map((r) => (
@@ -66,14 +68,20 @@ const RoomBrowser = ({ onSelectRoom, onBack }: RoomBrowserProps) => {
               variant="body1"
               style={{ color: colors.combatWaiting, textAlign: 'center' }}
             >
-              No rooms available
+              {t('roomBrowser.noRooms')}
             </Typography>
           )}
         </Stack>
       </ScrollView>
 
       <BottomSheet size="xs">
-        <Button size="sm" variant="ghost" disabled={isBusy} onPress={onBack} label="Back" />
+        <Button
+          size="sm"
+          variant="ghost"
+          disabled={isBusy}
+          onPress={onBack}
+          label={t('common.back')}
+        />
         {roomError ? <Typography variant="error">{roomError}</Typography> : null}
       </BottomSheet>
     </Stack>

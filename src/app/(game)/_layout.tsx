@@ -1,7 +1,7 @@
 import { Redirect, Stack } from 'expo-router';
 import { useGame } from '@/contexts/GameContext';
 
-export default function GameLayout() {
+const GameLayout = () => {
   const game = useGame();
 
   if (!game.room) {
@@ -11,8 +11,10 @@ export default function GameLayout() {
   return (
     <Stack screenOptions={{ headerShown: false }}>
       <Stack.Screen name="lobby" />
-      <Stack.Screen name="adventure-setup" />
+      <Stack.Screen name="adventure" />
       <Stack.Screen name="story" />
     </Stack>
   );
-}
+};
+
+export default GameLayout;

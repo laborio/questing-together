@@ -1,5 +1,5 @@
 import { StatusBar } from 'expo-status-bar';
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import { ScrollView } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { BottomSheet, Button, ModalBackdrop, Stack, StatusBadge, Typography } from '@/components';
@@ -12,8 +12,19 @@ import CombatHeader from '@/features/combat/components/CombatHeader';
 import CombatPortraitStrip from '@/features/combat/components/CombatPortraitStrip';
 import EnemyList from '@/features/combat/components/EnemyList';
 import useCombatAnimations from '@/features/combat/hooks/useCombatAnimations';
+import useCombatTurnPhase from '@/features/combat/hooks/useCombatTurnPhase';
 import { buildCombatPlayers } from '@/features/combat/utils/buildCombatPlayers';
 import { getEffectiveEnemyId } from '@/features/combat/utils/getEffectiveEnemyId';
+
+type Position = { x: number; y: number };
+
+const computeDirection = (from: Position, to: Position): { x: number; y: number } => {
+  const dx = to.x - from.x;
+  const dy = to.y - from.y;
+  const dist = Math.sqrt(dx * dx + dy * dy);
+  if (dist === 0) return { x: 0, y: -1 };
+  return { x: dx / dist, y: dy / dist };
+};
 
 const CombatScreen = () => {
   const insets = useSafeAreaInsets();
@@ -22,7 +33,18 @@ const CombatScreen = () => {
   const { t } = useTranslation();
 
   const [selectedEnemyId, setSelectedEnemyId] = useState<string | null>(null);
-  const enemyPhaseTriggeredRef = useRef(false);
+
+  // Position tracking for directional lunge
+  const enemyPositionsRef = useRef<Record<string, Position>>({});
+  const playerPositionRef = useRef<Position>({ x: 0, y: 0 });
+
+  const handleEnemyLayout = useCallback((enemyId: string, x: number, y: number) => {
+    enemyPositionsRef.current[enemyId] = { x, y };
+  }, []);
+
+  const handlePlayerLayout = useCallback((x: number, y: number) => {
+    playerPositionRef.current = { x, y };
+  }, []);
 
   const localCharacter =
     roomConnection.characters.find((c) => c.playerId === localPlayerId) ?? null;
@@ -46,32 +68,34 @@ const CombatScreen = () => {
   const abilityCooldown = localCharacter?.abilityCooldownLeft ?? 0;
   const healCooldown = localCharacter?.healCooldownLeft ?? 0;
 
-  // Host auto-triggers enemy phase
-  useEffect(() => {
-    if (!isHost || turnPhase !== 'enemy' || enemyPhaseTriggeredRef.current) return;
-    enemyPhaseTriggeredRef.current = true;
-    void roomConnection.combatEnemyPhase().then((result) => {
-      if (result) {
-        const r = result as { attacks: { damage: number }[] };
-        const totalDamage = r.attacks.reduce((sum, a) => sum + a.damage, 0);
-        anim.playEnemyPhase(totalDamage);
-      }
-    });
-  }, [isHost, turnPhase, roomConnection, anim]);
+  const getLungeToEnemy = useCallback((): { x: number; y: number } => {
+    const targetPos = effectiveEnemyId ? enemyPositionsRef.current[effectiveEnemyId] : null;
+    if (!targetPos) return { x: 0, y: -1 };
+    return computeDirection(playerPositionRef.current, targetPos);
+  }, [effectiveEnemyId]);
 
-  // Reset trigger flag when phase changes away from enemy
-  useEffect(() => {
-    if (turnPhase !== 'enemy') {
-      enemyPhaseTriggeredRef.current = false;
-    }
-  }, [turnPhase]);
+  const getLungeToPlayer = useCallback((): { x: number; y: number } => {
+    const firstEnemy = roomConnection.enemies.find((e) => !e.isDead);
+    const enemyPos = firstEnemy ? enemyPositionsRef.current[firstEnemy.id] : null;
+    if (!enemyPos) return { x: 0, y: 1 };
+    return computeDirection(enemyPos, playerPositionRef.current);
+  }, [roomConnection.enemies]);
+
+  useCombatTurnPhase({
+    isHost,
+    turnPhase,
+    combatEnemyPhase: roomConnection.combatEnemyPhase,
+    playEnemyPhase: anim.playEnemyPhase,
+    getLungeToPlayer,
+  });
 
   const handleAttack = async () => {
     if (!effectiveEnemyId || isDead || anim.isAnimating || hasEndedTurn) return;
+    const direction = getLungeToEnemy();
     const result = await roomConnection.combatAttack(effectiveEnemyId);
     if (result) {
       const r = result as { enemyDamage: number };
-      anim.playAttack(r.enemyDamage);
+      anim.playAttack(r.enemyDamage, direction);
     }
   };
 
@@ -224,15 +248,19 @@ const CombatScreen = () => {
           onSelectEnemy={setSelectedEnemyId}
           enemyShake={anim.enemyShake}
           enemyFlash={anim.enemyFlash}
-          enemyLunge={anim.enemyLunge}
+          enemyLungeX={anim.enemyLungeX}
+          enemyLungeY={anim.enemyLungeY}
+          onEnemyLayout={handleEnemyLayout}
           floatingTexts={anim.floatingTexts}
         />
 
         <CombatPortraitStrip
           players={combatPlayers}
           localPlayerId={localPlayerId}
-          playerLunge={anim.playerLunge}
+          playerLungeX={anim.playerLungeX}
+          playerLungeY={anim.playerLungeY}
           playerFlash={anim.playerFlash}
+          onPlayerLayout={handlePlayerLayout}
           floatingTexts={anim.floatingTexts}
         />
       </ScrollView>

@@ -16,20 +16,25 @@ type FloatingText = {
   target: 'enemy' | 'player';
 };
 
+type LungeDirection = { x: number; y: number };
+
 type CombatAnimations = {
-  playerLunge: SharedValue<number>;
+  playerLungeX: SharedValue<number>;
+  playerLungeY: SharedValue<number>;
   playerFlash: SharedValue<number>;
   enemyShake: SharedValue<number>;
   enemyFlash: SharedValue<number>;
-  enemyLunge: SharedValue<number>;
+  enemyLungeX: SharedValue<number>;
+  enemyLungeY: SharedValue<number>;
   floatingTexts: FloatingText[];
   isAnimating: boolean;
-  playAttack: (enemyDamage: number) => void;
+  playAttack: (enemyDamage: number, direction: LungeDirection) => void;
   playAbility: (damage: number, abilityName: string) => void;
   playHeal: (amount: number) => void;
-  playEnemyPhase: (totalDamage: number) => void;
+  playEnemyPhase: (totalDamage: number, direction: LungeDirection) => void;
 };
 
+const LUNGE_DISTANCE = 30;
 const LUNGE_IN = 120;
 const LUNGE_OUT = 150;
 const SHAKE_STEP = 40;
@@ -41,11 +46,13 @@ const HEAL_FLASH_TOTAL = 400;
 const FLOATING_LIFETIME = 1000;
 
 const useCombatAnimations = (): CombatAnimations => {
-  const playerLunge = useSharedValue(0);
+  const playerLungeX = useSharedValue(0);
+  const playerLungeY = useSharedValue(0);
   const playerFlash = useSharedValue(0);
   const enemyShake = useSharedValue(0);
   const enemyFlash = useSharedValue(0);
-  const enemyLunge = useSharedValue(0);
+  const enemyLungeX = useSharedValue(0);
+  const enemyLungeY = useSharedValue(0);
   const [floatingTexts, setFloatingTexts] = useState<FloatingText[]>([]);
   const [isAnimating, setIsAnimating] = useState(false);
   const floatingIdRef = useRef(0);
@@ -60,11 +67,16 @@ const useCombatAnimations = (): CombatAnimations => {
   }, []);
 
   const playAttack = useCallback(
-    (enemyDamage: number) => {
+    (enemyDamage: number, direction: LungeDirection) => {
       setIsAnimating(true);
 
-      playerLunge.value = withSequence(
-        withTiming(-20, { duration: LUNGE_IN }),
+      // Directional lunge toward target enemy
+      playerLungeX.value = withSequence(
+        withTiming(direction.x * LUNGE_DISTANCE, { duration: LUNGE_IN }),
+        withTiming(0, { duration: LUNGE_OUT }),
+      );
+      playerLungeY.value = withSequence(
+        withTiming(direction.y * LUNGE_DISTANCE, { duration: LUNGE_IN }),
         withTiming(0, { duration: LUNGE_OUT }),
       );
 
@@ -91,7 +103,7 @@ const useCombatAnimations = (): CombatAnimations => {
         setIsAnimating(false);
       });
     },
-    [playerLunge, enemyShake, enemyFlash, addFloating],
+    [playerLungeX, playerLungeY, enemyShake, enemyFlash, addFloating],
   );
 
   const playAbility = useCallback(
@@ -129,12 +141,16 @@ const useCombatAnimations = (): CombatAnimations => {
   );
 
   const playEnemyPhase = useCallback(
-    (totalDamage: number) => {
+    (totalDamage: number, direction: LungeDirection) => {
       setIsAnimating(true);
 
-      // Enemies lunge forward toward players
-      enemyLunge.value = withSequence(
-        withTiming(20, { duration: LUNGE_IN }),
+      // Enemies lunge toward players
+      enemyLungeX.value = withSequence(
+        withTiming(direction.x * LUNGE_DISTANCE, { duration: LUNGE_IN }),
+        withTiming(0, { duration: LUNGE_OUT }),
+      );
+      enemyLungeY.value = withSequence(
+        withTiming(direction.y * LUNGE_DISTANCE, { duration: LUNGE_IN }),
         withTiming(0, { duration: LUNGE_OUT }),
       );
 
@@ -159,7 +175,7 @@ const useCombatAnimations = (): CombatAnimations => {
         setIsAnimating(false);
       });
     },
-    [enemyLunge, playerFlash, addFloating],
+    [enemyLungeX, enemyLungeY, playerFlash, addFloating],
   );
 
   const playHeal = useCallback(
@@ -183,11 +199,13 @@ const useCombatAnimations = (): CombatAnimations => {
   );
 
   return {
-    playerLunge,
+    playerLungeX,
+    playerLungeY,
     playerFlash,
     enemyShake,
     enemyFlash,
-    enemyLunge,
+    enemyLungeX,
+    enemyLungeY,
     floatingTexts,
     isAnimating,
     playAttack,

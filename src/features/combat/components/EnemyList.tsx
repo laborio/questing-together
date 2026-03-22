@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect } from 'react';
 import { Pressable, View } from 'react-native';
 import type { SharedValue } from 'react-native-reanimated';
 import Animated, { useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
@@ -8,6 +8,7 @@ import { colors } from '@/constants/colors';
 import { useGame } from '@/contexts/GameContext';
 import { useTranslation } from '@/contexts/I18nContext';
 import FloatingDamage from '@/features/combat/components/FloatingDamage';
+import useDyingEnemies from '@/features/combat/hooks/useDyingEnemies';
 
 const VISIBLE_COUNT = 3;
 const DEATH_ANIM_MS = 600;
@@ -26,7 +27,9 @@ type EnemyListProps = {
   onSelectEnemy: (id: string) => void;
   enemyShake: SharedValue<number>;
   enemyFlash: SharedValue<number>;
-  enemyLunge: SharedValue<number>;
+  enemyLungeX: SharedValue<number>;
+  enemyLungeY: SharedValue<number>;
+  onEnemyLayout: (enemyId: string, x: number, y: number) => void;
   floatingTexts: FloatingText[];
 };
 
@@ -71,43 +74,17 @@ const EnemyList = ({
   onSelectEnemy,
   enemyShake,
   enemyFlash,
-  enemyLunge,
+  enemyLungeX,
+  enemyLungeY,
+  onEnemyLayout,
   floatingTexts,
 }: EnemyListProps) => {
   const { roomConnection } = useGame();
   const { t } = useTranslation();
-  const prevAliveIdsRef = useRef<Set<string>>(new Set());
-  const [dyingEnemies, setDyingEnemies] = useState<{ id: string; nameKey: string }[]>([]);
 
   const allEnemies = roomConnection.enemies;
-  const aliveEnemies = allEnemies.filter((e) => !e.isDead);
+  const { dyingEnemies, aliveEnemies } = useDyingEnemies(allEnemies);
   const killCount = allEnemies.filter((e) => e.isDead).length;
-
-  // Detect newly dead enemies
-  useEffect(() => {
-    const currentAliveIds = new Set(aliveEnemies.map((e) => e.id));
-    const prevIds = prevAliveIdsRef.current;
-
-    const newlyDead = allEnemies.filter((e) => e.isDead && prevIds.has(e.id));
-    if (newlyDead.length > 0) {
-      setDyingEnemies((prev) => [
-        ...prev,
-        ...newlyDead.map((e) => ({ id: e.id, nameKey: e.name })),
-      ]);
-
-      const start = performance.now();
-      const poll = () => {
-        if (performance.now() - start >= DEATH_ANIM_MS) {
-          setDyingEnemies((prev) => prev.filter((d) => !newlyDead.some((nd) => nd.id === d.id)));
-        } else {
-          requestAnimationFrame(poll);
-        }
-      };
-      requestAnimationFrame(poll);
-    }
-
-    prevAliveIdsRef.current = currentAliveIds;
-  }, [aliveEnemies, allEnemies]);
 
   const frontEnemies = aliveEnemies.slice(0, VISIBLE_COUNT);
   const backEnemies = aliveEnemies.slice(VISIBLE_COUNT);
@@ -124,7 +101,7 @@ const EnemyList = ({
   }));
 
   const lungeStyle = useAnimatedStyle(() => ({
-    transform: [{ translateY: enemyLunge.value }],
+    transform: [{ translateX: enemyLungeX.value }, { translateY: enemyLungeY.value }],
   }));
 
   const flashStyle = useAnimatedStyle(() => ({
@@ -160,7 +137,14 @@ const EnemyList = ({
             const isSelected = enemy.id === effectiveSelected;
 
             return (
-              <Pressable key={enemy.id} onPress={() => onSelectEnemy(enemy.id)}>
+              <Pressable
+                key={enemy.id}
+                onPress={() => onSelectEnemy(enemy.id)}
+                onLayout={(e) => {
+                  const { x, y, width } = e.nativeEvent.layout;
+                  onEnemyLayout(enemy.id, x + width / 2, y);
+                }}
+              >
                 <Stack align="center" gap={2} style={{ position: 'relative' }}>
                   <Animated.View style={isSelected ? shakeStyle : undefined}>
                     <View

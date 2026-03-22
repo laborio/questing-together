@@ -24,8 +24,10 @@ type FloatingText = {
 type CombatPortraitStripProps = {
   players: CombatPlayer[];
   localPlayerId: PlayerId | null;
-  playerLunge: SharedValue<number>;
+  playerLungeX: SharedValue<number>;
+  playerLungeY: SharedValue<number>;
   playerFlash: SharedValue<number>;
+  onPlayerLayout: (x: number, y: number) => void;
   floatingTexts: FloatingText[];
 };
 
@@ -35,14 +37,16 @@ const PORTRAIT_SIZE = 72;
 const CombatPortraitStrip = ({
   players,
   localPlayerId,
-  playerLunge,
+  playerLungeX,
+  playerLungeY,
   playerFlash,
+  onPlayerLayout,
   floatingTexts,
 }: CombatPortraitStripProps) => {
   const { roomConnection } = useGame();
 
   const lungeStyle = useAnimatedStyle(() => ({
-    transform: [{ translateY: playerLunge.value }],
+    transform: [{ translateX: playerLungeX.value }, { translateY: playerLungeY.value }],
   }));
 
   const flashStyle = useAnimatedStyle(() => ({
@@ -61,7 +65,20 @@ const CombatPortraitStrip = ({
         const isDead = hp <= 0;
 
         return (
-          <Stack key={player.playerId} align="center" gap={2} style={{ position: 'relative' }}>
+          <Stack
+            key={player.playerId}
+            align="center"
+            gap={2}
+            style={{ position: 'relative' }}
+            onLayout={
+              isLocal
+                ? (e) => {
+                    const { x, y, width } = e.nativeEvent.layout;
+                    onPlayerLayout(x + width / 2, y);
+                  }
+                : undefined
+            }
+          >
             <Animated.View style={isLocal ? lungeStyle : undefined}>
               <View
                 style={{

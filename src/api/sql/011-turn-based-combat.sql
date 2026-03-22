@@ -234,6 +234,8 @@ declare
   v_gold_gained int := 0;
   v_turn_id uuid;
   v_actions int;
+  v_roll int;
+  v_roll_label text;
 begin
   if v_user_id is null then
     raise exception 'Not authenticated';
@@ -283,6 +285,24 @@ begin
 
   v_attack_damage := 3 + (v_char_level - 1);
 
+  -- Roll D20 (0-20)
+  v_roll := floor(random() * 21)::int;
+  if v_roll = 0 then
+    v_attack_damage := 0;
+    v_roll_label := 'critical_fail';
+  elsif v_roll <= 4 then
+    v_attack_damage := greatest(1, v_attack_damage / 2);
+    v_roll_label := 'weak';
+  elsif v_roll = 20 then
+    v_attack_damage := v_attack_damage * 3;
+    v_roll_label := 'critical';
+  elsif v_roll >= 16 then
+    v_attack_damage := (v_attack_damage * 3) / 2;
+    v_roll_label := 'strong';
+  else
+    v_roll_label := 'normal';
+  end if;
+
   -- Get enemy
   select e.hp, e.level, e.is_dead
   into v_enemy_hp, v_enemy_level, v_enemy_dead
@@ -320,7 +340,9 @@ begin
     'enemyDamage', v_attack_damage,
     'enemyKilled', v_killed,
     'xpGained', v_xp_gained,
-    'goldGained', v_gold_gained
+    'goldGained', v_gold_gained,
+    'roll', v_roll,
+    'rollLabel', v_roll_label
   );
 end;
 $$;
@@ -351,6 +373,8 @@ declare
   v_turn_id uuid;
   v_actions int;
   v_cooldown int;
+  v_roll int;
+  v_roll_label text;
 begin
   if v_user_id is null then
     raise exception 'Not authenticated';
@@ -404,7 +428,21 @@ begin
     raise exception 'Ability on cooldown (%s turns left)', v_cooldown;
   end if;
 
-  -- WARRIOR: Taunt
+  -- Roll D20 (0-20)
+  v_roll := floor(random() * 21)::int;
+  if v_roll = 0 then
+    v_roll_label := 'critical_fail';
+  elsif v_roll <= 4 then
+    v_roll_label := 'weak';
+  elsif v_roll = 20 then
+    v_roll_label := 'critical';
+  elsif v_roll >= 16 then
+    v_roll_label := 'strong';
+  else
+    v_roll_label := 'normal';
+  end if;
+
+  -- WARRIOR: Taunt (no roll effect — always works)
   if v_role_id = 'warrior' then
     update public.characters
     set taunt_turns_left = 5, ability_cooldown_left = 3
@@ -414,7 +452,7 @@ begin
     set actions_remaining = actions_remaining - 1
     where combat_turn_id = v_turn_id and player_id = v_player_id;
 
-    return jsonb_build_object('ability', 'taunt', 'tauntTurns', 5);
+    return jsonb_build_object('ability', 'taunt', 'tauntTurns', 5, 'roll', v_roll, 'rollLabel', v_roll_label);
   end if;
 
   -- SAGE: Fireball 6 damage single target
@@ -432,6 +470,17 @@ begin
     end if;
 
     v_damage := 6;
+    -- Apply roll modifier
+    if v_roll_label = 'critical_fail' then
+      v_damage := 0;
+    elsif v_roll_label = 'weak' then
+      v_damage := greatest(1, v_damage / 2);
+    elsif v_roll_label = 'critical' then
+      v_damage := v_damage * 3;
+    elsif v_roll_label = 'strong' then
+      v_damage := (v_damage * 3) / 2;
+    end if;
+
     update public.enemies set hp = greatest(0, hp - v_damage) where id = p_enemy_id;
 
     if v_enemy_record.hp - v_damage <= 0 then
@@ -453,13 +502,24 @@ begin
 
     return jsonb_build_object(
       'ability', 'fireball', 'damage', v_damage,
-      'kills', v_kills, 'xpGained', v_total_xp, 'goldGained', v_total_gold
+      'kills', v_kills, 'xpGained', v_total_xp, 'goldGained', v_total_gold,
+      'roll', v_roll, 'rollLabel', v_roll_label
     );
   end if;
 
   -- RANGER: Arrows 3 damage AoE
   if v_role_id = 'ranger' then
     v_damage := 3;
+    -- Apply roll modifier
+    if v_roll_label = 'critical_fail' then
+      v_damage := 0;
+    elsif v_roll_label = 'weak' then
+      v_damage := greatest(1, v_damage / 2);
+    elsif v_roll_label = 'critical' then
+      v_damage := v_damage * 3;
+    elsif v_roll_label = 'strong' then
+      v_damage := (v_damage * 3) / 2;
+    end if;
 
     for v_enemy_record in
       select e.id, e.hp, e.level
@@ -491,7 +551,8 @@ begin
 
     return jsonb_build_object(
       'ability', 'arrows', 'damagePerEnemy', v_damage,
-      'kills', v_kills, 'xpGained', v_total_xp, 'goldGained', v_total_gold
+      'kills', v_kills, 'xpGained', v_total_xp, 'goldGained', v_total_gold,
+      'roll', v_roll, 'rollLabel', v_roll_label
     );
   end if;
 

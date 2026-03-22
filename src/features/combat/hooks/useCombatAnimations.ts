@@ -32,16 +32,31 @@ interface CombatAnimations {
   enemyFlash: SharedValue<number>;
   enemyLungeX: SharedValue<number>;
   enemyLungeY: SharedValue<number>;
+  screenFlash: SharedValue<number>;
+  screenFlashColor: string;
   attackingEnemyId: string | null;
   enemyPhaseDamageDealt: number;
   prePhaseHp: number | null;
   floatingTexts: FloatingText[];
   isAnimating: boolean;
-  playAttack: (enemyDamage: number, direction: LungeDirection) => void;
-  playAbility: (damage: number, abilityName: string) => void;
+  playAttack: (
+    enemyDamage: number,
+    direction: LungeDirection,
+    roll: number,
+    rollLabel: string,
+  ) => void;
+  playAbility: (damage: number, abilityName: string, roll: number, rollLabel: string) => void;
   playHeal: (amount: number) => void;
   playEnemyPhase: (attacks: EnemyAttackInfo[], currentHp: number) => void;
 }
+
+const ROLL_COLORS: Record<string, string> = {
+  critical_fail: '#888888',
+  weak: colors.combatDamage,
+  normal: colors.combatAbilityDamage,
+  strong: colors.combatAbilityBuff,
+  critical: colors.intentConfirmedBorder,
+};
 
 const LUNGE_DISTANCE = 30;
 const LUNGE_IN = 120;
@@ -64,6 +79,8 @@ const useCombatAnimations = (): CombatAnimations => {
   const enemyFlash = useSharedValue(0);
   const enemyLungeX = useSharedValue(0);
   const enemyLungeY = useSharedValue(0);
+  const screenFlash = useSharedValue(0);
+  const [screenFlashColor, setScreenFlashColor] = useState('transparent');
   const [floatingTexts, setFloatingTexts] = useState<FloatingText[]>([]);
   const [isAnimating, setIsAnimating] = useState(false);
   const [attackingEnemyId, setAttackingEnemyId] = useState<string | null>(null);
@@ -80,9 +97,32 @@ const useCombatAnimations = (): CombatAnimations => {
     });
   }, []);
 
+  const triggerScreenFlash = useCallback(
+    (rollLabel: string) => {
+      if (rollLabel === 'critical_fail') {
+        setScreenFlashColor('rgba(255, 50, 50, 0.25)');
+      } else if (rollLabel === 'strong') {
+        setScreenFlashColor('rgba(255, 179, 0, 0.15)');
+      } else if (rollLabel === 'critical') {
+        setScreenFlashColor('rgba(255, 215, 0, 0.3)');
+      } else {
+        return;
+      }
+      screenFlash.value = withSequence(
+        withTiming(1, { duration: 80 }),
+        withTiming(0, { duration: 400 }),
+      );
+    },
+    [screenFlash],
+  );
+
   const playAttack = useCallback(
-    (enemyDamage: number, direction: LungeDirection) => {
+    (enemyDamage: number, direction: LungeDirection, roll: number, rollLabel: string) => {
       setIsAnimating(true);
+      triggerScreenFlash(rollLabel);
+
+      // Show roll first
+      addFloating(`🎲 ${roll}`, ROLL_COLORS[rollLabel] ?? colors.combatDamage, 'player');
 
       playerLungeX.value = withSequence(
         withTiming(direction.x * LUNGE_DISTANCE, { duration: LUNGE_IN }),
@@ -109,19 +149,28 @@ const useCombatAnimations = (): CombatAnimations => {
       );
 
       scheduleCallback(LUNGE_IN + 30, () => {
-        addFloating(`-${enemyDamage}`, colors.combatDamage, 'enemy');
+        const dmgText = rollLabel === 'critical_fail' ? 'MISS' : `-${enemyDamage}`;
+        const dmgColor =
+          rollLabel === 'critical' || rollLabel === 'strong'
+            ? colors.intentConfirmedBorder
+            : colors.combatDamage;
+        addFloating(dmgText, dmgColor, 'enemy');
       });
 
       scheduleCallback(LUNGE_IN + LUNGE_OUT + FLASH_OUT, () => {
         setIsAnimating(false);
       });
     },
-    [playerLungeX, playerLungeY, enemyShake, enemyFlash, addFloating],
+    [playerLungeX, playerLungeY, enemyShake, enemyFlash, addFloating, triggerScreenFlash],
   );
 
   const playAbility = useCallback(
-    (damage: number, abilityName: string) => {
+    (damage: number, abilityName: string, roll: number, rollLabel: string) => {
       setIsAnimating(true);
+      triggerScreenFlash(rollLabel);
+
+      // Show roll
+      addFloating(`🎲 ${roll}`, ROLL_COLORS[rollLabel] ?? colors.combatAbilityDamage, 'player');
 
       enemyFlash.value = withSequence(
         withTiming(1, { duration: 80 }),
@@ -140,7 +189,10 @@ const useCombatAnimations = (): CombatAnimations => {
 
       scheduleCallback(100, () => {
         if (damage > 0) {
-          addFloating(`-${damage}`, colors.combatAbilityDamage, 'enemy');
+          const dmgColor =
+            rollLabel === 'critical' ? colors.intentConfirmedBorder : colors.combatAbilityDamage;
+          const dmgText = rollLabel === 'critical_fail' ? 'MISS' : `-${damage}`;
+          addFloating(dmgText, dmgColor, 'enemy');
         } else {
           addFloating(abilityName, colors.combatAbilityBuff, 'player');
         }
@@ -150,7 +202,7 @@ const useCombatAnimations = (): CombatAnimations => {
         setIsAnimating(false);
       });
     },
-    [enemyFlash, enemyShake, addFloating],
+    [enemyFlash, enemyShake, addFloating, triggerScreenFlash],
   );
 
   const playSingleEnemyAttack = useCallback(
@@ -239,6 +291,8 @@ const useCombatAnimations = (): CombatAnimations => {
     enemyFlash,
     enemyLungeX,
     enemyLungeY,
+    screenFlash,
+    screenFlashColor,
     attackingEnemyId,
     enemyPhaseDamageDealt,
     prePhaseHp,

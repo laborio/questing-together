@@ -1,6 +1,8 @@
 import { StatusBar } from 'expo-status-bar';
 import { useCallback, useRef, useState } from 'react';
-import { ScrollView } from 'react-native';
+import { ScrollView, StyleSheet } from 'react-native';
+import type { SharedValue } from 'react-native-reanimated';
+import Animated, { useAnimatedStyle } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { BottomSheet, Button, ModalBackdrop, Stack, StatusBadge, Typography } from '@/components';
 import { colors } from '@/constants/colors';
@@ -94,8 +96,8 @@ const CombatScreen = () => {
     const direction = getLungeToEnemy();
     const result = await roomConnection.combatAttack(effectiveEnemyId);
     if (result) {
-      const r = result as { enemyDamage: number };
-      anim.playAttack(r.enemyDamage, direction);
+      const r = result as { enemyDamage: number; roll: number; rollLabel: string };
+      anim.playAttack(r.enemyDamage, direction, r.roll, r.rollLabel);
     }
   };
 
@@ -107,11 +109,13 @@ const CombatScreen = () => {
         damage?: number;
         damagePerEnemy?: number;
         ability: string;
+        roll: number;
+        rollLabel: string;
       };
       const damage = r.damage ?? r.damagePerEnemy ?? 0;
       const abilityLabel =
         localRole && COMBAT.abilities[localRole] ? COMBAT.abilities[localRole].label : 'Ability';
-      anim.playAbility(damage, abilityLabel);
+      anim.playAbility(damage, abilityLabel, r.roll, r.rollLabel);
     }
   };
 
@@ -276,7 +280,22 @@ const CombatScreen = () => {
           <StatusBadge icon="🏃" title="YOU DIED" titleColor={colors.combatDamage} />
         </ModalBackdrop>
       ) : null}
+
+      <ScreenFlashOverlay flash={anim.screenFlash} color={anim.screenFlashColor} />
     </Stack>
+  );
+};
+
+const ScreenFlashOverlay = ({ flash, color }: { flash: SharedValue<number>; color: string }) => {
+  const style = useAnimatedStyle(() => ({
+    opacity: flash.value,
+  }));
+
+  return (
+    <Animated.View
+      style={[StyleSheet.absoluteFill, { backgroundColor: color, zIndex: 200 }, style]}
+      pointerEvents="none"
+    />
   );
 };
 

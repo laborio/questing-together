@@ -41,6 +41,18 @@ const HANDLE_DB_VERSION = 1;
 const HANDLE_STORE_NAME = 'file-system-handles';
 const REPO_ROOT_HANDLE_KEY = 'repo-root';
 const RECENT_FILES_LIMIT = 8;
+const PANEL_RESIZE_LIMITS = {
+  previewMin: 460,
+  sidebarMin: 620,
+  layersMin: 280,
+  inspectorMin: 320,
+};
+const PREVIEW_VIEWPORT_LIMITS = {
+  minZoom: 0.5,
+  maxZoom: 4,
+  buttonStep: 0.25,
+  wheelFactor: 1.12,
+};
 
 let spriteLibrary = {};
 
@@ -48,6 +60,14 @@ function createDefaultPreviewBackground() {
   return {
     preset: 'ember',
     ...cloneData(PREVIEW_BACKDROPS.ember),
+  };
+}
+
+function createDefaultPreviewViewport() {
+  return {
+    zoom: 1,
+    centerX: STAGE.width / 2,
+    centerY: STAGE.height / 2,
   };
 }
 
@@ -134,10 +154,19 @@ const CURVE_EDITOR = {
 };
 
 const ui = {
+  appShell: document.getElementById('appShell'),
+  workspaceGrid: document.getElementById('workspaceGrid'),
+  sidebarGrid: document.getElementById('sidebarGrid'),
   assetPanel: document.getElementById('assetPanel'),
   layersPanel: document.getElementById('layersPanel'),
   layerInspectorPanel: document.getElementById('layerInspectorPanel'),
+  previewResizeHandle: document.getElementById('previewResizeHandle'),
+  layersResizeHandle: document.getElementById('layersResizeHandle'),
+  stageFrame: document.getElementById('stageFrame'),
   stageSvg: document.getElementById('stageSvg'),
+  zoomOutButton: document.getElementById('zoomOutButton'),
+  zoomResetButton: document.getElementById('zoomResetButton'),
+  zoomInButton: document.getElementById('zoomInButton'),
   effectTitleLabel: document.getElementById('effectTitleLabel'),
   fileStatusLabel: document.getElementById('fileStatusLabel'),
   saveStatusLabel: document.getElementById('saveStatusLabel'),
@@ -148,6 +177,7 @@ const ui = {
   progressPercentLabel: document.getElementById('progressPercentLabel'),
   progressTimeLabel: document.getElementById('progressTimeLabel'),
   progressSlider: document.getElementById('progressSlider'),
+  panelJson: document.querySelector('.panel-json'),
   jsonEditor: document.getElementById('jsonEditor'),
   jsonStatusLabel: document.getElementById('jsonStatusLabel'),
   jsonCollapseButton: document.getElementById('jsonCollapseButton'),
@@ -904,6 +934,7 @@ const state = {
   instance: createInstance(),
   repoRootHandle: null,
   recentFiles: [],
+  layoutSizes: normalizeLayoutSizes(null),
   selectedLayerId: 'trail',
   selectedLayerTrack: 'scale',
   progress: 0,
@@ -918,11 +949,14 @@ const state = {
   curveEditorModes: {},
   activeCurveDrag: null,
   previewBackground: createDefaultPreviewBackground(),
+  previewViewport: createDefaultPreviewViewport(),
   collapsedPanels: createDefaultCollapsedPanels(),
   undoStack: [],
   redoStack: [],
   pendingHistorySnapshot: null,
   isRestoringHistory: false,
+  activePanelResize: null,
+  activeViewportPan: null,
 };
 
 state.jsonDraft = stringifyAsset(state.asset);
@@ -931,6 +965,222 @@ function clearCurveEditors() {
   state.curveStates = {};
   state.curveEditorModes = {};
   state.activeCurveDrag = null;
+}
+
+function applyLayoutSizes() {
+  const handleSize =
+    Number.parseFloat(getComputedStyle(ui.appShell).getPropertyValue('--resize-handle-size')) || 10;
+  const workspaceWidth = ui.workspaceGrid?.getBoundingClientRect().width ?? 0;
+  const sidebarWidth = ui.sidebarGrid?.getBoundingClientRect().width ?? 0;
+
+  if (workspaceWidth > 0) {
+    const previewMax = Math.max(
+      PANEL_RESIZE_LIMITS.previewMin,
+      workspaceWidth - handleSize - PANEL_RESIZE_LIMITS.sidebarMin,
+    );
+    state.layoutSizes.previewPanelWidth = clamp(
+      state.layoutSizes.previewPanelWidth,
+      PANEL_RESIZE_LIMITS.previewMin,
+      previewMax,
+    );
+  }
+
+  if (sidebarWidth > 0) {
+    const layersMax = Math.max(
+      PANEL_RESIZE_LIMITS.layersMin,
+      sidebarWidth - handleSize - PANEL_RESIZE_LIMITS.inspectorMin,
+    );
+    state.layoutSizes.layersPanelWidth = clamp(
+      state.layoutSizes.layersPanelWidth,
+      PANEL_RESIZE_LIMITS.layersMin,
+      layersMax,
+    );
+  }
+
+  ui.appShell?.style.setProperty(
+    '--preview-panel-width',
+    `${Math.round(state.layoutSizes.previewPanelWidth)}px`,
+  );
+  ui.appShell?.style.setProperty(
+    '--layers-panel-width',
+    `${Math.round(state.layoutSizes.layersPanelWidth)}px`,
+  );
+}
+
+function clampViewportOrigin(x, y, width, height) {
+  return {
+    x: clamp(x, Math.min(0, STAGE.width - width), Math.max(0, STAGE.width - width)),
+    y: clamp(y, Math.min(0, STAGE.height - height), Math.max(0, STAGE.height - height)),
+  };
+}
+
+function clampPreviewViewportCenter(centerX, centerY, width, height) {
+  const origin = clampViewportOrigin(centerX - width / 2, centerY - height / 2, width, height);
+  return {
+    centerX: origin.x + width / 2,
+    centerY: origin.y + height / 2,
+  };
+}
+
+function getStageContainerAspect() {
+  const bounds = ui.stageFrame?.getBoundingClientRect();
+  if (!bounds || bounds.width <= 0 || bounds.height <= 0) {
+    return STAGE.width / STAGE.height;
+  }
+
+  return bounds.width / bounds.height;
+}
+
+function getViewportDimensionsForZoom(zoom) {
+  const safeZoom = clamp(zoom, PREVIEW_VIEWPORT_LIMITS.minZoom, PREVIEW_VIEWPORT_LIMITS.maxZoom);
+  const containerAspect = getStageContainerAspect();
+  const stageAspect = STAGE.width / STAGE.height;
+
+  if (containerAspect >= stageAspect) {
+    const height = STAGE.height / safeZoom;
+    return { width: height * containerAspect, height };
+  }
+
+  const width = STAGE.width / safeZoom;
+  return { width, height: width / containerAspect };
+}
+
+function normalizePreviewViewport(rawViewport) {
+  const zoom = clamp(
+    Number.isFinite(Number(rawViewport?.zoom)) ? Number(rawViewport.zoom) : 1,
+    PREVIEW_VIEWPORT_LIMITS.minZoom,
+    PREVIEW_VIEWPORT_LIMITS.maxZoom,
+  );
+  const dimensions = getViewportDimensionsForZoom(zoom);
+  const center = clampPreviewViewportCenter(
+    Number.isFinite(Number(rawViewport?.centerX)) ? Number(rawViewport.centerX) : STAGE.width / 2,
+    Number.isFinite(Number(rawViewport?.centerY)) ? Number(rawViewport.centerY) : STAGE.height / 2,
+    dimensions.width,
+    dimensions.height,
+  );
+
+  return {
+    zoom,
+    centerX: center.centerX,
+    centerY: center.centerY,
+  };
+}
+
+function getStageViewport() {
+  const dimensions = getViewportDimensionsForZoom(state.previewViewport.zoom);
+  const center = clampPreviewViewportCenter(
+    state.previewViewport.centerX,
+    state.previewViewport.centerY,
+    dimensions.width,
+    dimensions.height,
+  );
+
+  state.previewViewport.centerX = center.centerX;
+  state.previewViewport.centerY = center.centerY;
+
+  return {
+    x: center.centerX - dimensions.width / 2,
+    y: center.centerY - dimensions.height / 2,
+    width: dimensions.width,
+    height: dimensions.height,
+  };
+}
+
+function renderPreviewViewportControls() {
+  if (!ui.zoomResetButton) return;
+  ui.zoomResetButton.textContent = `${Math.round(state.previewViewport.zoom * 100)}%`;
+  ui.stageFrame?.classList.toggle('is-pannable', state.previewViewport.zoom > 1.001);
+  ui.stageFrame?.classList.toggle('is-panning', Boolean(state.activeViewportPan));
+}
+
+function setPreviewZoom(nextZoom, focusClientX = null, focusClientY = null) {
+  const zoom = clamp(nextZoom, PREVIEW_VIEWPORT_LIMITS.minZoom, PREVIEW_VIEWPORT_LIMITS.maxZoom);
+  if (Math.abs(zoom - state.previewViewport.zoom) < 0.0001) {
+    renderPreviewViewportControls();
+    return;
+  }
+
+  const previousViewport = getStageViewport();
+  const nextDimensions = getViewportDimensionsForZoom(zoom);
+  let nextCenterX = state.previewViewport.centerX;
+  let nextCenterY = state.previewViewport.centerY;
+
+  if (Number.isFinite(focusClientX) && Number.isFinite(focusClientY)) {
+    const bounds = ui.stageSvg?.getBoundingClientRect();
+    if (bounds && bounds.width > 0 && bounds.height > 0) {
+      const normalizedX = clamp01((focusClientX - bounds.left) / bounds.width);
+      const normalizedY = clamp01((focusClientY - bounds.top) / bounds.height);
+      const focusX = previousViewport.x + previousViewport.width * normalizedX;
+      const focusY = previousViewport.y + previousViewport.height * normalizedY;
+      const nextOrigin = clampViewportOrigin(
+        focusX - nextDimensions.width * normalizedX,
+        focusY - nextDimensions.height * normalizedY,
+        nextDimensions.width,
+        nextDimensions.height,
+      );
+      nextCenterX = nextOrigin.x + nextDimensions.width / 2;
+      nextCenterY = nextOrigin.y + nextDimensions.height / 2;
+    }
+  }
+
+  const nextCenter = clampPreviewViewportCenter(
+    nextCenterX,
+    nextCenterY,
+    nextDimensions.width,
+    nextDimensions.height,
+  );
+
+  state.previewViewport.zoom = zoom;
+  state.previewViewport.centerX = nextCenter.centerX;
+  state.previewViewport.centerY = nextCenter.centerY;
+  renderPreview();
+  schedulePersistEditorSession();
+}
+
+function beginPanelResize(type) {
+  state.activePanelResize = { type };
+  ui.appShell?.classList.add('is-resizing');
+}
+
+function updatePanelResize(clientX) {
+  if (!state.activePanelResize) return;
+
+  if (state.activePanelResize.type === 'preview') {
+    const bounds = ui.workspaceGrid?.getBoundingClientRect();
+    if (!bounds) return;
+    const maxWidth =
+      bounds.width - Number.parseFloat(getComputedStyle(ui.appShell).getPropertyValue('--resize-handle-size')) - PANEL_RESIZE_LIMITS.sidebarMin;
+    state.layoutSizes.previewPanelWidth = clamp(
+      clientX - bounds.left,
+      PANEL_RESIZE_LIMITS.previewMin,
+      Math.max(PANEL_RESIZE_LIMITS.previewMin, maxWidth),
+    );
+    applyLayoutSizes();
+    renderPreview();
+    schedulePersistEditorSession();
+    return;
+  }
+
+  if (state.activePanelResize.type === 'layers') {
+    const bounds = ui.sidebarGrid?.getBoundingClientRect();
+    if (!bounds) return;
+    const maxWidth =
+      bounds.width - Number.parseFloat(getComputedStyle(ui.appShell).getPropertyValue('--resize-handle-size')) - PANEL_RESIZE_LIMITS.inspectorMin;
+    state.layoutSizes.layersPanelWidth = clamp(
+      clientX - bounds.left,
+      PANEL_RESIZE_LIMITS.layersMin,
+      Math.max(PANEL_RESIZE_LIMITS.layersMin, maxWidth),
+    );
+    applyLayoutSizes();
+    renderPreview();
+    schedulePersistEditorSession();
+  }
+}
+
+function endPanelResize() {
+  if (!state.activePanelResize) return;
+  state.activePanelResize = null;
+  ui.appShell?.classList.remove('is-resizing');
 }
 
 function normalizePreviewBackground(rawBackground) {
@@ -980,6 +1230,17 @@ function sanitizeRecentFiles(rawRecentFiles) {
     .slice(0, RECENT_FILES_LIMIT);
 }
 
+function normalizeLayoutSizes(rawLayoutSizes) {
+  return {
+    previewPanelWidth: Number.isFinite(Number(rawLayoutSizes?.previewPanelWidth))
+      ? Number(rawLayoutSizes.previewPanelWidth)
+      : 780,
+    layersPanelWidth: Number.isFinite(Number(rawLayoutSizes?.layersPanelWidth))
+      ? Number(rawLayoutSizes.layersPanelWidth)
+      : 420,
+  };
+}
+
 function normalizeCurveStates(rawCurveStates) {
   if (!rawCurveStates || typeof rawCurveStates !== 'object') {
     return {};
@@ -1004,11 +1265,13 @@ function buildPersistedEditorSession() {
     asset: cloneData(state.asset),
     instance: cloneData(state.instance),
     recentFiles: cloneData(state.recentFiles),
+    layoutSizes: cloneData(state.layoutSizes),
     selectedLayerId: state.selectedLayerId,
     selectedLayerTrack: state.selectedLayerTrack,
     curveStates: cloneData(state.curveStates),
     curveEditorModes: cloneData(state.curveEditorModes),
     previewBackground: cloneData(state.previewBackground),
+    previewViewport: cloneData(state.previewViewport),
     collapsedPanels: cloneData(state.collapsedPanels),
     fileName: state.fileName,
     jsonDraft: state.jsonDraft,
@@ -1100,6 +1363,7 @@ function applyPersistedEditorSession(persisted) {
   state.asset = normalizeAsset(persisted.asset ?? createStarterAsset());
   state.instance = normalizeInstance(persisted.instance);
   state.recentFiles = sanitizeRecentFiles(persisted.recentFiles);
+  state.layoutSizes = normalizeLayoutSizes(persisted.layoutSizes);
   state.selectedLayerId =
     typeof persisted.selectedLayerId === 'string' ? persisted.selectedLayerId : 'trail';
   state.selectedLayerTrack =
@@ -1110,6 +1374,7 @@ function applyPersistedEditorSession(persisted) {
       ? cloneData(persisted.curveEditorModes)
       : {};
   state.previewBackground = normalizePreviewBackground(persisted.previewBackground);
+  state.previewViewport = normalizePreviewViewport(persisted.previewViewport);
   state.collapsedPanels = {
     ...createDefaultCollapsedPanels(),
     ...(persisted.collapsedPanels ?? {}),
@@ -1127,6 +1392,7 @@ function applyPersistedEditorSession(persisted) {
   state.repoRootHandle = null;
   state.dragTarget = null;
   state.activeCurveDrag = null;
+  state.activePanelResize = null;
   clearHistory();
   ensureSelection();
   return true;
@@ -1241,15 +1507,20 @@ function renderCollapsibleSection({
 }
 
 function renderStaticPanelState() {
+  const jsonPanel = ui.panelJson;
   const jsonBody = document.getElementById('jsonPanelBody');
   const jsonToggleButton = document.getElementById('jsonCollapseButton');
-  if (!jsonBody || !jsonToggleButton) return;
+  if (!jsonPanel || !jsonBody || !jsonToggleButton) return;
 
   const collapsed = isPanelCollapsed('jsonPanel');
+  jsonPanel.classList.toggle('is-hidden', collapsed);
+  ui.appShell?.classList.toggle('is-json-hidden', collapsed);
   jsonBody.hidden = collapsed;
   jsonToggleButton.textContent = collapsed ? '▸' : '▾';
-  jsonToggleButton.setAttribute('aria-label', collapsed ? 'Expand JSON panel' : 'Collapse JSON panel');
-  jsonToggleButton.setAttribute('title', collapsed ? 'Expand JSON panel' : 'Collapse JSON panel');
+  jsonToggleButton.setAttribute('aria-label', collapsed ? 'Show JSON panel' : 'Hide JSON panel');
+  jsonToggleButton.setAttribute('title', collapsed ? 'Show JSON panel' : 'Hide JSON panel');
+  renderToolbarMenus();
+  renderPreview();
   schedulePersistEditorSession();
 }
 
@@ -2216,6 +2487,7 @@ function renderTrail(layer, progress) {
 
 function renderPreview() {
   const backdrop = state.previewBackground;
+  const viewport = getStageViewport();
   const shapes = state.asset.layers
     .map((layer) => {
       if (layer.type === 'orb') return renderOrb(layer, state.progress);
@@ -2234,6 +2506,9 @@ function renderPreview() {
   const targetX = state.instance.targetX ?? state.instance.x;
   const targetY = state.instance.targetY ?? state.instance.y;
 
+  ui.stageSvg.setAttribute('viewBox', `${viewport.x} ${viewport.y} ${viewport.width} ${viewport.height}`);
+  renderPreviewViewportControls();
+
   ui.stageSvg.innerHTML = `
     <defs>
       <linearGradient id="stage-bg" x1="0%" y1="0%" x2="100%" y2="100%">
@@ -2246,8 +2521,8 @@ function renderPreview() {
       </radialGradient>
     </defs>
 
-    <rect x="0" y="0" width="${STAGE.width}" height="${STAGE.height}" rx="28" fill="url(#stage-bg)"></rect>
-    <rect x="0" y="0" width="${STAGE.width}" height="${STAGE.height}" rx="28" fill="url(#warm-glow)"></rect>
+    <rect x="${viewport.x}" y="${viewport.y}" width="${viewport.width}" height="${viewport.height}" fill="url(#stage-bg)"></rect>
+    <rect x="${viewport.x}" y="${viewport.y}" width="${viewport.width}" height="${viewport.height}" fill="url(#warm-glow)"></rect>
     <path
       d="M 0 352 Q 180 334 340 360 T 720 350"
       fill="none"
@@ -2255,9 +2530,9 @@ function renderPreview() {
       stroke-width="2"
     ></path>
     <line
-      x1="0"
+      x1="${viewport.x}"
       y1="320"
-      x2="${STAGE.width}"
+      x2="${viewport.x + viewport.width}"
       y2="320"
       stroke="${escapeHtml(backdrop.grid)}"
       stroke-dasharray="6 10"
@@ -2970,6 +3245,7 @@ function renderToolbarMenus() {
   const backdrop = state.previewBackground;
   const recentFiles = state.recentFiles;
   const repoLinked = Boolean(state.repoRootHandle);
+  const jsonHidden = isPanelCollapsed('jsonPanel');
 
   ui.fileMenuContent.innerHTML = `
     <div class="menu-grid">
@@ -3030,6 +3306,7 @@ function renderToolbarMenus() {
         <div class="menu-button-stack">
           <button class="menu-action" type="button" data-toolbar-action="link-repo-root">${repoLinked ? 'Relink Repo Root' : 'Link Repo Root for Autosave'}</button>
           <button class="menu-action" type="button" data-toolbar-action="import-sprite">Import Sprite</button>
+          <button class="menu-action" type="button" data-toolbar-action="toggle-json-panel">${jsonHidden ? 'Show JSON Debug Panel' : 'Hide JSON Debug Panel'}</button>
         </div>
         <p class="menu-section-note">
           ${repoLinked ? 'Repo root is linked for editor autosave and sprite import.' : 'Link the repo root once so editor-session.json autosaves into tools/vfx-editor.'}
@@ -4006,6 +4283,10 @@ function handleToolbarMenuClick(event) {
   } else if (toolbarAction === 'import-sprite') {
     closeToolbarMenus();
     void importSprite();
+  } else if (toolbarAction === 'toggle-json-panel') {
+    closeToolbarMenus();
+    togglePanelCollapse('jsonPanel');
+    renderStaticPanelState();
   } else if (toolbarAction === 'open-recent' && recentFileId) {
     closeToolbarMenus();
     void loadRecentFile(recentFileId);
@@ -4035,13 +4316,89 @@ function handleFallbackFileChange(event) {
 
 function getSvgPoint(clientX, clientY) {
   const bounds = ui.stageSvg.getBoundingClientRect();
+  if (bounds.width <= 0 || bounds.height <= 0) {
+    return { x: 0, y: 0 };
+  }
+  const viewport = getStageViewport();
   return {
-    x: clamp(((clientX - bounds.left) / bounds.width) * STAGE.width, 0, STAGE.width),
-    y: clamp(((clientY - bounds.top) / bounds.height) * STAGE.height, 0, STAGE.height),
+    x: clamp(
+      viewport.x + ((clientX - bounds.left) / bounds.width) * viewport.width,
+      0,
+      STAGE.width,
+    ),
+    y: clamp(
+      viewport.y + ((clientY - bounds.top) / bounds.height) * viewport.height,
+      0,
+      STAGE.height,
+    ),
   };
 }
 
+function handleStageWheel(event) {
+  if (event.target instanceof Element && event.target.closest('.stage-viewport-toolbar')) {
+    return;
+  }
+  event.preventDefault();
+  const direction = event.deltaY < 0 ? 1 : -1;
+  const factor =
+    direction > 0 ? PREVIEW_VIEWPORT_LIMITS.wheelFactor : 1 / PREVIEW_VIEWPORT_LIMITS.wheelFactor;
+  setPreviewZoom(state.previewViewport.zoom * factor, event.clientX, event.clientY);
+}
+
+function beginViewportPan(event) {
+  if (state.previewViewport.zoom <= 1.001) {
+    return false;
+  }
+
+  state.activeViewportPan = {
+    pointerId: event.pointerId,
+    lastClientX: event.clientX,
+    lastClientY: event.clientY,
+  };
+  renderPreviewViewportControls();
+  return true;
+}
+
+function updateViewportPan(clientX, clientY) {
+  if (!state.activeViewportPan) return;
+
+  const bounds = ui.stageSvg.getBoundingClientRect();
+  if (bounds.width <= 0 || bounds.height <= 0) {
+    return;
+  }
+
+  const viewport = getStageViewport();
+  const deltaX = clientX - state.activeViewportPan.lastClientX;
+  const deltaY = clientY - state.activeViewportPan.lastClientY;
+  const nextCenter = clampPreviewViewportCenter(
+    state.previewViewport.centerX - (deltaX / bounds.width) * viewport.width,
+    state.previewViewport.centerY - (deltaY / bounds.height) * viewport.height,
+    viewport.width,
+    viewport.height,
+  );
+
+  state.previewViewport.centerX = nextCenter.centerX;
+  state.previewViewport.centerY = nextCenter.centerY;
+  state.activeViewportPan.lastClientX = clientX;
+  state.activeViewportPan.lastClientY = clientY;
+  renderPreview();
+}
+
+function endViewportPan() {
+  if (!state.activeViewportPan) return;
+  state.activeViewportPan = null;
+  renderPreviewViewportControls();
+  schedulePersistEditorSession();
+}
+
 function handleStagePointerDown(event) {
+  if ((event.metaKey || event.ctrlKey) && event.button === 0) {
+    if (beginViewportPan(event)) {
+      event.preventDefault();
+      return;
+    }
+  }
+
   const anchor = event.target.closest('[data-anchor]');
   if (!anchor) return;
 
@@ -4050,6 +4407,11 @@ function handleStagePointerDown(event) {
 }
 
 function handleStagePointerMove(event) {
+  if (state.activeViewportPan) {
+    updateViewportPan(event.clientX, event.clientY);
+    return;
+  }
+
   if (!state.dragTarget) return;
 
   const point = getSvgPoint(event.clientX, event.clientY);
@@ -4067,6 +4429,7 @@ function handleStagePointerMove(event) {
 }
 
 function handleStagePointerUp() {
+  endViewportPan();
   endHistoryGesture();
   state.dragTarget = null;
 }
@@ -4236,6 +4599,15 @@ function animationLoop(timestamp) {
 }
 
 function wireEvents() {
+  ui.previewResizeHandle.addEventListener('pointerdown', (event) => {
+    beginPanelResize('preview');
+    event.preventDefault();
+  });
+  ui.layersResizeHandle.addEventListener('pointerdown', (event) => {
+    beginPanelResize('layers');
+    event.preventDefault();
+  });
+
   ui.fileMenuContent.addEventListener('click', handleToolbarMenuClick);
   ui.editorMenuContent.addEventListener('click', handleToolbarMenuClick);
   ui.editorMenuContent.addEventListener('input', handleToolbarMenuInput);
@@ -4272,6 +4644,17 @@ function wireEvents() {
   });
 
   ui.resetTemplateButton.addEventListener('click', resetTemplate);
+  ui.zoomOutButton?.addEventListener('click', () => {
+    setPreviewZoom(state.previewViewport.zoom - PREVIEW_VIEWPORT_LIMITS.buttonStep);
+  });
+  ui.zoomResetButton?.addEventListener('click', () => {
+    state.previewViewport = createDefaultPreviewViewport();
+    renderPreview();
+    schedulePersistEditorSession();
+  });
+  ui.zoomInButton?.addEventListener('click', () => {
+    setPreviewZoom(state.previewViewport.zoom + PREVIEW_VIEWPORT_LIMITS.buttonStep);
+  });
 
   ui.progressSlider.addEventListener('input', (event) => {
     state.progress = clamp01(Number(event.target.value));
@@ -4303,11 +4686,18 @@ function wireEvents() {
   ui.stageSvg.addEventListener('pointermove', handleStagePointerMove);
   ui.stageSvg.addEventListener('pointerup', handleStagePointerUp);
   ui.stageSvg.addEventListener('pointerleave', handleStagePointerUp);
+  ui.stageFrame?.addEventListener('wheel', handleStageWheel, { passive: false });
   window.addEventListener('pointerup', handleStagePointerUp);
   window.addEventListener('pointermove', (event) => {
+    updatePanelResize(event.clientX);
     updateCurveDrag(event.clientX, event.clientY);
   });
   window.addEventListener('pointerup', endCurveDrag);
+  window.addEventListener('pointerup', endPanelResize);
+  window.addEventListener('resize', () => {
+    applyLayoutSizes();
+    renderPreview();
+  });
   window.addEventListener('keydown', handleGlobalKeyDown);
   window.addEventListener('pointerdown', (event) => {
     if (!(event.target instanceof Node)) return;
@@ -4323,6 +4713,7 @@ async function init() {
   await loadSpriteManifest();
   await restoreLinkedRepoRootHandle();
   const restoredSessionSource = await restorePersistedEditorSessionFromSources();
+  applyLayoutSizes();
   renderPanels();
   renderPreview();
   syncJsonEditorFromState();

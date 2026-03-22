@@ -4,20 +4,12 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Questing Together VFX Editor</title>
-    <link rel="stylesheet" href="./styles.css?v=20260322d" />
+    <link rel="stylesheet" href="./styles.css?v=20260322m" />
   </head>
   <body>
-    <div class="app-shell">
+    <div id="appShell" class="app-shell">
       <header class="topbar">
-        <div class="topbar-copy">
-          <p class="eyebrow">Standalone VFX Authoring Tool</p>
-          <h1>Questing Together VFX Editor</h1>
-          <p class="topbar-subtitle">
-            Timeline-driven, Unity-friendly wording, and direct JSON output for the in-game VFX runtime.
-          </p>
-        </div>
-
-        <div class="toolbar-shell">
+        <div class="topbar-row">
           <nav class="menu-bar" aria-label="Editor toolbar">
             <details id="fileMenu" class="menu-dropdown">
               <summary class="menu-trigger">File</summary>
@@ -30,25 +22,19 @@
             </details>
           </nav>
 
-          <div class="status-row">
-            <span id="fileStatusLabel">No local file attached</span>
-            <span id="saveStatusLabel">Use Chrome, Arc, or Edge to save directly back into the repo.</span>
+          <div class="topbar-brand">
+            <p class="eyebrow">Standalone VFX Authoring Tool</p>
+            <h1>Questing Together VFX Editor</h1>
           </div>
+        </div>
+
+        <div class="status-row">
+          <span id="fileStatusLabel">No local file attached</span>
+          <span id="saveStatusLabel">Use Chrome, Arc, or Edge to save directly back into the repo.</span>
         </div>
       </header>
 
-      <main class="layout-grid">
-        <aside class="panel panel-scroll" aria-label="Effect settings">
-          <div class="panel-heading">
-            <div>
-              <p class="panel-kicker">Effect</p>
-              <h2>Runtime Settings</h2>
-            </div>
-          </div>
-
-          <div id="assetPanel" class="panel-body"></div>
-        </aside>
-
+      <main id="workspaceGrid" class="workspace-grid">
         <section class="panel panel-stage panel-stage-sticky" aria-label="Preview stage">
           <div class="panel-heading">
             <div>
@@ -63,7 +49,30 @@
             </div>
           </div>
 
-          <div class="stage-frame">
+          <div id="stageFrame" class="stage-frame">
+            <div class="stage-viewport-toolbar" aria-label="Preview viewport controls">
+              <button
+                id="zoomOutButton"
+                class="viewport-button"
+                type="button"
+                aria-label="Zoom out preview"
+                title="Zoom out"
+              >-</button>
+              <button
+                id="zoomResetButton"
+                class="viewport-button viewport-button-readout"
+                type="button"
+                aria-label="Reset preview zoom"
+                title="Reset zoom to 100%"
+              >100%</button>
+              <button
+                id="zoomInButton"
+                class="viewport-button"
+                type="button"
+                aria-label="Zoom in preview"
+                title="Zoom in"
+              >+</button>
+            </div>
             <svg
               id="stageSvg"
               class="stage-svg"
@@ -96,22 +105,58 @@
 
             <p class="panel-note">
               Drag the orange anchor for the spawn point and the blue anchor for the target point. Use the
-              slider to scrub over lifetime.
+              slider to scrub over lifetime. Use the mouse wheel or the viewport controls to zoom the preview,
+              then hold Cmd and drag to pan.
             </p>
           </div>
         </section>
 
-        <aside class="panel panel-scroll" aria-label="Layer settings">
-          <div class="panel-heading">
-            <div>
-              <p class="panel-kicker">Layers</p>
-              <h2>Stack & Curves</h2>
+        <div
+          id="previewResizeHandle"
+          class="resize-handle resize-handle-vertical"
+          role="separator"
+          aria-orientation="vertical"
+          aria-label="Resize preview and authoring panels"
+          title="Drag to resize preview and authoring panels"
+        ></div>
+
+        <section class="workspace-sidebar" aria-label="Authoring panels">
+          <div id="sidebarGrid" class="sidebar-grid">
+            <aside class="panel panel-scroll panel-layers" aria-label="Layer settings">
+              <div class="panel-heading">
+                <div>
+                  <p class="panel-kicker">Layers</p>
+                  <h2>Stack & Curves</h2>
+                </div>
+              </div>
+
+              <div id="layersPanel" class="panel-body panel-body-tight"></div>
+            </aside>
+
+            <div
+              id="layersResizeHandle"
+              class="resize-handle resize-handle-vertical"
+              role="separator"
+              aria-orientation="vertical"
+              aria-label="Resize layers and inspector panels"
+              title="Drag to resize layers and inspector panels"
+            ></div>
+
+            <div class="inspector-stack">
+              <aside class="panel panel-scroll panel-authoring" aria-label="Effect and selected layer settings">
+                <div class="panel-heading">
+                  <div>
+                    <p class="panel-kicker">Effect</p>
+                    <h2>Runtime Settings</h2>
+                  </div>
+                </div>
+
+                <div id="assetPanel" class="panel-body"></div>
+                <div id="layerInspectorPanel" class="panel-body"></div>
+              </aside>
             </div>
           </div>
-
-          <div id="layersPanel" class="panel-body panel-body-tight"></div>
-          <div id="layerInspectorPanel" class="panel-body"></div>
-        </aside>
+        </section>
       </main>
 
       <section class="panel panel-json" aria-label="Raw JSON">
@@ -151,6 +196,6 @@
 
     <input id="fallbackFileInput" type="file" accept=".json,application/json" hidden />
 
-    <script type="module" src="./app.js?v=20260322d"></script>
+    <script type="module" src="./app.js?v=20260322m"></script>
   </body>
 </html>

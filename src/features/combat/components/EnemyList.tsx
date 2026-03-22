@@ -29,6 +29,7 @@ type EnemyListProps = {
   enemyFlash: SharedValue<number>;
   enemyLungeX: SharedValue<number>;
   enemyLungeY: SharedValue<number>;
+  attackingEnemyId: string | null;
   onEnemyLayout: (enemyId: string, x: number, y: number) => void;
   floatingTexts: FloatingText[];
 };
@@ -76,6 +77,7 @@ const EnemyList = ({
   enemyFlash,
   enemyLungeX,
   enemyLungeY,
+  attackingEnemyId,
   onEnemyLayout,
   floatingTexts,
 }: EnemyListProps) => {
@@ -131,82 +133,83 @@ const EnemyList = ({
       ) : null}
 
       {/* Front row — active enemies */}
-      <Animated.View style={lungeStyle}>
-        <Stack direction="row" justify="space-evenly" style={{ paddingVertical: 4 }}>
-          {frontEnemies.map((enemy) => {
-            const isSelected = enemy.id === effectiveSelected;
+      <Stack direction="row" justify="space-evenly" style={{ paddingVertical: 4 }}>
+        {frontEnemies.map((enemy) => {
+          const isSelected = enemy.id === effectiveSelected;
+          const isAttacking = enemy.id === attackingEnemyId;
 
-            return (
-              <Pressable
-                key={enemy.id}
-                onPress={() => onSelectEnemy(enemy.id)}
-                onLayout={(e) => {
-                  const { x, y, width } = e.nativeEvent.layout;
-                  onEnemyLayout(enemy.id, x + width / 2, y);
-                }}
-              >
-                <Stack align="center" gap={2} style={{ position: 'relative' }}>
-                  <Animated.View style={isSelected ? shakeStyle : undefined}>
-                    <View
-                      style={{
-                        width: RING_SIZE,
-                        height: RING_SIZE,
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                      }}
-                    >
-                      <CircularHealthBar hp={enemy.hp} hpMax={enemy.hpMax} size={RING_SIZE} />
-                      <Portrait
-                        source={skeletor}
-                        size={PORTRAIT_SIZE}
-                        highlighted={isSelected}
-                        highlightColor={isSelected ? colors.combatDamage : colors.tabBorder}
-                        hideName
-                      />
-                      {isSelected ? (
-                        <Animated.View
-                          style={[
-                            {
-                              position: 'absolute',
-                              width: PORTRAIT_SIZE,
-                              height: PORTRAIT_SIZE,
-                              borderRadius: PORTRAIT_SIZE / 2,
-                              backgroundColor: colors.combatDamage,
-                            },
-                            flashStyle,
-                          ]}
-                          pointerEvents="none"
-                        />
-                      ) : null}
-                    </View>
-                  </Animated.View>
-                  <Typography
-                    variant="fine"
+          return (
+            <Pressable
+              key={enemy.id}
+              onPress={() => onSelectEnemy(enemy.id)}
+              onLayout={(e) => {
+                const { x, y, width } = e.nativeEvent.layout;
+                onEnemyLayout(enemy.id, x + width / 2, y);
+              }}
+            >
+              <Stack align="center" gap={2} style={{ position: 'relative' }}>
+                <Animated.View
+                  style={isAttacking ? lungeStyle : isSelected ? shakeStyle : undefined}
+                >
+                  <View
                     style={{
-                      color: isSelected ? colors.combatDamage : colors.combatWaiting,
-                      fontWeight: isSelected ? '700' : '400',
+                      width: RING_SIZE,
+                      height: RING_SIZE,
+                      alignItems: 'center',
+                      justifyContent: 'center',
                     }}
                   >
-                    {translateName(enemy.name)}
-                  </Typography>
-                  <Typography variant="micro" style={{ color: colors.combatHealthValue }}>
-                    {enemy.hp}/{enemy.hpMax}
-                  </Typography>
-                  {isSelected
-                    ? enemyFloats.map((f) => (
-                        <FloatingDamage key={f.id} text={f.text} color={f.color} />
-                      ))
-                    : null}
-                </Stack>
-              </Pressable>
-            );
-          })}
+                    <CircularHealthBar hp={enemy.hp} hpMax={enemy.hpMax} size={RING_SIZE} />
+                    <Portrait
+                      source={skeletor}
+                      size={PORTRAIT_SIZE}
+                      highlighted={isSelected}
+                      highlightColor={isSelected ? colors.combatDamage : colors.tabBorder}
+                      hideName
+                    />
+                    {isSelected ? (
+                      <Animated.View
+                        style={[
+                          {
+                            position: 'absolute',
+                            width: PORTRAIT_SIZE,
+                            height: PORTRAIT_SIZE,
+                            borderRadius: PORTRAIT_SIZE / 2,
+                            backgroundColor: colors.combatDamage,
+                          },
+                          flashStyle,
+                        ]}
+                        pointerEvents="none"
+                      />
+                    ) : null}
+                  </View>
+                </Animated.View>
+                <Typography
+                  variant="fine"
+                  style={{
+                    color: isSelected ? colors.combatDamage : colors.combatWaiting,
+                    fontWeight: isSelected ? '700' : '400',
+                  }}
+                >
+                  {translateName(enemy.name)}
+                </Typography>
+                <Typography variant="micro" style={{ color: colors.combatHealthValue }}>
+                  {enemy.hp}/{enemy.hpMax}
+                </Typography>
+                {isSelected
+                  ? enemyFloats.map((f) => (
+                      <FloatingDamage key={f.id} text={f.text} color={f.color} />
+                    ))
+                  : null}
+              </Stack>
+            </Pressable>
+          );
+        })}
 
-          {dyingEnemies.map((enemy) => (
-            <DyingPortrait key={`dying-${enemy.id}`} nameKey={enemy.nameKey} />
-          ))}
-        </Stack>
-      </Animated.View>
+        {dyingEnemies.map((enemy) => (
+          <DyingPortrait key={`dying-${enemy.id}`} nameKey={enemy.nameKey} />
+        ))}
+      </Stack>
     </Stack>
   );
 };

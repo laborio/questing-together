@@ -74,19 +74,19 @@ const CombatScreen = () => {
     return computeDirection(playerPositionRef.current, targetPos);
   }, [effectiveEnemyId]);
 
-  const getLungeToPlayer = useCallback((): { x: number; y: number } => {
-    const firstEnemy = roomConnection.enemies.find((e) => !e.isDead);
-    const enemyPos = firstEnemy ? enemyPositionsRef.current[firstEnemy.id] : null;
+  const getDirectionForEnemy = useCallback((enemyId: string): { x: number; y: number } => {
+    const enemyPos = enemyPositionsRef.current[enemyId];
     if (!enemyPos) return { x: 0, y: 1 };
     return computeDirection(enemyPos, playerPositionRef.current);
-  }, [roomConnection.enemies]);
+  }, []);
 
   useCombatTurnPhase({
     isHost,
     turnPhase,
+    localHp: localCharacter?.hp ?? 0,
     combatEnemyPhase: roomConnection.combatEnemyPhase,
     playEnemyPhase: anim.playEnemyPhase,
-    getLungeToPlayer,
+    getDirectionForEnemy,
   });
 
   const handleAttack = async () => {
@@ -250,6 +250,7 @@ const CombatScreen = () => {
           enemyFlash={anim.enemyFlash}
           enemyLungeX={anim.enemyLungeX}
           enemyLungeY={anim.enemyLungeY}
+          attackingEnemyId={anim.attackingEnemyId}
           onEnemyLayout={handleEnemyLayout}
           floatingTexts={anim.floatingTexts}
         />
@@ -260,6 +261,9 @@ const CombatScreen = () => {
           playerLungeX={anim.playerLungeX}
           playerLungeY={anim.playerLungeY}
           playerFlash={anim.playerFlash}
+          localHpOverride={
+            anim.prePhaseHp !== null ? anim.prePhaseHp - anim.enemyPhaseDamageDealt : null
+          }
           onPlayerLayout={handlePlayerLayout}
           floatingTexts={anim.floatingTexts}
         />

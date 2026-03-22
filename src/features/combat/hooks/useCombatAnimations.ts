@@ -18,7 +18,13 @@ type FloatingText = {
 
 type LungeDirection = { x: number; y: number };
 
-type CombatAnimations = {
+type EnemyAttackInfo = {
+  enemyId: string;
+  damage: number;
+  direction: LungeDirection;
+};
+
+interface CombatAnimations {
   playerLungeX: SharedValue<number>;
   playerLungeY: SharedValue<number>;
   playerFlash: SharedValue<number>;
@@ -26,13 +32,16 @@ type CombatAnimations = {
   enemyFlash: SharedValue<number>;
   enemyLungeX: SharedValue<number>;
   enemyLungeY: SharedValue<number>;
+  attackingEnemyId: string | null;
+  enemyPhaseDamageDealt: number;
+  prePhaseHp: number | null;
   floatingTexts: FloatingText[];
   isAnimating: boolean;
   playAttack: (enemyDamage: number, direction: LungeDirection) => void;
   playAbility: (damage: number, abilityName: string) => void;
   playHeal: (amount: number) => void;
-  playEnemyPhase: (totalDamage: number, direction: LungeDirection) => void;
-};
+  playEnemyPhase: (attacks: EnemyAttackInfo[], currentHp: number) => void;
+}
 
 const LUNGE_DISTANCE = 30;
 const LUNGE_IN = 120;
@@ -44,6 +53,8 @@ const COUNTER_FLASH_OUT = 300;
 const ABILITY_FLASH_TOTAL = 460;
 const HEAL_FLASH_TOTAL = 400;
 const FLOATING_LIFETIME = 1000;
+const ENEMY_ATTACK_INTERVAL = 1000;
+const SINGLE_ATTACK_DURATION = LUNGE_IN + LUNGE_OUT + 100;
 
 const useCombatAnimations = (): CombatAnimations => {
   const playerLungeX = useSharedValue(0);
@@ -55,6 +66,9 @@ const useCombatAnimations = (): CombatAnimations => {
   const enemyLungeY = useSharedValue(0);
   const [floatingTexts, setFloatingTexts] = useState<FloatingText[]>([]);
   const [isAnimating, setIsAnimating] = useState(false);
+  const [attackingEnemyId, setAttackingEnemyId] = useState<string | null>(null);
+  const [enemyPhaseDamageDealt, setEnemyPhaseDamageDealt] = useState(0);
+  const [prePhaseHp, setPrePhaseHp] = useState<number | null>(null);
   const floatingIdRef = useRef(0);
 
   const addFloating = useCallback((text: string, color: string, target: 'enemy' | 'player') => {
@@ -70,7 +84,6 @@ const useCombatAnimations = (): CombatAnimations => {
     (enemyDamage: number, direction: LungeDirection) => {
       setIsAnimating(true);
 
-      // Directional lunge toward target enemy
       playerLungeX.value = withSequence(
         withTiming(direction.x * LUNGE_DISTANCE, { duration: LUNGE_IN }),
         withTiming(0, { duration: LUNGE_OUT }),
@@ -140,11 +153,11 @@ const useCombatAnimations = (): CombatAnimations => {
     [enemyFlash, enemyShake, addFloating],
   );
 
-  const playEnemyPhase = useCallback(
-    (totalDamage: number, direction: LungeDirection) => {
-      setIsAnimating(true);
+  const playSingleEnemyAttack = useCallback(
+    (enemyId: string, damage: number, direction: LungeDirection) => {
+      setAttackingEnemyId(enemyId);
 
-      // Enemies lunge toward players
+      // Enemy lunges toward players
       enemyLungeX.value = withSequence(
         withTiming(direction.x * LUNGE_DISTANCE, { duration: LUNGE_IN }),
         withTiming(0, { duration: LUNGE_OUT }),
@@ -159,23 +172,43 @@ const useCombatAnimations = (): CombatAnimations => {
         LUNGE_IN,
         withSequence(
           withTiming(1, { duration: FLASH_IN }),
-          withTiming(0, { duration: 150 }),
-          withTiming(0.8, { duration: FLASH_IN }),
           withTiming(0, { duration: COUNTER_FLASH_OUT }),
         ),
       );
 
-      scheduleCallback(LUNGE_IN + 50, () => {
-        if (totalDamage > 0) {
-          addFloating(`-${totalDamage}`, colors.combatDamage, 'player');
-        }
+      scheduleCallback(LUNGE_IN + 30, () => {
+        addFloating(`-${damage}`, colors.combatDamage, 'player');
+        setEnemyPhaseDamageDealt((prev) => prev + damage);
       });
 
-      scheduleCallback(LUNGE_IN + FLASH_IN + 150 + FLASH_IN + COUNTER_FLASH_OUT, () => {
-        setIsAnimating(false);
+      scheduleCallback(SINGLE_ATTACK_DURATION, () => {
+        setAttackingEnemyId(null);
       });
     },
     [enemyLungeX, enemyLungeY, playerFlash, addFloating],
+  );
+
+  const playEnemyPhase = useCallback(
+    (attacks: EnemyAttackInfo[], currentHp: number) => {
+      setIsAnimating(true);
+      setEnemyPhaseDamageDealt(0);
+      setPrePhaseHp(currentHp);
+
+      attacks.forEach((attack, index) => {
+        const delay = index * ENEMY_ATTACK_INTERVAL;
+        scheduleCallback(delay, () => {
+          playSingleEnemyAttack(attack.enemyId, attack.damage, attack.direction);
+        });
+      });
+
+      // End animation after all attacks
+      const totalDuration = attacks.length * ENEMY_ATTACK_INTERVAL + SINGLE_ATTACK_DURATION;
+      scheduleCallback(totalDuration, () => {
+        setPrePhaseHp(null);
+        setIsAnimating(false);
+      });
+    },
+    [playSingleEnemyAttack],
   );
 
   const playHeal = useCallback(
@@ -206,6 +239,9 @@ const useCombatAnimations = (): CombatAnimations => {
     enemyFlash,
     enemyLungeX,
     enemyLungeY,
+    attackingEnemyId,
+    enemyPhaseDamageDealt,
+    prePhaseHp,
     floatingTexts,
     isAnimating,
     playAttack,

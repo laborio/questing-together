@@ -27,6 +27,7 @@ type CombatPortraitStripProps = {
   playerLungeX: SharedValue<number>;
   playerLungeY: SharedValue<number>;
   playerFlash: SharedValue<number>;
+  localHpOverride: number | null;
   onPlayerLayout: (x: number, y: number) => void;
   floatingTexts: FloatingText[];
 };
@@ -40,6 +41,7 @@ const CombatPortraitStrip = ({
   playerLungeX,
   playerLungeY,
   playerFlash,
+  localHpOverride,
   onPlayerLayout,
   floatingTexts,
 }: CombatPortraitStripProps) => {
@@ -60,8 +62,9 @@ const CombatPortraitStrip = ({
       {players.map((player) => {
         const isLocal = player.playerId === localPlayerId;
         const character = roomConnection.characters.find((c) => c.playerId === player.playerId);
-        const hp = character?.hp ?? 0;
+        const serverHp = character?.hp ?? 0;
         const hpMax = character?.hpMax ?? 100;
+        const hp = isLocal && localHpOverride !== null ? Math.max(0, localHpOverride) : serverHp;
         const isDead = hp <= 0;
 
         return (

@@ -1,19 +1,24 @@
 import { useEffect, useRef } from 'react';
 
+type LungeDirection = { x: number; y: number };
+type EnemyAttackInfo = { enemyId: string; damage: number; direction: LungeDirection };
+
 type UseCombatTurnPhaseParams = {
   isHost: boolean;
   turnPhase: string;
+  localHp: number;
   combatEnemyPhase: () => Promise<unknown>;
-  playEnemyPhase: (totalDamage: number, direction: { x: number; y: number }) => void;
-  getLungeToPlayer: () => { x: number; y: number };
+  playEnemyPhase: (attacks: EnemyAttackInfo[], currentHp: number) => void;
+  getDirectionForEnemy: (enemyId: string) => LungeDirection;
 };
 
 const useCombatTurnPhase = ({
   isHost,
   turnPhase,
+  localHp,
   combatEnemyPhase,
   playEnemyPhase,
-  getLungeToPlayer,
+  getDirectionForEnemy,
 }: UseCombatTurnPhaseParams) => {
   const enemyPhaseTriggeredRef = useRef(false);
 
@@ -28,12 +33,16 @@ const useCombatTurnPhase = ({
     enemyPhaseTriggeredRef.current = true;
     void combatEnemyPhase().then((result) => {
       if (result) {
-        const r = result as { attacks: { damage: number }[] };
-        const totalDamage = r.attacks.reduce((sum, a) => sum + a.damage, 0);
-        playEnemyPhase(totalDamage, getLungeToPlayer());
+        const r = result as { attacks: { enemyId: string; damage: number }[] };
+        const attacks = r.attacks.map((a) => ({
+          enemyId: a.enemyId,
+          damage: a.damage,
+          direction: getDirectionForEnemy(a.enemyId),
+        }));
+        playEnemyPhase(attacks, localHp);
       }
     });
-  }, [isHost, turnPhase, combatEnemyPhase, playEnemyPhase, getLungeToPlayer]);
+  }, [isHost, turnPhase, localHp, combatEnemyPhase, playEnemyPhase, getDirectionForEnemy]);
 };
 
 export default useCombatTurnPhase;

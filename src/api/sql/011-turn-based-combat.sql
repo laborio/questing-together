@@ -708,11 +708,13 @@ begin
   where c.room_id = p_room_id and c.taunt_turns_left > 0 and c.hp > 0
   limit 1;
 
-  -- Each alive enemy attacks
+  -- Only front-row enemies (first 3 alive by position) attack
   for v_enemy in
     select e.id, e.name, e.attack
     from public.enemies e
     where e.room_id = p_room_id and e.is_dead = false
+    order by e.position asc
+    limit 3
   loop
     if v_taunter_id is not null then
       -- All damage redirected to taunter with 60% reduction

@@ -1,0 +1,25 @@
+{
+  "id": "fireball-cast",
+  "label": "Fireball Cast",
+  "cues": [
+    {
+      "id": "muzzle",
+      "assetId": "fireball-muzzle",
+      "atMs": 0,
+      "anchor": "caster"
+    },
+    {
+      "id": "fireball-travel-cue-3",
+      "assetId": "fireball-travel",
+      "atMs": 50,
+      "anchor": "caster",
+      "targetAnchor": "target"
+    },
+    {
+      "id": "impact",
+      "assetId": "fireball-impact",
+      "atMs": 1340,
+      "anchor": "target"
+    }
+  ]
+}

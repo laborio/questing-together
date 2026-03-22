@@ -1,11 +1,15 @@
 import fireballImpactData from '@/features/vfx/assets/effects/fireball-impact.json';
+import fireballMuzzleData from '@/features/vfx/assets/effects/fireball-muzzle.json';
 import fireballTravelData from '@/features/vfx/assets/effects/fireball-travel.json';
+import fireballTravelLeftData from '@/features/vfx/assets/effects/fireball-travel_left.json';
 import frostboltImpactData from '@/features/vfx/assets/effects/frostbolt-impact.json';
 import frostboltTravelData from '@/features/vfx/assets/effects/frostbolt-travel.json';
 import type { EffectAsset } from '@/features/vfx/types/assets';
 
 const effectAssets = [
+  fireballMuzzleData,
   fireballTravelData,
+  fireballTravelLeftData,
   fireballImpactData,
   frostboltTravelData,
   frostboltImpactData,

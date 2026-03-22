@@ -118,6 +118,7 @@ function renderLayer(layer: EffectLayer, instance: EffectInstance, progress: Sha
 const EffectPlayer = ({ instance, onComplete }: EffectPlayerProps) => {
   const progress = useSharedValue(0);
   const asset = getEffectAsset(instance.assetId);
+  const playbackDurationMs = Math.max(1, instance.durationMsOverride ?? asset?.durationMs ?? 1);
 
   useEffect(() => {
     if (!asset) return;
@@ -125,7 +126,7 @@ const EffectPlayer = ({ instance, onComplete }: EffectPlayerProps) => {
     cancelAnimation(progress);
     progress.value = 0;
     progress.value = withRepeat(
-      withTiming(1, { duration: asset.durationMs, easing: Easing.linear }),
+      withTiming(1, { duration: playbackDurationMs, easing: Easing.linear }),
       asset.loop ? -1 : 1,
       false,
     );
@@ -138,18 +139,18 @@ const EffectPlayer = ({ instance, onComplete }: EffectPlayerProps) => {
 
     const timeoutId = setTimeout(() => {
       onComplete(instance.instanceId);
-    }, asset.durationMs + 32);
+    }, playbackDurationMs + 32);
 
     return () => {
       clearTimeout(timeoutId);
       cancelAnimation(progress);
     };
-  }, [asset, instance.instanceId, onComplete, progress]);
+  }, [asset, instance.instanceId, onComplete, playbackDurationMs, progress]);
 
   if (!asset) return null;
 
   return (
-    <Svg pointerEvents="none" style={styles.canvas}>
+    <Svg pointerEvents="none" style={styles.canvas} width="100%" height="100%">
       {asset.layers.map((layer) => renderLayer(layer, instance, progress))}
     </Svg>
   );

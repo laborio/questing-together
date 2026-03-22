@@ -3,6 +3,7 @@ export type PlayEffectOptions = {
   y: number;
   targetX?: number;
   targetY?: number;
+  durationMsOverride?: number;
 };
 
 export type EffectInstance = PlayEffectOptions & {

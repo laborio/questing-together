@@ -1,5 +1,5 @@
 import Animated, { type SharedValue, useAnimatedProps } from 'react-native-reanimated';
-import { Circle, Defs, Mask, Path, Polygon, Rect, Image as SvgImage } from 'react-native-svg';
+import { Circle, Defs, Mask, Path, Rect, Image as SvgImage } from 'react-native-svg';
 import { sampleLayerTrack, sampleMotionPosition } from '@/features/vfx/runtime/sampleTrack';
 import { getVfxSpriteSource } from '@/features/vfx/runtime/spriteRegistry';
 import type { EffectAsset, TrailLayer } from '@/features/vfx/types/assets';
@@ -8,7 +8,6 @@ import type { EffectInstance } from '@/features/vfx/types/runtime';
 const AnimatedCircle = Animated.createAnimatedComponent(Circle);
 const AnimatedImage = Animated.createAnimatedComponent(SvgImage);
 const AnimatedPath = Animated.createAnimatedComponent(Path);
-const AnimatedPolygon = Animated.createAnimatedComponent(Polygon);
 const AnimatedRect = Animated.createAnimatedComponent(Rect);
 
 type TrailSegmentProps = {
@@ -180,17 +179,16 @@ const DiamondTrailSegment = ({ asset, instance, layer, progress, index }: TrailS
       rotatePoint(halfWidth, 0),
       rotatePoint(0, halfHeight),
       rotatePoint(-halfWidth, 0),
-    ]
-      .map((point) => `${values.x + point.x},${values.y + point.y}`)
-      .join(' ');
+    ].map((point) => ({ x: values.x + point.x, y: values.y + point.y }));
+    const d = `M ${points[0].x} ${points[0].y} L ${points[1].x} ${points[1].y} L ${points[2].x} ${points[2].y} L ${points[3].x} ${points[3].y} Z`;
 
     return {
-      points,
+      d,
       opacity: values.opacity,
     };
   });
 
-  return <AnimatedPolygon animatedProps={animatedProps} fill={layer.color} />;
+  return <AnimatedPath animatedProps={animatedProps} fill={layer.color} />;
 };
 
 const ArcTrailSegment = ({ asset, instance, layer, progress, index }: TrailSegmentProps) => {
@@ -240,16 +238,23 @@ const StarburstTrailSegment = ({ asset, instance, layer, progress, index }: Trai
     const points = Array.from({ length: pointCount * 2 }, (_, pointIndex) => {
       const radius = pointIndex % 2 === 0 ? outerRadius : innerRadius;
       const angle = rotation + (Math.PI * pointIndex) / pointCount;
-      return `${values.x + radius * Math.cos(angle)},${values.y + radius * Math.sin(angle)}`;
-    }).join(' ');
+      return {
+        x: values.x + radius * Math.cos(angle),
+        y: values.y + radius * Math.sin(angle),
+      };
+    });
+    const d = points
+      .map((point, pointIndex) => `${pointIndex === 0 ? 'M' : 'L'} ${point.x} ${point.y}`)
+      .join(' ')
+      .concat(' Z');
 
     return {
-      points,
+      d,
       opacity: values.opacity,
     };
   });
 
-  return <AnimatedPolygon animatedProps={animatedProps} fill={layer.color} />;
+  return <AnimatedPath animatedProps={animatedProps} fill={layer.color} />;
 };
 
 const TrailSegment = (props: TrailSegmentProps) => {

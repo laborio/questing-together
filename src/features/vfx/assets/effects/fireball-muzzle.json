@@ -1,0 +1,103 @@
+{
+  "id": "fireball-muzzle",
+  "label": "Fireball Muzzle",
+  "durationMs": 260,
+  "motion": {
+    "mode": "fixed"
+  },
+  "layers": [
+    {
+      "id": "flash",
+      "type": "arc",
+      "radius": 25,
+      "sweepDeg": 130,
+      "color": "rgba(155, 255, 148, 0.88)",
+      "tracks": {
+        "scale": [
+          {
+            "at": 0,
+            "value": 0.22
+          },
+          {
+            "at": 0.2,
+            "value": 1.2
+          },
+          {
+            "at": 1,
+            "value": 0.75
+          }
+        ],
+        "alpha": [
+          {
+            "at": 0,
+            "value": 1
+          },
+          {
+            "at": 0.42,
+            "value": 0.7
+          },
+          {
+            "at": 1,
+            "value": 0
+          }
+        ],
+        "glow": [
+          {
+            "at": 0,
+            "value": 1
+          },
+          {
+            "at": 0.35,
+            "value": 0.72
+          },
+          {
+            "at": 1,
+            "value": 0.12
+          }
+        ]
+      },
+      "thickness": 4,
+      "rotationDeg": -40
+    },
+    {
+      "id": "kick-ring",
+      "type": "arc",
+      "radius": 10,
+      "thickness": 5,
+      "sweepDeg": 100,
+      "color": "rgba(97, 255, 100, 0.92)",
+      "tracks": {
+        "scale": [
+          {
+            "at": 0,
+            "value": 0.32
+          },
+          {
+            "at": 0.44,
+            "value": 1.18
+          },
+          {
+            "at": 1,
+            "value": 1.65
+          }
+        ],
+        "alpha": [
+          {
+            "at": 0,
+            "value": 0.95
+          },
+          {
+            "at": 0.4,
+            "value": 0.68
+          },
+          {
+            "at": 1,
+            "value": 0
+          }
+        ]
+      },
+      "rotationDeg": -40
+    }
+  ],
+  "loop": false
+}

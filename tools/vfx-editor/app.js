@@ -1,11 +1,21 @@
 const STAGE = { width: 720, height: 420 };
 
 const DEMO_EFFECTS = {
+  'fireball-muzzle': '../../src/features/vfx/assets/effects/fireball-muzzle.json',
   'fireball-travel': '../../src/features/vfx/assets/effects/fireball-travel.json',
   'fireball-impact': '../../src/features/vfx/assets/effects/fireball-impact.json',
   'frostbolt-travel': '../../src/features/vfx/assets/effects/frostbolt-travel.json',
   'frostbolt-impact': '../../src/features/vfx/assets/effects/frostbolt-impact.json',
 };
+
+const DEMO_SEQUENCES = {
+  'fireball-cast': '../../src/features/vfx/assets/sequences/fireball-cast.json',
+};
+
+const PREVIEW_PLAYBACK_OPTIONS = [
+  { value: 'single', label: 'Single Effect' },
+  { value: 'sequence', label: 'Effect Sequence' },
+];
 
 const TRACK_LABELS = {
   scale: 'Scale over lifetime',
@@ -76,6 +86,8 @@ const PREVIEW_VIEWPORT_LIMITS = {
 };
 
 let spriteLibrary = {};
+let effectPreviewLibrary = {};
+let sequenceLibrary = {};
 
 function createDefaultPreviewBackground() {
   return {
@@ -101,6 +113,8 @@ function createDefaultPreviewDevice() {
 
 function createDefaultCollapsedPanels() {
   return {
+    sequenceTimeline: false,
+    assetSequence: false,
     assetMotion: false,
     layersStack: false,
     layerProperties: false,
@@ -247,6 +261,7 @@ const ui = {
   progressPercentLabel: document.getElementById('progressPercentLabel'),
   progressTimeLabel: document.getElementById('progressTimeLabel'),
   progressSlider: document.getElementById('progressSlider'),
+  sequenceTimelinePanel: document.getElementById('sequenceTimelinePanel'),
   panelJson: document.querySelector('.panel-json'),
   jsonEditor: document.getElementById('jsonEditor'),
   jsonStatusLabel: document.getElementById('jsonStatusLabel'),
@@ -912,6 +927,18 @@ function createStarterAsset() {
   };
 }
 
+function createBlankAsset() {
+  return {
+    id: 'new-effect',
+    label: 'New Effect',
+    durationMs: 320,
+    motion: {
+      mode: 'fixed',
+    },
+    layers: [],
+  };
+}
+
 function createInstance() {
   return {
     x: 120,
@@ -1076,6 +1103,267 @@ function normalizeAsset(rawAsset) {
   return asset;
 }
 
+function normalizeSequence(rawSequence) {
+  const sequence = cloneData(rawSequence ?? {});
+  sequence.id = typeof sequence.id === 'string' ? sequence.id : 'new-sequence';
+  sequence.label = typeof sequence.label === 'string' ? sequence.label : titleCaseFromId(sequence.id);
+  sequence.cues = Array.isArray(sequence.cues) ? sequence.cues : [];
+  sequence.cues = sequence.cues
+    .map((cue, index) => ({
+      id: typeof cue?.id === 'string' ? cue.id : `${sequence.id}-cue-${index + 1}`,
+      assetId: typeof cue?.assetId === 'string' ? cue.assetId : '',
+      atMs: Number.isFinite(Number(cue?.atMs)) ? Math.max(0, Number(cue.atMs)) : 0,
+      durationMs: Number.isFinite(Number(cue?.durationMs)) ? Math.max(1, Number(cue.durationMs)) : undefined,
+      anchor: ['caster', 'target', 'projectile'].includes(cue?.anchor) ? cue.anchor : 'caster',
+      targetAnchor:
+        typeof cue?.targetAnchor === 'string' &&
+        ['caster', 'target', 'projectile'].includes(cue.targetAnchor)
+          ? cue.targetAnchor
+          : undefined,
+      travelT: Number.isFinite(Number(cue?.travelT)) ? clamp01(Number(cue.travelT)) : undefined,
+    }))
+    .filter((cue) => cue.assetId);
+
+  return sequence;
+}
+
+function createSequenceFromCurrentAsset() {
+  return normalizeSequence({
+    id: `${state.asset.id}-sequence`,
+    label: `${state.asset.label} Sequence`,
+    cues: [
+      {
+        id: `${state.asset.id}-cue-1`,
+        assetId: state.asset.id,
+        atMs: 0,
+        anchor: 'caster',
+        targetAnchor: motionUsesTarget(state.asset.motion?.mode ?? 'fixed') ? 'target' : undefined,
+      },
+    ],
+  });
+}
+
+function ensureSequenceSelection() {
+  const sequence = state.previewSequence;
+  if (!sequence || sequence.cues.length === 0) {
+    state.selectedSequenceCueId = '';
+    return;
+  }
+
+  if (!sequence.cues.some((cue) => cue.id === state.selectedSequenceCueId)) {
+    state.selectedSequenceCueId = sequence.cues[0].id;
+  }
+
+  const assetIds = getSequenceAssetOptions().map((option) => option.value);
+  if (!assetIds.includes(state.pendingSequenceAssetId)) {
+    state.pendingSequenceAssetId = assetIds[0] ?? state.asset.id;
+  }
+}
+
+async function loadPreviewEffectAsset(assetId) {
+  if (assetId === state.asset.id) {
+    return state.asset;
+  }
+
+  if (effectPreviewLibrary[assetId]) {
+    return effectPreviewLibrary[assetId];
+  }
+
+  const path = DEMO_EFFECTS[assetId];
+  if (!path) {
+    return null;
+  }
+
+  try {
+    const response = await fetch(path, { cache: 'no-store' });
+    if (!response.ok) {
+      throw new Error(`Request failed with status ${response.status}`);
+    }
+
+    const asset = normalizeAsset(await response.json());
+    effectPreviewLibrary[assetId] = asset;
+    return asset;
+  } catch (error) {
+    console.warn(`Could not load preview asset "${assetId}".`, error);
+    return null;
+  }
+}
+
+function getPreviewEffectAsset(assetId) {
+  if (assetId === state.asset.id) {
+    return state.asset;
+  }
+
+  return effectPreviewLibrary[assetId] ?? null;
+}
+
+function getSequenceAssetOptions() {
+  const ids = new Set([
+    state.asset.id,
+    ...Object.keys(DEMO_EFFECTS),
+    ...Object.keys(effectPreviewLibrary),
+    ...(state.previewSequence?.cues.map((cue) => cue.assetId) ?? []),
+  ]);
+
+  return [...ids]
+    .filter(Boolean)
+    .sort((left, right) => left.localeCompare(right))
+    .map((assetId) => ({
+      value: assetId,
+      label: getPreviewEffectAsset(assetId)?.label ?? titleCaseFromId(assetId),
+    }));
+}
+
+async function loadPreviewSequence(sequenceId) {
+  if (sequenceLibrary[sequenceId]) {
+    state.previewSequence = normalizeSequence(sequenceLibrary[sequenceId]);
+    state.previewSequenceId = state.previewSequence.id;
+    state.sequenceFileHandle = null;
+    state.sequenceFileName = `${state.previewSequence.id}.json`;
+    ensureSequenceSelection();
+    return state.previewSequence;
+  }
+
+  const path = DEMO_SEQUENCES[sequenceId];
+  if (!path) {
+    return null;
+  }
+
+  try {
+    const response = await fetch(path, { cache: 'no-store' });
+    if (!response.ok) {
+      throw new Error(`Request failed with status ${response.status}`);
+    }
+
+    const sequence = normalizeSequence(await response.json());
+    sequenceLibrary[sequenceId] = sequence;
+    await Promise.all(sequence.cues.map((cue) => loadPreviewEffectAsset(cue.assetId)));
+    state.previewSequence = normalizeSequence(sequence);
+    state.previewSequenceId = state.previewSequence.id;
+    state.sequenceFileHandle = null;
+    state.sequenceFileName = `${state.previewSequence.id}.json`;
+    ensureSequenceSelection();
+    return state.previewSequence;
+  } catch (error) {
+    console.warn(`Could not load preview sequence "${sequenceId}".`, error);
+    return null;
+  }
+}
+
+function getPreviewSequence(sequenceId) {
+  return sequenceLibrary[sequenceId] ?? null;
+}
+
+function getActivePreviewSequence() {
+  if (state.previewPlaybackMode !== 'sequence') {
+    return null;
+  }
+
+  return state.previewSequence;
+}
+
+function resolvePreviewTitle() {
+  const sequence = getActivePreviewSequence();
+  if (sequence) {
+    return `${sequence.label} Sequence Preview`;
+  }
+
+  return `${state.asset.label} Preview`;
+}
+
+function resolveStaticSequenceAnchorPoint(anchor) {
+  if (anchor === 'target') {
+    return {
+      x: state.instance.targetX ?? state.instance.x,
+      y: state.instance.targetY ?? state.instance.y,
+    };
+  }
+
+  return {
+    x: state.instance.x,
+    y: state.instance.y,
+  };
+}
+
+function findPreviewProjectileCue(sequence) {
+  return sequence.cues.find((cue) => cue.targetAnchor && getPreviewEffectAsset(cue.assetId)) ?? null;
+}
+
+function getSequenceCueDurationMs(cue) {
+  return Math.max(1, cue.durationMs ?? getPreviewEffectAsset(cue.assetId)?.durationMs ?? 320);
+}
+
+function samplePreviewProjectilePoint(sequence, cue) {
+  const projectileCue = findPreviewProjectileCue(sequence);
+  if (!projectileCue) {
+    return resolveStaticSequenceAnchorPoint('target');
+  }
+
+  const projectileAsset = getPreviewEffectAsset(projectileCue.assetId);
+  if (!projectileAsset) {
+    return resolveStaticSequenceAnchorPoint('target');
+  }
+
+  const startPoint = resolveStaticSequenceAnchorPoint(
+    projectileCue.anchor === 'target' ? 'target' : 'caster',
+  );
+  const targetPoint = resolveStaticSequenceAnchorPoint(
+    projectileCue.targetAnchor === 'caster' ? 'caster' : 'target',
+  );
+  const travelDurationMs = getSequenceCueDurationMs(projectileCue);
+  const sampledTravelT =
+    cue.travelT ?? clamp01((cue.atMs - projectileCue.atMs) / travelDurationMs);
+
+  return sampleMotionPosition(
+    projectileAsset,
+    {
+      x: startPoint.x,
+      y: startPoint.y,
+      targetX: targetPoint.x,
+      targetY: targetPoint.y,
+    },
+    sampledTravelT,
+  );
+}
+
+function resolveSequenceAnchorPoint(sequence, cue, anchor) {
+  if (anchor === 'projectile') {
+    return samplePreviewProjectilePoint(sequence, cue);
+  }
+
+  return resolveStaticSequenceAnchorPoint(anchor);
+}
+
+function buildSequenceCueInstance(sequence, cue) {
+  const origin = resolveSequenceAnchorPoint(sequence, cue, cue.anchor);
+  const instance = {
+    x: origin.x,
+    y: origin.y,
+    durationMsOverride: cue.durationMs,
+  };
+
+  if (cue.targetAnchor) {
+    const targetPoint = resolveSequenceAnchorPoint(sequence, cue, cue.targetAnchor);
+    instance.targetX = targetPoint.x;
+    instance.targetY = targetPoint.y;
+  }
+
+  return instance;
+}
+
+function getActivePreviewDurationMs() {
+  const sequence = getActivePreviewSequence();
+  if (!sequence) {
+    return Math.max(1, Number(state.asset.durationMs) || 1);
+  }
+
+  const durationMs = sequence.cues.reduce((maxDurationMs, cue) => {
+    return Math.max(maxDurationMs, cue.atMs + getSequenceCueDurationMs(cue));
+  }, 0);
+
+  return Math.max(1, durationMs || Number(state.asset.durationMs) || 1);
+}
+
 const state = {
   asset: normalizeAsset(createStarterAsset()),
   instance: createInstance(),
@@ -1099,6 +1387,13 @@ const state = {
   previewBackground: createDefaultPreviewBackground(),
   previewDevice: createDefaultPreviewDevice(),
   previewViewport: createDefaultPreviewViewport(),
+  previewPlaybackMode: 'single',
+  previewSequenceId: 'fireball-cast',
+  previewSequence: null,
+  pendingSequenceAssetId: 'fireball-travel',
+  selectedSequenceCueId: '',
+  sequenceFileHandle: null,
+  sequenceFileName: '',
   collapsedPanels: createDefaultCollapsedPanels(),
   undoStack: [],
   redoStack: [],
@@ -1106,9 +1401,14 @@ const state = {
   isRestoringHistory: false,
   activePanelResize: null,
   activeViewportPan: null,
+  activeSequenceCueDrag: null,
 };
 
 state.jsonDraft = stringifyAsset(state.asset);
+state.previewSequence = createSequenceFromCurrentAsset();
+state.sequenceFileName = `${state.previewSequence.id}.json`;
+state.pendingSequenceAssetId = state.asset.id;
+ensureSequenceSelection();
 
 function clearCurveEditors() {
   state.curveStates = {};
@@ -1445,6 +1745,14 @@ function normalizePreviewDevice(rawDevice) {
   };
 }
 
+function normalizePreviewPlaybackMode(rawValue) {
+  return PREVIEW_PLAYBACK_OPTIONS.some((option) => option.value === rawValue) ? rawValue : 'single';
+}
+
+function normalizePreviewSequenceId(rawValue) {
+  return typeof rawValue === 'string' && rawValue.trim() ? rawValue.trim() : 'fireball-cast';
+}
+
 function normalizeInstance(rawInstance) {
   const defaults = createInstance();
   return {
@@ -1519,6 +1827,12 @@ function buildPersistedEditorSession() {
     previewBackground: cloneData(state.previewBackground),
     previewDevice: cloneData(state.previewDevice),
     previewViewport: cloneData(state.previewViewport),
+    previewPlaybackMode: state.previewPlaybackMode,
+    previewSequenceId: state.previewSequenceId,
+    previewSequence: cloneData(state.previewSequence),
+    pendingSequenceAssetId: state.pendingSequenceAssetId,
+    selectedSequenceCueId: state.selectedSequenceCueId,
+    sequenceFileName: state.sequenceFileName,
     collapsedPanels: cloneData(state.collapsedPanels),
     fileName: state.fileName,
     jsonDraft: state.jsonDraft,
@@ -1628,6 +1942,18 @@ function applyPersistedEditorSession(persisted) {
   state.previewBackground = normalizePreviewBackground(persisted.previewBackground);
   state.previewDevice = normalizePreviewDevice(persisted.previewDevice);
   state.previewViewport = normalizePreviewViewport(persisted.previewViewport);
+  state.previewPlaybackMode = 'single';
+  state.previewSequenceId = normalizePreviewSequenceId(persisted.previewSequenceId);
+  state.previewSequence = persisted.previewSequence
+    ? normalizeSequence(persisted.previewSequence)
+    : createSequenceFromCurrentAsset();
+  state.pendingSequenceAssetId =
+    typeof persisted.pendingSequenceAssetId === 'string' ? persisted.pendingSequenceAssetId : state.asset.id;
+  state.selectedSequenceCueId =
+    typeof persisted.selectedSequenceCueId === 'string' ? persisted.selectedSequenceCueId : '';
+  state.sequenceFileHandle = null;
+  state.sequenceFileName =
+    typeof persisted.sequenceFileName === 'string' ? persisted.sequenceFileName : `${state.previewSequence.id}.json`;
   state.collapsedPanels = {
     ...createDefaultCollapsedPanels(),
     ...(persisted.collapsedPanels ?? {}),
@@ -1646,8 +1972,10 @@ function applyPersistedEditorSession(persisted) {
   state.dragTarget = null;
   state.activeCurveDrag = null;
   state.activePanelResize = null;
+  state.activeSequenceCueDrag = null;
   clearHistory();
   ensureSelection();
+  ensureSequenceSelection();
   return true;
 }
 
@@ -1783,6 +2111,10 @@ function createHistorySnapshot() {
     instance: cloneData(state.instance),
     selectedLayerId: state.selectedLayerId,
     selectedLayerTrack: state.selectedLayerTrack,
+    previewPlaybackMode: state.previewPlaybackMode,
+    previewSequence: cloneData(state.previewSequence),
+    selectedSequenceCueId: state.selectedSequenceCueId,
+    pendingSequenceAssetId: state.pendingSequenceAssetId,
     curveStates: cloneData(state.curveStates),
     curveEditorModes: cloneData(state.curveEditorModes),
     previewBackground: cloneData(state.previewBackground),
@@ -1838,10 +2170,15 @@ function restoreHistorySnapshot(snapshot) {
   state.instance = cloneData(snapshot.instance);
   state.selectedLayerId = snapshot.selectedLayerId;
   state.selectedLayerTrack = snapshot.selectedLayerTrack;
+  state.previewPlaybackMode = normalizePreviewPlaybackMode(snapshot.previewPlaybackMode);
+  state.previewSequence = normalizeSequence(snapshot.previewSequence ?? createSequenceFromCurrentAsset());
+  state.selectedSequenceCueId = snapshot.selectedSequenceCueId;
+  state.pendingSequenceAssetId = snapshot.pendingSequenceAssetId ?? state.asset.id;
   state.curveStates = cloneData(snapshot.curveStates ?? {});
   state.curveEditorModes = cloneData(snapshot.curveEditorModes ?? {});
   state.previewBackground = normalizePreviewBackground(snapshot.previewBackground);
   ensureSelection();
+  ensureSequenceSelection();
   syncJsonFromAsset();
   renderPanels();
   renderPreview();
@@ -2179,8 +2516,8 @@ function getTrackEditorPoints(scope, trackName, layerId = state.selectedLayerId)
   return getRawTrack(scope, trackName, layerId);
 }
 
-function getTrackForSampling(scope, trackName, layerId = state.selectedLayerId) {
-  if (hasCurveState(scope, trackName, layerId)) {
+function getTrackForSampling(asset, scope, trackName, layerId = state.selectedLayerId) {
+  if (asset.id === state.asset.id && hasCurveState(scope, trackName, layerId)) {
     const curveState = state.curveStates[getCurveStateKey(scope, trackName, layerId)];
     if (curveState.modified) {
       return curveState.baked;
@@ -2188,8 +2525,8 @@ function getTrackForSampling(scope, trackName, layerId = state.selectedLayerId) 
   }
 
   return scope === 'motion'
-    ? state.asset.motion?.tracks?.[trackName]
-    : state.asset.layers.find((layer) => layer.id === layerId)?.tracks?.[trackName];
+    ? asset.motion?.tracks?.[trackName]
+    : asset.layers.find((layer) => layer.id === layerId)?.tracks?.[trackName];
 }
 
 function buildExportAsset() {
@@ -2334,7 +2671,9 @@ function syncJsonFromAsset() {
 
 function commitAsset(nextAsset, options = {}) {
   state.asset = normalizeAsset(nextAsset);
+  effectPreviewLibrary[state.asset.id] = cloneData(state.asset);
   ensureSelection();
+  ensureSequenceSelection();
 
   if (options.resetProgress) {
     state.progress = 0;
@@ -2344,11 +2683,13 @@ function commitAsset(nextAsset, options = {}) {
     syncJsonFromAsset();
   }
 
-  ui.effectTitleLabel.textContent = `${state.asset.label} Preview`;
+  ui.effectTitleLabel.textContent = resolvePreviewTitle();
   renderPreview();
 
   if (options.renderPanels) {
     renderPanels();
+  } else {
+    renderSequenceTimelinePanel();
   }
 
   schedulePersistEditorSession();
@@ -2385,8 +2726,8 @@ function sampleTrack(track, progress, fallback = 0) {
   return lastKey.value;
 }
 
-function sampleLayerTrack(layer, name, progress, fallback = 0) {
-  return sampleTrack(getTrackForSampling('layer', name, layer.id), progress, fallback);
+function sampleLayerTrack(asset, layer, name, progress, fallback = 0) {
+  return sampleTrack(getTrackForSampling(asset, 'layer', name, layer.id), progress, fallback);
 }
 
 function motionUsesTarget(mode) {
@@ -2395,7 +2736,7 @@ function motionUsesTarget(mode) {
 
 function sampleMotionPosition(asset, instance, progress) {
   if (motionUsesTarget(asset.motion?.mode) && instance.targetX != null && instance.targetY != null) {
-    const travel = sampleTrack(getTrackForSampling('motion', 'travel'), progress, progress);
+    const travel = sampleTrack(getTrackForSampling(asset, 'motion', 'travel'), progress, progress);
     const base = {
       x: lerp(instance.x, instance.targetX, travel),
       y: lerp(instance.y, instance.targetY, travel),
@@ -2403,8 +2744,8 @@ function sampleMotionPosition(asset, instance, progress) {
 
     if (asset.motion?.mode === 'path') {
       return {
-        x: base.x + sampleTrack(getTrackForSampling('motion', 'x'), progress, 0),
-        y: base.y + sampleTrack(getTrackForSampling('motion', 'y'), progress, 0),
+        x: base.x + sampleTrack(getTrackForSampling(asset, 'motion', 'x'), progress, 0),
+        y: base.y + sampleTrack(getTrackForSampling(asset, 'motion', 'y'), progress, 0),
       };
     }
 
@@ -2413,8 +2754,8 @@ function sampleMotionPosition(asset, instance, progress) {
 
   if (asset.motion?.mode === 'path') {
     return {
-      x: instance.x + sampleTrack(getTrackForSampling('motion', 'x'), progress, 0),
-      y: instance.y + sampleTrack(getTrackForSampling('motion', 'y'), progress, 0),
+      x: instance.x + sampleTrack(getTrackForSampling(asset, 'motion', 'x'), progress, 0),
+      y: instance.y + sampleTrack(getTrackForSampling(asset, 'motion', 'y'), progress, 0),
     };
   }
 
@@ -2424,21 +2765,21 @@ function sampleMotionPosition(asset, instance, progress) {
   };
 }
 
-function renderMotionGuide() {
-  const motionMode = state.asset.motion?.mode ?? 'fixed';
+function renderMotionGuide(asset, instance) {
+  const motionMode = asset.motion?.mode ?? 'fixed';
 
   if (!motionUsesTarget(motionMode)) {
     return '';
   }
 
-  const targetX = state.instance.targetX ?? state.instance.x;
-  const targetY = state.instance.targetY ?? state.instance.y;
+  const targetX = instance.targetX ?? instance.x;
+  const targetY = instance.targetY ?? instance.y;
 
   if (motionMode === 'line') {
     return `
       <line
-        x1="${state.instance.x}"
-        y1="${state.instance.y}"
+        x1="${instance.x}"
+        y1="${instance.y}"
         x2="${targetX}"
         y2="${targetY}"
         stroke="rgba(255,255,255,0.14)"
@@ -2449,7 +2790,7 @@ function renderMotionGuide() {
 
   const samples = Array.from({ length: 25 }, (_, index) => {
     const t = index / 24;
-    const point = sampleMotionPosition(state.asset, state.instance, t);
+    const point = sampleMotionPosition(asset, instance, t);
     return `${index === 0 ? 'M' : 'L'} ${point.x} ${point.y}`;
   }).join(' ');
 
@@ -2466,13 +2807,13 @@ function renderMotionGuide() {
   `;
 }
 
-function renderOrb(layer, progress) {
-  const base = sampleMotionPosition(state.asset, state.instance, progress);
-  const x = base.x + sampleLayerTrack(layer, 'x', progress, 0);
-  const y = base.y + sampleLayerTrack(layer, 'y', progress, 0);
-  const scale = sampleLayerTrack(layer, 'scale', progress, 1);
-  const alpha = sampleLayerTrack(layer, 'alpha', progress, 1);
-  const glow = sampleLayerTrack(layer, 'glow', progress, 0);
+function renderOrb(asset, instance, layer, progress) {
+  const base = sampleMotionPosition(asset, instance, progress);
+  const x = base.x + sampleLayerTrack(asset, layer, 'x', progress, 0);
+  const y = base.y + sampleLayerTrack(asset, layer, 'y', progress, 0);
+  const scale = sampleLayerTrack(asset, layer, 'scale', progress, 1);
+  const alpha = sampleLayerTrack(asset, layer, 'alpha', progress, 1);
+  const glow = sampleLayerTrack(asset, layer, 'glow', progress, 0);
   const glowRadius = layer.radius * scale * (layer.glowScale ?? 2.3) * (1 + glow * 0.45);
   const coreRadius = Math.max(1, layer.radius * scale);
   const glowOpacity = Math.max(0, alpha * (0.18 + glow * 0.35));
@@ -2483,12 +2824,12 @@ function renderOrb(layer, progress) {
   `;
 }
 
-function renderRing(layer, progress) {
-  const base = sampleMotionPosition(state.asset, state.instance, progress);
-  const x = base.x + sampleLayerTrack(layer, 'x', progress, 0);
-  const y = base.y + sampleLayerTrack(layer, 'y', progress, 0);
-  const scale = sampleLayerTrack(layer, 'scale', progress, 1);
-  const alpha = sampleLayerTrack(layer, 'alpha', progress, 1);
+function renderRing(asset, instance, layer, progress) {
+  const base = sampleMotionPosition(asset, instance, progress);
+  const x = base.x + sampleLayerTrack(asset, layer, 'x', progress, 0);
+  const y = base.y + sampleLayerTrack(asset, layer, 'y', progress, 0);
+  const scale = sampleLayerTrack(asset, layer, 'scale', progress, 1);
+  const alpha = sampleLayerTrack(asset, layer, 'alpha', progress, 1);
 
   return `
     <circle
@@ -2503,12 +2844,12 @@ function renderRing(layer, progress) {
   `;
 }
 
-function renderStreak(layer, progress) {
-  const base = sampleMotionPosition(state.asset, state.instance, progress);
-  const x = base.x + sampleLayerTrack(layer, 'x', progress, 0);
-  const y = base.y + sampleLayerTrack(layer, 'y', progress, 0);
-  const scale = sampleLayerTrack(layer, 'scale', progress, 1);
-  const alpha = sampleLayerTrack(layer, 'alpha', progress, 1);
+function renderStreak(asset, instance, layer, progress) {
+  const base = sampleMotionPosition(asset, instance, progress);
+  const x = base.x + sampleLayerTrack(asset, layer, 'x', progress, 0);
+  const y = base.y + sampleLayerTrack(asset, layer, 'y', progress, 0);
+  const scale = sampleLayerTrack(asset, layer, 'scale', progress, 1);
+  const alpha = sampleLayerTrack(asset, layer, 'alpha', progress, 1);
   const width = Math.max(1, layer.width * scale);
   const height = Math.max(1, layer.height * scale);
 
@@ -2527,12 +2868,12 @@ function renderStreak(layer, progress) {
   `;
 }
 
-function renderDiamond(layer, progress) {
-  const base = sampleMotionPosition(state.asset, state.instance, progress);
-  const cx = base.x + sampleLayerTrack(layer, 'x', progress, 0);
-  const cy = base.y + sampleLayerTrack(layer, 'y', progress, 0);
-  const scale = sampleLayerTrack(layer, 'scale', progress, 1);
-  const alpha = sampleLayerTrack(layer, 'alpha', progress, 1);
+function renderDiamond(asset, instance, layer, progress) {
+  const base = sampleMotionPosition(asset, instance, progress);
+  const cx = base.x + sampleLayerTrack(asset, layer, 'x', progress, 0);
+  const cy = base.y + sampleLayerTrack(asset, layer, 'y', progress, 0);
+  const scale = sampleLayerTrack(asset, layer, 'scale', progress, 1);
+  const alpha = sampleLayerTrack(asset, layer, 'alpha', progress, 1);
   const halfWidth = Math.max(1, (layer.width * scale) / 2);
   const halfHeight = Math.max(1, (layer.height * scale) / 2);
   const angle = ((layer.rotationDeg ?? 0) * Math.PI) / 180;
@@ -2558,12 +2899,12 @@ function renderDiamond(layer, progress) {
   `;
 }
 
-function renderArc(layer, progress) {
-  const base = sampleMotionPosition(state.asset, state.instance, progress);
-  const cx = base.x + sampleLayerTrack(layer, 'x', progress, 0);
-  const cy = base.y + sampleLayerTrack(layer, 'y', progress, 0);
-  const scale = sampleLayerTrack(layer, 'scale', progress, 1);
-  const alpha = sampleLayerTrack(layer, 'alpha', progress, 1);
+function renderArc(asset, instance, layer, progress) {
+  const base = sampleMotionPosition(asset, instance, progress);
+  const cx = base.x + sampleLayerTrack(asset, layer, 'x', progress, 0);
+  const cy = base.y + sampleLayerTrack(asset, layer, 'y', progress, 0);
+  const scale = sampleLayerTrack(asset, layer, 'scale', progress, 1);
+  const alpha = sampleLayerTrack(asset, layer, 'alpha', progress, 1);
   const radius = Math.max(1, layer.radius * scale);
   const startAngle = (layer.rotationDeg ?? -90) - layer.sweepDeg / 2;
   const endAngle = startAngle + layer.sweepDeg;
@@ -2591,12 +2932,12 @@ function renderArc(layer, progress) {
   `;
 }
 
-function renderStarburst(layer, progress) {
-  const base = sampleMotionPosition(state.asset, state.instance, progress);
-  const cx = base.x + sampleLayerTrack(layer, 'x', progress, 0);
-  const cy = base.y + sampleLayerTrack(layer, 'y', progress, 0);
-  const scale = sampleLayerTrack(layer, 'scale', progress, 1);
-  const alpha = sampleLayerTrack(layer, 'alpha', progress, 1);
+function renderStarburst(asset, instance, layer, progress) {
+  const base = sampleMotionPosition(asset, instance, progress);
+  const cx = base.x + sampleLayerTrack(asset, layer, 'x', progress, 0);
+  const cy = base.y + sampleLayerTrack(asset, layer, 'y', progress, 0);
+  const scale = sampleLayerTrack(asset, layer, 'scale', progress, 1);
+  const alpha = sampleLayerTrack(asset, layer, 'alpha', progress, 1);
   const innerRadius = Math.max(0.5, layer.innerRadius * scale);
   const outerRadius = Math.max(innerRadius + 0.5, layer.outerRadius * scale);
   const pointCount = Math.max(3, Math.round(layer.points));
@@ -2660,12 +3001,12 @@ function renderSpriteNode(spriteId, x, y, width, height, opacity, tintColor = ''
   `;
 }
 
-function renderSpriteLayer(layer, progress) {
-  const base = sampleMotionPosition(state.asset, state.instance, progress);
-  const x = base.x + sampleLayerTrack(layer, 'x', progress, 0);
-  const y = base.y + sampleLayerTrack(layer, 'y', progress, 0);
-  const scale = sampleLayerTrack(layer, 'scale', progress, 1);
-  const alpha = sampleLayerTrack(layer, 'alpha', progress, 1);
+function renderSpriteLayer(asset, instance, layer, progress) {
+  const base = sampleMotionPosition(asset, instance, progress);
+  const x = base.x + sampleLayerTrack(asset, layer, 'x', progress, 0);
+  const y = base.y + sampleLayerTrack(asset, layer, 'y', progress, 0);
+  const scale = sampleLayerTrack(asset, layer, 'scale', progress, 1);
+  const alpha = sampleLayerTrack(asset, layer, 'alpha', progress, 1);
 
   return renderSpriteNode(
     layer.spriteId,
@@ -2679,18 +3020,18 @@ function renderSpriteLayer(layer, progress) {
   );
 }
 
-function renderTrail(layer, progress) {
+function renderTrail(asset, instance, layer, progress) {
   const falloff = layer.falloff ?? 0.1;
   const trailStyle = layer.style ?? 'fill';
   let svg = '';
 
   for (let index = 0; index < layer.segments; index += 1) {
     const segmentProgress = Math.max(0, progress - index * layer.spacing);
-    const base = sampleMotionPosition(state.asset, state.instance, segmentProgress);
-    const x = base.x + sampleLayerTrack(layer, 'x', segmentProgress, 0);
-    const y = base.y + sampleLayerTrack(layer, 'y', segmentProgress, 0);
-    const scale = sampleLayerTrack(layer, 'scale', segmentProgress, 1);
-    const alpha = sampleLayerTrack(layer, 'alpha', segmentProgress, 1);
+    const base = sampleMotionPosition(asset, instance, segmentProgress);
+    const x = base.x + sampleLayerTrack(asset, layer, 'x', segmentProgress, 0);
+    const y = base.y + sampleLayerTrack(asset, layer, 'y', segmentProgress, 0);
+    const scale = sampleLayerTrack(asset, layer, 'scale', segmentProgress, 1);
+    const alpha = sampleLayerTrack(asset, layer, 'alpha', segmentProgress, 1);
     const sizeFactor = Math.max(0.1, 1 - index * falloff);
     const radius = Math.max(1, layer.radius * scale * sizeFactor);
     const opacity = Math.max(0, alpha * (0.65 - index * (falloff * 0.9)));
@@ -2830,27 +3171,74 @@ function renderTrail(layer, progress) {
   return svg;
 }
 
+function renderEffectShapes(asset, instance, progress) {
+  return asset.layers
+    .map((layer) => {
+      if (layer.type === 'orb') return renderOrb(asset, instance, layer, progress);
+      if (layer.type === 'ring') return renderRing(asset, instance, layer, progress);
+      if (layer.type === 'streak') return renderStreak(asset, instance, layer, progress);
+      if (layer.type === 'diamond') return renderDiamond(asset, instance, layer, progress);
+      if (layer.type === 'arc') return renderArc(asset, instance, layer, progress);
+      if (layer.type === 'starburst') return renderStarburst(asset, instance, layer, progress);
+      if (layer.type === 'sprite') return renderSpriteLayer(asset, instance, layer, progress);
+      return renderTrail(asset, instance, layer, progress);
+    })
+    .join('');
+}
+
 function renderPreview() {
   const backdrop = state.previewBackground;
   applyStageViewportFrame();
   const viewport = getStageViewport();
-  const shapes = state.asset.layers
-    .map((layer) => {
-      if (layer.type === 'orb') return renderOrb(layer, state.progress);
-      if (layer.type === 'ring') return renderRing(layer, state.progress);
-      if (layer.type === 'streak') return renderStreak(layer, state.progress);
-      if (layer.type === 'diamond') return renderDiamond(layer, state.progress);
-      if (layer.type === 'arc') return renderArc(layer, state.progress);
-      if (layer.type === 'starburst') return renderStarburst(layer, state.progress);
-      if (layer.type === 'sprite') return renderSpriteLayer(layer, state.progress);
-      return renderTrail(layer, state.progress);
-    })
-    .join('');
+  const sequence = getActivePreviewSequence();
+  const currentTimeMs = state.progress * getActivePreviewDurationMs();
+  let shapes = renderEffectShapes(state.asset, state.instance, state.progress);
+  let motionGuide = renderMotionGuide(state.asset, state.instance);
+  let showTarget = motionUsesTarget(state.asset.motion?.mode ?? 'fixed');
+  let targetX = state.instance.targetX ?? state.instance.x;
+  let targetY = state.instance.targetY ?? state.instance.y;
 
-  const motionMode = state.asset.motion?.mode ?? 'fixed';
-  const showTarget = motionUsesTarget(motionMode);
-  const targetX = state.instance.targetX ?? state.instance.x;
-  const targetY = state.instance.targetY ?? state.instance.y;
+  if (sequence) {
+    shapes = sequence.cues
+      .map((cue) => {
+        const cueAsset = getPreviewEffectAsset(cue.assetId);
+        if (!cueAsset) {
+          return '';
+        }
+
+        const localTimeMs = currentTimeMs - cue.atMs;
+        if (localTimeMs < 0) {
+          return '';
+        }
+
+        const cueDurationMs = getSequenceCueDurationMs(cue);
+        if (!cueAsset.loop && localTimeMs > cueDurationMs) {
+          return '';
+        }
+
+        const cueProgress = cueAsset.loop
+          ? ((localTimeMs % cueDurationMs) + cueDurationMs) % cueDurationMs / cueDurationMs
+          : clamp01(localTimeMs / cueDurationMs);
+
+        return renderEffectShapes(cueAsset, buildSequenceCueInstance(sequence, cue), cueProgress);
+      })
+      .join('');
+
+    const motionCue =
+      sequence.cues.find((cue) => cue.targetAnchor && getPreviewEffectAsset(cue.assetId)) ?? null;
+
+    if (motionCue) {
+      const motionAsset = getPreviewEffectAsset(motionCue.assetId);
+      const motionInstance = buildSequenceCueInstance(sequence, motionCue);
+      motionGuide = renderMotionGuide(motionAsset, motionInstance);
+      showTarget = motionUsesTarget(motionAsset.motion?.mode ?? 'fixed');
+      targetX = motionInstance.targetX ?? motionInstance.x;
+      targetY = motionInstance.targetY ?? motionInstance.y;
+    } else {
+      motionGuide = '';
+      showTarget = false;
+    }
+  }
 
   ui.stageSvg.setAttribute('viewBox', `${viewport.x} ${viewport.y} ${viewport.width} ${viewport.height}`);
   renderPreviewViewportControls();
@@ -2884,7 +3272,7 @@ function renderPreview() {
       stroke-dasharray="6 10"
     ></line>
 
-    ${renderMotionGuide()}
+    ${motionGuide}
 
     ${shapes}
 
@@ -2929,9 +3317,24 @@ function renderPreview() {
     }
   `;
 
-  ui.progressSlider.value = String(state.progress);
-  ui.progressPercentLabel.textContent = `${Math.round(state.progress * 100)}%`;
-  ui.progressTimeLabel.textContent = `${Math.round(state.progress * state.asset.durationMs)} ms`;
+  syncSequenceTimelinePlaybackState();
+}
+
+function syncSequenceTimelinePlaybackState() {
+  if (ui.progressPercentLabel) {
+    ui.progressPercentLabel.textContent = `${Math.round(state.progress * 100)}%`;
+  }
+
+  if (ui.progressTimeLabel) {
+    ui.progressTimeLabel.textContent = `${Math.round(state.progress * getActivePreviewDurationMs())} ms`;
+  }
+
+  const timelineDurationMs = getSequenceTimelineDurationMs(state.previewSequence ?? createSequenceFromCurrentAsset());
+  const playheadMs = state.progress * getActivePreviewDurationMs();
+  const playheadPercent = timelineDurationMs > 0 ? clamp((playheadMs / timelineDurationMs) * 100, 0, 100) : 0;
+  document.querySelectorAll('.sequence-playhead').forEach((element) => {
+    element.style.left = `${playheadPercent}%`;
+  });
 }
 
 function renderBezierCurveEditor(scope, trackName) {
@@ -3728,6 +4131,222 @@ function renderLayerInspector() {
   schedulePersistEditorSession();
 }
 
+function formatSequenceMs(value) {
+  return `${Math.round(value)} ms`;
+}
+
+function getSequenceTimelineDurationMs(sequence = state.previewSequence) {
+  if (!sequence || sequence.cues.length === 0) {
+    return Math.max(800, Number(state.asset.durationMs) || 320);
+  }
+
+  return Math.max(
+    800,
+    sequence.cues.reduce(
+      (maxDurationMs, cue) => Math.max(maxDurationMs, cue.atMs + getSequenceCueDurationMs(cue)),
+      0,
+    ) + 20,
+  );
+}
+
+function getSelectedSequenceCue() {
+  return state.previewSequence?.cues.find((cue) => cue.id === state.selectedSequenceCueId) ?? null;
+}
+
+function renderSequenceTimelinePanel() {
+  if (!ui.sequenceTimelinePanel) {
+    return;
+  }
+
+  const sequence = state.previewSequence ?? createSequenceFromCurrentAsset();
+  state.previewSequence = sequence;
+  ensureSequenceSelection();
+
+  const assetOptions = getSequenceAssetOptions();
+  const timelineDurationMs = getSequenceTimelineDurationMs(sequence);
+  const rulerStepMs = timelineDurationMs <= 1200 ? 100 : timelineDurationMs <= 2800 ? 200 : 400;
+  const rulerMarks = Array.from(
+    { length: Math.ceil(timelineDurationMs / rulerStepMs) + 1 },
+    (_, index) => index * rulerStepMs,
+  );
+  const selectedCue = getSelectedSequenceCue();
+  const collapsed = isPanelCollapsed('sequenceTimeline');
+  const progressPercent = Math.round(state.progress * 100);
+  const progressMs = Math.round(state.progress * getActivePreviewDurationMs());
+  const playheadPercent = (progressMs / timelineDurationMs) * 100;
+
+  ui.sequenceTimelinePanel.innerHTML = `
+    <div class="timeline-header">
+      <div>
+        <p class="panel-kicker">Sequence</p>
+        <h3>Sequence Timeline</h3>
+      </div>
+      <div class="button-row">
+        <div class="timeline-readout">
+          <span>${escapeHtml(sequence.label)}</span>
+          <span id="progressPercentLabel">${progressPercent}%</span>
+          <span id="progressTimeLabel">${progressMs} ms</span>
+        </div>
+        <button
+          class="stack-button stack-button-compact icon-toggle-button"
+          type="button"
+          data-action="toggle-sequence-timeline-collapse"
+          aria-label="${collapsed ? 'Expand sequence timeline' : 'Collapse sequence timeline'}"
+          title="${collapsed ? 'Expand sequence timeline' : 'Collapse sequence timeline'}"
+        >${collapsed ? '▸' : '▾'}</button>
+      </div>
+    </div>
+
+    ${
+      collapsed
+        ? '<p class="section-note">Sequence timeline is collapsed.</p>'
+        : `
+    <div class="sequence-toolbar">
+      <label class="field sequence-toolbar-field">
+        <span class="field-label">Sequence ID</span>
+        <input class="field-input" type="text" value="${escapeHtml(sequence.id)}" data-sequence-field="id" />
+      </label>
+
+      <label class="field sequence-toolbar-field">
+        <span class="field-label">Sequence Label</span>
+        <input class="field-input" type="text" value="${escapeHtml(sequence.label)}" data-sequence-field="label" />
+      </label>
+
+      <label class="field sequence-toolbar-field">
+        <span class="field-label">Add Effect</span>
+        <select class="field-select" data-sequence-field="pendingAssetId">
+          ${assetOptions
+            .map(
+              (option) => `
+                <option value="${escapeHtml(option.value)}" ${state.pendingSequenceAssetId === option.value ? 'selected' : ''}>${escapeHtml(option.label)}</option>
+              `,
+            )
+            .join('')}
+        </select>
+      </label>
+
+      <details class="sequence-actions-menu">
+        <summary class="chip-button">Actions</summary>
+        <div class="sequence-actions-panel">
+          <button class="menu-action" type="button" data-action="sequence-add-cue">Add Cue</button>
+          <button class="menu-action" type="button" data-action="sequence-remove-cue" ${selectedCue ? '' : 'disabled'}>Remove Cue</button>
+          <button class="menu-action" type="button" data-action="sequence-new">New Sequence</button>
+          <button class="menu-action" type="button" data-action="sequence-open">Open Sequence</button>
+          <button class="menu-action" type="button" data-action="sequence-save">Save Sequence</button>
+          <button class="menu-action" type="button" data-action="sequence-save-as">Save Sequence As...</button>
+          <button class="menu-action" type="button" data-action="sequence-export">Export Sequence</button>
+        </div>
+      </details>
+    </div>
+
+    <div class="sequence-meta-row">
+      <span class="section-note">
+        ${state.sequenceFileName ? `Sequence file: ${escapeHtml(state.sequenceFileName)}` : 'Sequence is currently only in the editor session until you save or export it.'}
+      </span>
+      <span class="section-note">Drag a cue horizontally to retime it, vertically to reorder rows, drag the right edge to set a sequence-only duration override, or click the ruler to move the playhead.</span>
+    </div>
+
+    <div class="sequence-ruler">
+      <div class="sequence-ruler-spacer"></div>
+      <div class="sequence-ruler-track" data-sequence-timeline-duration="${timelineDurationMs}" data-sequence-scrub="true">
+        ${rulerMarks
+          .map(
+            (mark) => `
+              <div class="sequence-ruler-mark" style="left: ${(mark / timelineDurationMs) * 100}%;">
+                <span>${formatSequenceMs(mark)}</span>
+              </div>
+            `,
+          )
+          .join('')}
+        <div class="sequence-playhead" style="left: ${playheadPercent}%"></div>
+      </div>
+    </div>
+
+    <div class="sequence-track-list">
+      ${
+        sequence.cues.length
+          ? sequence.cues
+              .map((cue) => {
+                const cueAsset = getPreviewEffectAsset(cue.assetId);
+                const cueDurationMs = getSequenceCueDurationMs(cue);
+                const leftPercent = (cue.atMs / timelineDurationMs) * 100;
+                const widthPercent = Math.max(3, (cueDurationMs / timelineDurationMs) * 100);
+                return `
+                  <div class="sequence-row ${cue.id === state.selectedSequenceCueId ? 'is-selected' : ''}" data-sequence-row-cue-id="${escapeHtml(cue.id)}">
+                    <button class="sequence-row-label" type="button" data-action="sequence-select-cue" data-cue-id="${escapeHtml(cue.id)}">
+                      <strong>${escapeHtml(cue.id)}</strong>
+                      <span>${escapeHtml(cueAsset?.label ?? cue.assetId)}</span>
+                    </button>
+                    <div class="sequence-track" data-sequence-track data-sequence-timeline-duration="${timelineDurationMs}" data-sequence-scrub="true">
+                      <div class="sequence-playhead" style="left: ${playheadPercent}%"></div>
+                      <button
+                        class="sequence-cue-block ${cue.id === state.selectedSequenceCueId ? 'is-selected' : ''}"
+                        type="button"
+                        style="left: ${leftPercent}%; width: ${widthPercent}%;"
+                        data-action="sequence-cue-block"
+                        data-cue-id="${escapeHtml(cue.id)}"
+                      >
+                        <span class="sequence-cue-title">${escapeHtml(cueAsset?.label ?? cue.assetId)}</span>
+                        <span class="sequence-cue-meta">${formatSequenceMs(cue.atMs)} - ${formatSequenceMs(cue.atMs + cueDurationMs)}</span>
+                        <span
+                          class="sequence-cue-resize"
+                          data-action="sequence-cue-resize"
+                          data-cue-id="${escapeHtml(cue.id)}"
+                        ></span>
+                      </button>
+                    </div>
+                  </div>
+                `;
+              })
+              .join('')
+          : '<p class="empty-note">No cues yet. Add one effect and this becomes a valid one-effect sequence.</p>'
+      }
+    </div>
+
+    ${
+      selectedCue
+        ? `
+          <div class="sequence-cue-fields">
+            <label class="field">
+              <span class="field-label">Cue ID</span>
+              <input class="field-input" type="text" value="${escapeHtml(selectedCue.id)}" data-sequence-cue-field="id" />
+            </label>
+
+            <label class="field">
+              <span class="field-label">Anchor</span>
+              <select class="field-select" data-sequence-cue-field="anchor">
+                <option value="caster" ${selectedCue.anchor === 'caster' ? 'selected' : ''}>Caster</option>
+                <option value="target" ${selectedCue.anchor === 'target' ? 'selected' : ''}>Target</option>
+                <option value="projectile" ${selectedCue.anchor === 'projectile' ? 'selected' : ''}>Projectile</option>
+              </select>
+            </label>
+
+            <label class="field">
+              <span class="field-label">Target Anchor</span>
+              <select class="field-select" data-sequence-cue-field="targetAnchor">
+                <option value="" ${selectedCue.targetAnchor ? '' : 'selected'}>None</option>
+                <option value="caster" ${selectedCue.targetAnchor === 'caster' ? 'selected' : ''}>Caster</option>
+                <option value="target" ${selectedCue.targetAnchor === 'target' ? 'selected' : ''}>Target</option>
+                <option value="projectile" ${selectedCue.targetAnchor === 'projectile' ? 'selected' : ''}>Projectile</option>
+              </select>
+            </label>
+
+            <label class="field">
+              <span class="field-label">Duration Override</span>
+              <input class="field-input" type="number" min="1" step="10" value="${selectedCue.durationMs ?? ''}" placeholder="${getPreviewEffectAsset(selectedCue.assetId)?.durationMs ?? ''}" data-sequence-cue-field="durationMs" />
+            </label>
+          </div>
+        `
+        : ''
+    }
+    `
+    }
+  `;
+
+  ui.progressPercentLabel = document.getElementById('progressPercentLabel');
+  ui.progressTimeLabel = document.getElementById('progressTimeLabel');
+}
+
 function renderToolbarMenus() {
   const backdrop = state.previewBackground;
   const recentFiles = state.recentFiles;
@@ -3739,6 +4358,7 @@ function renderToolbarMenus() {
       <section class="menu-section">
         <p class="menu-section-title">Project Files</p>
         <div class="menu-button-stack">
+          <button class="menu-action" type="button" data-toolbar-action="new-asset">New Asset</button>
           <button class="menu-action" type="button" data-toolbar-action="open-file">Open .json</button>
           <button class="menu-action" type="button" data-toolbar-action="save-file">Save</button>
           <button class="menu-action" type="button" data-toolbar-action="save-file-as">Save As...</button>
@@ -3793,6 +4413,7 @@ function renderToolbarMenus() {
         <div class="menu-button-stack">
           <button class="menu-action" type="button" data-toolbar-action="link-repo-root">${repoLinked ? 'Relink Repo Root' : 'Link Repo Root for Autosave'}</button>
           <button class="menu-action" type="button" data-toolbar-action="import-sprite">Import Sprite</button>
+          <button class="menu-action" type="button" data-toolbar-action="open-sequence-composer">Open Sequence Composer</button>
           <button class="menu-action" type="button" data-toolbar-action="toggle-json-panel">${jsonHidden ? 'Show JSON Debug Panel' : 'Hide JSON Debug Panel'}</button>
         </div>
         <p class="menu-section-note">
@@ -3853,8 +4474,9 @@ function renderPanels() {
   renderAssetPanel();
   renderLayersPanel();
   renderLayerInspector();
+  renderSequenceTimelinePanel();
   renderStaticPanelState();
-  ui.effectTitleLabel.textContent = `${state.asset.label} Preview`;
+  ui.effectTitleLabel.textContent = resolvePreviewTitle();
   ui.fileStatusLabel.textContent = state.fileName
     ? state.fileHandle
       ? `Attached file: ${state.fileName}`
@@ -4124,6 +4746,28 @@ function updatePreviewField(field, rawValue, fromColorPicker = false) {
     : rawValue;
   state.previewBackground.preset = 'custom';
   renderToolbarMenus();
+  renderPreview();
+  schedulePersistEditorSession();
+}
+
+async function updatePreviewPlaybackField(field, rawValue) {
+  if (field === 'mode') {
+    state.previewPlaybackMode = normalizePreviewPlaybackMode(rawValue);
+    if (state.previewPlaybackMode === 'sequence') {
+      await loadPreviewSequence(state.previewSequenceId);
+    }
+  } else if (field === 'sequenceId') {
+    state.previewSequenceId = normalizePreviewSequenceId(rawValue);
+    await loadPreviewSequence(state.previewSequenceId);
+  } else {
+    return;
+  }
+
+  state.progress = 0;
+  state.playing = true;
+  state.lastFrameTime = 0;
+  ui.togglePlaybackButton.textContent = 'Pause';
+  renderPanels();
   renderPreview();
   schedulePersistEditorSession();
 }
@@ -4452,7 +5096,141 @@ function addLayer(type) {
   commitAsset(nextAsset, { renderPanels: true });
 }
 
+function stringifySequence(sequence) {
+  return `${JSON.stringify(normalizeSequence(sequence), null, 2)}\n`;
+}
+
+function loadSequenceFromObject(sequence, { fileHandle = null, fileName = '' } = {}) {
+  state.previewSequence = normalizeSequence(sequence);
+  state.previewSequenceId = state.previewSequence.id;
+  state.previewPlaybackMode = 'sequence';
+  state.sequenceFileHandle = fileHandle;
+  state.sequenceFileName = fileName || `${state.previewSequence.id}.json`;
+  sequenceLibrary[state.previewSequence.id] = cloneData(state.previewSequence);
+  ensureSequenceSelection();
+  renderPanels();
+  renderPreview();
+  setSaveStatus(
+    fileName
+      ? `Loaded sequence ${fileName}.`
+      : 'Loaded sequence. Save directly if a local file is attached, or export JSON.',
+    'success',
+  );
+  schedulePersistEditorSession();
+}
+
+function createSequenceCueFromAsset(assetId) {
+  const asset = getPreviewEffectAsset(assetId);
+  const sequence = state.previewSequence ?? createSequenceFromCurrentAsset();
+  const lastCue = sequence.cues[sequence.cues.length - 1];
+  const usedIds = new Set(sequence.cues.map((cue) => cue.id));
+  let nextIndex = sequence.cues.length + 1;
+  let cueId = `${assetId}-cue-${nextIndex}`;
+
+  while (usedIds.has(cueId)) {
+    nextIndex += 1;
+    cueId = `${assetId}-cue-${nextIndex}`;
+  }
+
+  const defaultStartMs = lastCue ? lastCue.atMs + getSequenceCueDurationMs(lastCue) + 40 : 0;
+
+  return {
+    id: cueId,
+    assetId,
+    atMs: defaultStartMs,
+    anchor: 'caster',
+    targetAnchor: motionUsesTarget(asset?.motion?.mode ?? 'fixed') ? 'target' : undefined,
+  };
+}
+
+function commitSequence(nextSequence, { resetProgress = false } = {}) {
+  pushUndoCheckpoint();
+  state.previewSequence = normalizeSequence(nextSequence);
+  state.previewSequenceId = state.previewSequence.id;
+  state.previewPlaybackMode = 'sequence';
+  sequenceLibrary[state.previewSequence.id] = cloneData(state.previewSequence);
+  ensureSequenceSelection();
+
+  if (resetProgress) {
+    state.progress = 0;
+  }
+
+  renderSequenceTimelinePanel();
+  renderAssetPanel();
+  ui.effectTitleLabel.textContent = resolvePreviewTitle();
+  renderPreview();
+  schedulePersistEditorSession();
+}
+
+function addSequenceCue(assetId) {
+  const nextSequence = cloneData(state.previewSequence ?? createSequenceFromCurrentAsset());
+  const cue = createSequenceCueFromAsset(assetId);
+  nextSequence.cues.push(cue);
+  state.selectedSequenceCueId = cue.id;
+  commitSequence(nextSequence, { resetProgress: true });
+}
+
+function removeSelectedSequenceCue() {
+  const cueId = state.selectedSequenceCueId;
+  if (!cueId || !state.previewSequence) {
+    return;
+  }
+
+  const nextSequence = cloneData(state.previewSequence);
+  nextSequence.cues = nextSequence.cues.filter((cue) => cue.id !== cueId);
+  state.selectedSequenceCueId = nextSequence.cues[0]?.id ?? '';
+  commitSequence(nextSequence, { resetProgress: true });
+}
+
+function updateSequenceCueField(field, rawValue) {
+  const cue = getSelectedSequenceCue();
+  if (!cue || !state.previewSequence) {
+    return;
+  }
+
+  const nextSequence = cloneData(state.previewSequence);
+  const nextCue = nextSequence.cues.find((item) => item.id === cue.id);
+  if (!nextCue) {
+    return;
+  }
+
+  if (field === 'durationMs') {
+    if (rawValue === '') {
+      delete nextCue.durationMs;
+    } else {
+      nextCue.durationMs = Math.max(1, Number(rawValue) || 1);
+    }
+  } else if (field === 'targetAnchor') {
+    nextCue.targetAnchor = rawValue || undefined;
+  } else {
+    nextCue[field] = rawValue;
+  }
+
+  if (field === 'id') {
+    state.selectedSequenceCueId = rawValue;
+  }
+
+  commitSequence(nextSequence);
+}
+
+function updateSequenceField(field, rawValue) {
+  if (field === 'pendingAssetId') {
+    state.pendingSequenceAssetId = rawValue;
+    renderSequenceTimelinePanel();
+    schedulePersistEditorSession();
+    return;
+  }
+
+  const nextSequence = cloneData(state.previewSequence ?? createSequenceFromCurrentAsset());
+  nextSequence[field] = rawValue;
+  if (field === 'id' && !state.sequenceFileHandle) {
+    state.sequenceFileName = `${rawValue || 'sequence'}.json`;
+  }
+  commitSequence(nextSequence);
+}
+
 function loadAssetFromObject(asset, { fileHandle = null, fileName = '' } = {}) {
+  const normalizedAsset = normalizeAsset(asset);
   state.fileHandle = fileHandle;
   state.fileName = fileName;
   state.progress = 0;
@@ -4461,7 +5239,8 @@ function loadAssetFromObject(asset, { fileHandle = null, fileName = '' } = {}) {
   clearCurveEditors();
   clearHistory();
   ui.togglePlaybackButton.textContent = 'Pause';
-  commitAsset(asset, { renderPanels: true, resetProgress: true });
+  effectPreviewLibrary[normalizedAsset.id] = normalizedAsset;
+  commitAsset(normalizedAsset, { renderPanels: true, resetProgress: true });
   setSaveStatus(
     fileName
       ? `Loaded ${fileName}. You can now save directly back to that file.`
@@ -4578,7 +5357,7 @@ async function writeEffectToHandle(handle, suggestedFileName = '') {
   state.asset = normalizeAsset(exportedAsset);
   ensureSelection();
   syncJsonFromAsset();
-  ui.effectTitleLabel.textContent = `${state.asset.label} Preview`;
+  ui.effectTitleLabel.textContent = resolvePreviewTitle();
   renderPreview();
   state.fileHandle = handle;
   state.fileName = handle.name || suggestedFileName || state.fileName || `${state.asset.id || 'effect'}.json`;
@@ -4648,6 +5427,115 @@ async function copyJson() {
   }
 }
 
+async function openSequenceFile() {
+  try {
+    if (!('showOpenFilePicker' in window)) {
+      setSaveStatus('Open Sequence requires Chrome, Arc, or Edge with File System Access support.', 'error');
+      return;
+    }
+
+    const [handle] = await window.showOpenFilePicker({
+      excludeAcceptAllOption: false,
+      multiple: false,
+      types: [
+        {
+          description: 'VFX Sequence JSON',
+          accept: { 'application/json': ['.json'] },
+        },
+      ],
+    });
+
+    const hasPermission = await ensureHandlePermission(handle, true);
+    if (!hasPermission) {
+      throw new Error('Permission was not granted for that file.');
+    }
+
+    const file = await handle.getFile();
+    const sequence = normalizeSequence(JSON.parse(await file.text()));
+    await Promise.all(sequence.cues.map((cue) => loadPreviewEffectAsset(cue.assetId)));
+    loadSequenceFromObject(sequence, { fileHandle: handle, fileName: file.name });
+  } catch (error) {
+    if (error?.name === 'AbortError') return;
+    setSaveStatus(`Could not open sequence: ${error.message}`, 'error');
+  }
+}
+
+async function writeSequenceToHandle(handle, suggestedFileName = '') {
+  flushActiveEditorField();
+  const normalizedSequence = normalizeSequence(state.previewSequence ?? createSequenceFromCurrentAsset());
+  const writable = await handle.createWritable();
+  await writable.write(stringifySequence(normalizedSequence));
+  await writable.close();
+  state.previewSequence = normalizedSequence;
+  state.previewSequenceId = normalizedSequence.id;
+  state.sequenceFileHandle = handle;
+  state.sequenceFileName =
+    handle.name || suggestedFileName || state.sequenceFileName || `${normalizedSequence.id}.json`;
+  sequenceLibrary[normalizedSequence.id] = cloneData(normalizedSequence);
+  renderSequenceTimelinePanel();
+  renderPreview();
+  schedulePersistEditorSession();
+}
+
+async function saveSequenceToAttachedFile() {
+  try {
+    if (state.sequenceFileHandle && 'createWritable' in state.sequenceFileHandle) {
+      await writeSequenceToHandle(state.sequenceFileHandle, state.sequenceFileName);
+      setSaveStatus(`Saved sequence to ${state.sequenceFileName}.`, 'success');
+      return;
+    }
+
+    await saveSequenceAsFile();
+  } catch (error) {
+    if (error?.name === 'AbortError') return;
+    setSaveStatus(`Could not save sequence: ${error.message}`, 'error');
+  }
+}
+
+async function saveSequenceAsFile() {
+  try {
+    if (!('showSaveFilePicker' in window)) {
+      exportSequence();
+      setSaveStatus('Direct sequence save is not supported in this browser, so the file was downloaded instead.', 'info');
+      return;
+    }
+
+    const suggestedName = `${(state.previewSequence ?? createSequenceFromCurrentAsset()).id || 'sequence'}.json`;
+    const handle = await window.showSaveFilePicker({
+      suggestedName,
+      types: [
+        {
+          description: 'VFX Sequence JSON',
+          accept: { 'application/json': ['.json'] },
+        },
+      ],
+    });
+
+    await writeSequenceToHandle(handle, suggestedName);
+    setSaveStatus(`Saved sequence to ${state.sequenceFileName}.`, 'success');
+  } catch (error) {
+    if (error?.name === 'AbortError') return;
+    setSaveStatus(`Could not save sequence: ${error.message}`, 'error');
+  }
+}
+
+function exportSequence() {
+  flushActiveEditorField();
+  const sequence = normalizeSequence(state.previewSequence ?? createSequenceFromCurrentAsset());
+  const blob = new Blob([stringifySequence(sequence)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement('a');
+  anchor.href = url;
+  anchor.download = `${sequence.id || 'sequence'}.json`;
+  anchor.click();
+  URL.revokeObjectURL(url);
+}
+
+function openSequenceComposerWindow() {
+  const composerUrl = `./sequence-composer.html?v=20260322x`;
+  window.open(composerUrl, 'vfx-sequence-composer', 'popup=yes,width=1360,height=880');
+}
+
 function applyRawJson() {
   try {
     const asset = JSON.parse(ui.jsonEditor.value);
@@ -4676,7 +5564,7 @@ function flushActiveEditorField() {
   }
 
   if (
-    !activeElement.closest('#assetPanel, #layerInspectorPanel, #layersPanel, #jsonPanelBody')
+    !activeElement.closest('#assetPanel, #layerInspectorPanel, #layersPanel, #sequenceTimelinePanel, #jsonPanelBody')
   ) {
     return;
   }
@@ -4707,6 +5595,11 @@ function handleAssetPanelInput(event) {
     const field = target.dataset.assetField;
     const value = target.type === 'checkbox' ? target.checked : target.value;
     updateAssetField(field, value);
+    return;
+  }
+
+  if (target.dataset.previewPlaybackField) {
+    void updatePreviewPlaybackField(target.dataset.previewPlaybackField, target.value);
     return;
   }
 
@@ -4887,6 +5780,98 @@ function handleLayerInspectorClick(event) {
   }
 }
 
+function handleSequenceTimelineInput(event) {
+  const target = event.target;
+  if (!(target instanceof HTMLInputElement || target instanceof HTMLSelectElement)) return;
+
+  if (target.dataset.sequenceField) {
+    if (
+      (target.dataset.sequenceField === 'id' || target.dataset.sequenceField === 'label') &&
+      event.type !== 'change'
+    ) {
+      return;
+    }
+    updateSequenceField(target.dataset.sequenceField, target.value);
+    return;
+  }
+
+  if (target.dataset.sequenceCueField) {
+    if (
+      (target.dataset.sequenceCueField === 'id' || target.dataset.sequenceCueField === 'durationMs') &&
+      event.type !== 'change'
+    ) {
+      return;
+    }
+    updateSequenceCueField(target.dataset.sequenceCueField, target.value);
+  }
+}
+
+function handleSequenceTimelineClick(event) {
+  const button = event.target.closest('[data-action]');
+  if (!button) return;
+
+  const { action, cueId } = button.dataset;
+  const actionsMenu = event.target.closest('.sequence-actions-menu');
+
+  if (action === 'toggle-sequence-timeline-collapse') {
+    togglePanelCollapse('sequenceTimeline');
+    renderSequenceTimelinePanel();
+    schedulePersistEditorSession();
+  } else if (action === 'sequence-add-cue') {
+    addSequenceCue(state.pendingSequenceAssetId);
+  } else if (action === 'sequence-remove-cue') {
+    removeSelectedSequenceCue();
+  } else if (action === 'sequence-new') {
+    state.sequenceFileHandle = null;
+    state.sequenceFileName = '';
+    state.previewPlaybackMode = 'sequence';
+    state.previewSequence = createSequenceFromCurrentAsset();
+    state.previewSequenceId = state.previewSequence.id;
+    state.selectedSequenceCueId = state.previewSequence.cues[0]?.id ?? '';
+    state.pendingSequenceAssetId = state.asset.id;
+    renderPanels();
+    renderPreview();
+    schedulePersistEditorSession();
+  } else if (action === 'sequence-open') {
+    void openSequenceFile();
+  } else if (action === 'sequence-save') {
+    void saveSequenceToAttachedFile();
+  } else if (action === 'sequence-save-as') {
+    void saveSequenceAsFile();
+  } else if (action === 'sequence-export') {
+    exportSequence();
+    setSaveStatus(`Exported ${(state.previewSequence ?? createSequenceFromCurrentAsset()).id || 'sequence'}.json.`, 'success');
+  } else if (action === 'sequence-select-cue' && cueId) {
+    state.selectedSequenceCueId = cueId;
+    renderSequenceTimelinePanel();
+    schedulePersistEditorSession();
+  }
+
+  if (actionsMenu && action !== 'sequence-select-cue') {
+    actionsMenu.open = false;
+  }
+}
+
+function handleSequenceTimelinePointerDown(event) {
+  const resizeHandle = event.target.closest('[data-action="sequence-cue-resize"]');
+  if (resizeHandle) {
+    beginSequenceCueDrag(event, resizeHandle.dataset.cueId, 'resize');
+    event.preventDefault();
+    return;
+  }
+
+  const cueBlock = event.target.closest('[data-action="sequence-cue-block"]');
+  if (cueBlock) {
+    beginSequenceCueDrag(event, cueBlock.dataset.cueId, 'move');
+    event.preventDefault();
+    return;
+  }
+
+  if (setPreviewProgressFromTimelineEvent(event)) {
+    event.preventDefault();
+  }
+}
+
 function handleToolbarMenuInput(event) {
   const target = event.target;
   if (!(target instanceof HTMLInputElement || target instanceof HTMLSelectElement)) return;
@@ -4906,7 +5891,10 @@ function handleToolbarMenuClick(event) {
 
   const { toolbarAction, recentFileId, demoEffect } = button.dataset;
 
-  if (toolbarAction === 'open-file') {
+  if (toolbarAction === 'new-asset') {
+    closeToolbarMenus();
+    createNewAsset();
+  } else if (toolbarAction === 'open-file') {
     closeToolbarMenus();
     void openEffectFile();
   } else if (toolbarAction === 'save-file') {
@@ -4925,6 +5913,9 @@ function handleToolbarMenuClick(event) {
   } else if (toolbarAction === 'import-sprite') {
     closeToolbarMenus();
     void importSprite();
+  } else if (toolbarAction === 'open-sequence-composer') {
+    closeToolbarMenus();
+    openSequenceComposerWindow();
   } else if (toolbarAction === 'toggle-json-panel') {
     closeToolbarMenus();
     togglePanelCollapse('jsonPanel');
@@ -4936,6 +5927,22 @@ function handleToolbarMenuClick(event) {
     closeToolbarMenus();
     void loadDemoEffect(demoEffect);
   }
+}
+
+function createNewAsset() {
+  state.fileHandle = null;
+  state.fileName = '';
+  state.instance = createInstance();
+  state.selectedLayerId = '';
+  state.selectedLayerTrack = 'scale';
+  state.progress = 0;
+  state.playing = true;
+  state.lastFrameTime = 0;
+  clearCurveEditors();
+  clearHistory();
+  ui.togglePlaybackButton.textContent = 'Pause';
+  commitAsset(createBlankAsset(), { renderPanels: true, resetProgress: true });
+  setSaveStatus('Started a new blank effect asset.', 'success');
 }
 
 function handleFallbackFileChange(event) {
@@ -5031,6 +6038,116 @@ function endViewportPan() {
   state.activeViewportPan = null;
   renderPreviewViewportControls();
   schedulePersistEditorSession();
+}
+
+function beginSequenceCueDrag(event, cueId, mode) {
+  const cueButton = event.target.closest('[data-cue-id]');
+  const track = cueButton?.closest('[data-sequence-track]');
+  if (!cueButton || !track || !state.previewSequence) {
+    return;
+  }
+
+  const cue = state.previewSequence.cues.find((item) => item.id === cueId);
+  if (!cue) {
+    return;
+  }
+
+  beginHistoryGesture();
+  state.selectedSequenceCueId = cueId;
+  state.activeSequenceCueDrag = {
+    mode,
+    cueId,
+    pointerId: event.pointerId,
+    startClientX: event.clientX,
+    trackRect: track.getBoundingClientRect(),
+    timelineDurationMs: Number(track.dataset.sequenceTimelineDuration) || getSequenceTimelineDurationMs(),
+    originAtMs: cue.atMs,
+    originDurationMs: getSequenceCueDurationMs(cue),
+    originIndex: state.previewSequence.cues.findIndex((item) => item.id === cueId),
+  };
+  renderSequenceTimelinePanel();
+}
+
+function moveSequenceCueToIndex(cueId, nextIndex) {
+  if (!state.previewSequence) {
+    return;
+  }
+
+  const currentIndex = state.previewSequence.cues.findIndex((cue) => cue.id === cueId);
+  if (currentIndex < 0 || currentIndex === nextIndex) {
+    return;
+  }
+
+  const clampedIndex = clamp(nextIndex, 0, state.previewSequence.cues.length - 1);
+  const [cue] = state.previewSequence.cues.splice(currentIndex, 1);
+  state.previewSequence.cues.splice(clampedIndex, 0, cue);
+}
+
+function updateSequenceCueDrag(clientX, clientY) {
+  if (!state.activeSequenceCueDrag || !state.previewSequence) {
+    return;
+  }
+
+  const drag = state.activeSequenceCueDrag;
+  const cue = state.previewSequence.cues.find((item) => item.id === drag.cueId);
+  if (!cue || drag.trackRect.width <= 0) {
+    return;
+  }
+
+  const deltaRatio = (clientX - drag.startClientX) / drag.trackRect.width;
+  const deltaMs = Math.round(deltaRatio * drag.timelineDurationMs / 10) * 10;
+
+  if (drag.mode === 'move') {
+    cue.atMs = clamp(drag.originAtMs + deltaMs, 0, Math.max(0, drag.timelineDurationMs - getSequenceCueDurationMs(cue)));
+
+    const hoveredRow = document.elementFromPoint(clientX, clientY)?.closest('[data-sequence-row-cue-id]');
+    const hoveredCueId = hoveredRow?.dataset.sequenceRowCueId;
+    if (hoveredCueId && hoveredCueId !== drag.cueId) {
+      const nextIndex = state.previewSequence.cues.findIndex((item) => item.id === hoveredCueId);
+      if (nextIndex >= 0) {
+        moveSequenceCueToIndex(drag.cueId, nextIndex);
+      }
+    }
+  } else {
+    cue.durationMs = clamp(drag.originDurationMs + deltaMs, 60, Math.max(60, drag.timelineDurationMs - cue.atMs));
+  }
+
+  renderSequenceTimelinePanel();
+  renderPreview();
+}
+
+function endSequenceCueDrag() {
+  if (!state.activeSequenceCueDrag) {
+    return;
+  }
+
+  if (state.previewSequence) {
+    sequenceLibrary[state.previewSequence.id] = cloneData(state.previewSequence);
+  }
+  state.activeSequenceCueDrag = null;
+  endHistoryGesture();
+  schedulePersistEditorSession();
+}
+
+function setPreviewProgressFromTimelineEvent(event) {
+  const scrubSurface = event.target.closest('[data-sequence-scrub="true"]');
+  if (!scrubSurface) {
+    return false;
+  }
+
+  const bounds = scrubSurface.getBoundingClientRect();
+  if (bounds.width <= 0) {
+    return false;
+  }
+
+  const timelineDurationMs = Number(scrubSurface.dataset.sequenceTimelineDuration) || getSequenceTimelineDurationMs();
+  const nextMs = clamp(((event.clientX - bounds.left) / bounds.width) * timelineDurationMs, 0, timelineDurationMs);
+  const previewDurationMs = getActivePreviewDurationMs();
+  state.progress = clamp01(nextMs / Math.max(1, previewDurationMs));
+  state.playing = false;
+  ui.togglePlaybackButton.textContent = 'Play';
+  renderPreview();
+  return true;
 }
 
 function handleStagePointerDown(event) {
@@ -5221,7 +6338,7 @@ function animationLoop(timestamp) {
 
   if (state.playing) {
     const deltaMs = timestamp - state.lastFrameTime;
-    const durationMs = Math.max(1, Number(state.asset.durationMs) || 1);
+    const durationMs = getActivePreviewDurationMs();
     let nextProgress = state.progress + deltaMs / durationMs;
 
     if (state.asset.loop) {
@@ -5312,7 +6429,7 @@ function wireEvents() {
     setPreviewZoom(state.previewViewport.zoom + PREVIEW_VIEWPORT_LIMITS.buttonStep);
   });
 
-  ui.progressSlider.addEventListener('input', (event) => {
+  ui.progressSlider?.addEventListener('input', (event) => {
     state.progress = clamp01(Number(event.target.value));
     state.playing = false;
     ui.togglePlaybackButton.textContent = 'Play';
@@ -5335,6 +6452,11 @@ function wireEvents() {
   ui.layersPanel.addEventListener('input', handleLayersPanelInput);
   ui.layersPanel.addEventListener('change', handleLayersPanelInput);
 
+  ui.sequenceTimelinePanel?.addEventListener('click', handleSequenceTimelineClick);
+  ui.sequenceTimelinePanel?.addEventListener('input', handleSequenceTimelineInput);
+  ui.sequenceTimelinePanel?.addEventListener('change', handleSequenceTimelineInput);
+  ui.sequenceTimelinePanel?.addEventListener('pointerdown', handleSequenceTimelinePointerDown);
+
   ui.layerInspectorPanel.addEventListener('input', handleLayerInspectorInput);
   ui.layerInspectorPanel.addEventListener('change', handleLayerInspectorInput);
   ui.layerInspectorPanel.addEventListener('click', handleLayerInspectorClick);
@@ -5349,8 +6471,10 @@ function wireEvents() {
   window.addEventListener('pointermove', (event) => {
     updatePanelResize(event.clientX);
     updateCurveDrag(event.clientX, event.clientY);
+    updateSequenceCueDrag(event.clientX, event.clientY);
   });
   window.addEventListener('pointerup', endCurveDrag);
+  window.addEventListener('pointerup', endSequenceCueDrag);
   window.addEventListener('pointerup', endPanelResize);
   window.addEventListener('resize', () => {
     applyLayoutSizes();
@@ -5371,6 +6495,12 @@ async function init() {
   await loadSpriteManifest();
   await restoreLinkedRepoRootHandle();
   const restoredSessionSource = await restorePersistedEditorSessionFromSources();
+  if (state.previewSequence?.cues?.length) {
+    await Promise.all(state.previewSequence.cues.map((cue) => loadPreviewEffectAsset(cue.assetId)));
+    sequenceLibrary[state.previewSequence.id] = cloneData(state.previewSequence);
+  } else {
+    await loadPreviewSequence(state.previewSequenceId);
+  }
   applyLayoutSizes();
   renderPanels();
   renderPreview();

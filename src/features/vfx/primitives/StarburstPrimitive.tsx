@@ -1,10 +1,10 @@
 import Animated, { type SharedValue, useAnimatedProps } from 'react-native-reanimated';
-import { Polygon } from 'react-native-svg';
+import { Path } from 'react-native-svg';
 import { sampleLayerTrack, sampleMotionPosition } from '@/features/vfx/runtime/sampleTrack';
 import type { EffectAsset, StarburstLayer } from '@/features/vfx/types/assets';
 import type { EffectInstance } from '@/features/vfx/types/runtime';
 
-const AnimatedPolygon = Animated.createAnimatedComponent(Polygon);
+const AnimatedPath = Animated.createAnimatedComponent(Path);
 
 type StarburstPrimitiveProps = {
   asset: EffectAsset;
@@ -27,16 +27,20 @@ const StarburstPrimitive = ({ asset, instance, layer, progress }: StarburstPrimi
     const vertices = Array.from({ length: points * 2 }, (_, index) => {
       const radius = index % 2 === 0 ? outerRadius : innerRadius;
       const angle = rotationRad + (Math.PI * index) / points;
-      return `${cx + radius * Math.cos(angle)},${cy + radius * Math.sin(angle)}`;
-    }).join(' ');
+      return { x: cx + radius * Math.cos(angle), y: cy + radius * Math.sin(angle) };
+    });
+    const d = vertices
+      .map((point, index) => `${index === 0 ? 'M' : 'L'} ${point.x} ${point.y}`)
+      .join(' ')
+      .concat(' Z');
 
     return {
-      points: vertices,
+      d,
       opacity: Math.max(0, alpha),
     };
   });
 
-  return <AnimatedPolygon animatedProps={animatedProps} fill={layer.color} />;
+  return <AnimatedPath animatedProps={animatedProps} fill={layer.color} />;
 };
 
 export default StarburstPrimitive;

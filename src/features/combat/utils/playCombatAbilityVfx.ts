@@ -1,6 +1,7 @@
 import { combatAbilityVfxConfig } from '@/features/combat/config/combatAbilityVfxConfig';
 import type { PlayEffect } from '@/features/vfx';
 import { getEffectAsset } from '@/features/vfx/runtime/effectRegistry';
+import { playEffectSequence } from '@/features/vfx/runtime/playEffectSequence';
 import type { RoleId } from '@/types/player';
 
 type VfxPoint = {
@@ -62,6 +63,17 @@ export function playCombatAbilityVfx({
     playEffect(config.impactAssetId, {
       x: resolvedTarget.x,
       y: resolvedTarget.y,
+    });
+    return;
+  }
+
+  if (config.kind === 'sequence') {
+    playEffectSequence({
+      sequenceId: config.sequenceId,
+      caster: resolvedOrigin,
+      target: resolvedTarget,
+      playEffect,
+      onTimeout,
     });
     return;
   }

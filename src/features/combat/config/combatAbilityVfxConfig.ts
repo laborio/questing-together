@@ -6,18 +6,25 @@ type ProjectileAbilityVfxConfig = {
   impactAssetId: string;
 };
 
+type SequenceAbilityVfxConfig = {
+  kind: 'sequence';
+  sequenceId: string;
+};
+
 type ImpactAbilityVfxConfig = {
   kind: 'impact';
   impactAssetId: string;
 };
 
-export type CombatAbilityVfxConfig = ProjectileAbilityVfxConfig | ImpactAbilityVfxConfig;
+export type CombatAbilityVfxConfig =
+  | ProjectileAbilityVfxConfig
+  | SequenceAbilityVfxConfig
+  | ImpactAbilityVfxConfig;
 
 export const combatAbilityVfxConfig: Partial<Record<RoleId, CombatAbilityVfxConfig>> = {
   sage: {
-    kind: 'projectile',
-    travelAssetId: 'fireball-travel',
-    impactAssetId: 'fireball-impact',
+    kind: 'sequence',
+    sequenceId: 'fireball-cast',
   },
   ranger: {
     kind: 'impact',

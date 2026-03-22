@@ -1,10 +1,10 @@
 import Animated, { type SharedValue, useAnimatedProps } from 'react-native-reanimated';
-import { Polygon } from 'react-native-svg';
+import { Path } from 'react-native-svg';
 import { sampleLayerTrack, sampleMotionPosition } from '@/features/vfx/runtime/sampleTrack';
 import type { DiamondLayer, EffectAsset } from '@/features/vfx/types/assets';
 import type { EffectInstance } from '@/features/vfx/types/runtime';
 
-const AnimatedPolygon = Animated.createAnimatedComponent(Polygon);
+const AnimatedPath = Animated.createAnimatedComponent(Path);
 
 type DiamondPrimitiveProps = {
   asset: EffectAsset;
@@ -38,16 +38,17 @@ const DiamondPrimitive = ({ asset, instance, layer, progress }: DiamondPrimitive
       { x: -halfWidth, y: 0 },
     ]
       .map((point) => rotatePoint(point.x, point.y, angleRad))
-      .map((point) => `${x + point.x},${y + point.y}`)
-      .join(' ');
+      .map((point) => ({ x: x + point.x, y: y + point.y }));
+
+    const d = `M ${points[0].x} ${points[0].y} L ${points[1].x} ${points[1].y} L ${points[2].x} ${points[2].y} L ${points[3].x} ${points[3].y} Z`;
 
     return {
-      points,
+      d,
       opacity: Math.max(0, alpha),
     };
   });
 
-  return <AnimatedPolygon animatedProps={animatedProps} fill={layer.color} />;
+  return <AnimatedPath animatedProps={animatedProps} fill={layer.color} />;
 };
 
 export default DiamondPrimitive;

@@ -1,5 +1,5 @@
 import Animated, { type SharedValue, useAnimatedProps } from 'react-native-reanimated';
-import { Circle, Defs, Mask, Rect, Image as SvgImage } from 'react-native-svg';
+import { Circle, Defs, Mask, Path, Polygon, Rect, Image as SvgImage } from 'react-native-svg';
 import { sampleLayerTrack, sampleMotionPosition } from '@/features/vfx/runtime/sampleTrack';
 import { getVfxSpriteSource } from '@/features/vfx/runtime/spriteRegistry';
 import type { EffectAsset, TrailLayer } from '@/features/vfx/types/assets';
@@ -7,6 +7,8 @@ import type { EffectInstance } from '@/features/vfx/types/runtime';
 
 const AnimatedCircle = Animated.createAnimatedComponent(Circle);
 const AnimatedImage = Animated.createAnimatedComponent(SvgImage);
+const AnimatedPath = Animated.createAnimatedComponent(Path);
+const AnimatedPolygon = Animated.createAnimatedComponent(Polygon);
 const AnimatedRect = Animated.createAnimatedComponent(Rect);
 
 type TrailSegmentProps = {
@@ -142,6 +144,114 @@ const SpriteTrailSegment = ({ asset, instance, layer, progress, index }: TrailSe
   );
 };
 
+const StreakTrailSegment = ({ asset, instance, layer, progress, index }: TrailSegmentProps) => {
+  const animatedProps = useAnimatedProps(() => {
+    const values = sampleSegmentValues(asset, instance, layer, progress.value, index);
+    const width = Math.max(1, (layer.width ?? 36) * values.scale * values.sizeFactor);
+    const height = Math.max(1, (layer.height ?? 10) * values.scale * values.sizeFactor);
+
+    return {
+      x: values.x - width / 2,
+      y: values.y - height / 2,
+      width,
+      height,
+      rx: height / 2,
+      ry: height / 2,
+      opacity: values.opacity,
+      transform: `rotate(${layer.rotationDeg ?? -24} ${values.x} ${values.y})`,
+    };
+  });
+
+  return <AnimatedRect animatedProps={animatedProps} fill={layer.color} />;
+};
+
+const DiamondTrailSegment = ({ asset, instance, layer, progress, index }: TrailSegmentProps) => {
+  const animatedProps = useAnimatedProps(() => {
+    const values = sampleSegmentValues(asset, instance, layer, progress.value, index);
+    const halfWidth = Math.max(1, ((layer.width ?? 24) * values.scale * values.sizeFactor) / 2);
+    const halfHeight = Math.max(1, ((layer.height ?? 28) * values.scale * values.sizeFactor) / 2);
+    const angle = ((layer.rotationDeg ?? 0) * Math.PI) / 180;
+    const rotatePoint = (offsetX: number, offsetY: number) => ({
+      x: offsetX * Math.cos(angle) - offsetY * Math.sin(angle),
+      y: offsetX * Math.sin(angle) + offsetY * Math.cos(angle),
+    });
+    const points = [
+      rotatePoint(0, -halfHeight),
+      rotatePoint(halfWidth, 0),
+      rotatePoint(0, halfHeight),
+      rotatePoint(-halfWidth, 0),
+    ]
+      .map((point) => `${values.x + point.x},${values.y + point.y}`)
+      .join(' ');
+
+    return {
+      points,
+      opacity: values.opacity,
+    };
+  });
+
+  return <AnimatedPolygon animatedProps={animatedProps} fill={layer.color} />;
+};
+
+const ArcTrailSegment = ({ asset, instance, layer, progress, index }: TrailSegmentProps) => {
+  const animatedProps = useAnimatedProps(() => {
+    const values = sampleSegmentValues(asset, instance, layer, progress.value, index);
+    const radius = Math.max(1, (layer.radius ?? 12) * values.scale * values.sizeFactor);
+    const sweepDeg = layer.sweepDeg ?? 130;
+    const startAngle = (layer.rotationDeg ?? -90) - sweepDeg / 2;
+    const endAngle = startAngle + sweepDeg;
+    const toPoint = (angleDeg: number) => {
+      const angle = (angleDeg * Math.PI) / 180;
+      return {
+        x: values.x + radius * Math.cos(angle),
+        y: values.y + radius * Math.sin(angle),
+      };
+    };
+    const start = toPoint(startAngle);
+    const end = toPoint(endAngle);
+
+    return {
+      d: `M ${start.x} ${start.y} A ${radius} ${radius} 0 ${sweepDeg > 180 ? 1 : 0} 1 ${end.x} ${end.y}`,
+      opacity: values.opacity,
+      strokeWidth: Math.max(1, (layer.thickness ?? 3) * values.scale * values.sizeFactor),
+    };
+  });
+
+  return (
+    <AnimatedPath
+      animatedProps={animatedProps}
+      fill="transparent"
+      stroke={layer.color}
+      strokeLinecap="round"
+    />
+  );
+};
+
+const StarburstTrailSegment = ({ asset, instance, layer, progress, index }: TrailSegmentProps) => {
+  const animatedProps = useAnimatedProps(() => {
+    const values = sampleSegmentValues(asset, instance, layer, progress.value, index);
+    const innerRadius = Math.max(0.5, (layer.innerRadius ?? 6) * values.scale * values.sizeFactor);
+    const outerRadius = Math.max(
+      innerRadius + 0.5,
+      (layer.outerRadius ?? 14) * values.scale * values.sizeFactor,
+    );
+    const pointCount = Math.max(3, Math.round(layer.points ?? 6));
+    const rotation = ((layer.rotationDeg ?? -90) * Math.PI) / 180;
+    const points = Array.from({ length: pointCount * 2 }, (_, pointIndex) => {
+      const radius = pointIndex % 2 === 0 ? outerRadius : innerRadius;
+      const angle = rotation + (Math.PI * pointIndex) / pointCount;
+      return `${values.x + radius * Math.cos(angle)},${values.y + radius * Math.sin(angle)}`;
+    }).join(' ');
+
+    return {
+      points,
+      opacity: values.opacity,
+    };
+  });
+
+  return <AnimatedPolygon animatedProps={animatedProps} fill={layer.color} />;
+};
+
 const TrailSegment = (props: TrailSegmentProps) => {
   const style = props.layer.style ?? 'fill';
 
@@ -151,6 +261,22 @@ const TrailSegment = (props: TrailSegmentProps) => {
 
   if (style === 'sprite') {
     return <SpriteTrailSegment {...props} />;
+  }
+
+  if (style === 'streak') {
+    return <StreakTrailSegment {...props} />;
+  }
+
+  if (style === 'diamond') {
+    return <DiamondTrailSegment {...props} />;
+  }
+
+  if (style === 'arc') {
+    return <ArcTrailSegment {...props} />;
+  }
+
+  if (style === 'starburst') {
+    return <StarburstTrailSegment {...props} />;
   }
 
   return <FillTrailSegment {...props} />;

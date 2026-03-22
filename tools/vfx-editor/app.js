@@ -27,6 +27,27 @@ const TRACKS_BY_LAYER_TYPE = {
   sprite: ['scale', 'alpha', 'x', 'y'],
 };
 
+const LAYER_TYPE_OPTIONS = [
+  { value: 'orb', label: 'Orb' },
+  { value: 'ring', label: 'Ring' },
+  { value: 'trail', label: 'Trail' },
+  { value: 'streak', label: 'Streak' },
+  { value: 'diamond', label: 'Diamond' },
+  { value: 'arc', label: 'Arc' },
+  { value: 'starburst', label: 'Starburst' },
+  { value: 'sprite', label: 'Sprite' },
+];
+
+const TRAIL_STYLE_OPTIONS = [
+  { value: 'fill', label: 'Filled Circles' },
+  { value: 'ring', label: 'Outlined Circles' },
+  { value: 'streak', label: 'Streaks' },
+  { value: 'diamond', label: 'Diamonds' },
+  { value: 'arc', label: 'Arcs' },
+  { value: 'starburst', label: 'Starbursts' },
+  { value: 'sprite', label: 'Sprites' },
+];
+
 const SPRITE_MANIFEST_PATH = '../../src/features/vfx/assets/sprites/manifest.json';
 const SPRITE_EDITOR_BASE_PATH = '../../src/features/vfx/assets/sprites';
 const REPO_SPRITES_SEGMENTS = ['src', 'features', 'vfx', 'assets', 'sprites'];
@@ -395,6 +416,83 @@ function getSpriteDefinition(spriteId) {
 
 function getSpritePreviewSrc(spriteId) {
   return getSpriteDefinition(spriteId)?.src ?? '';
+}
+
+function getTrailStyleLabel(style) {
+  return TRAIL_STYLE_OPTIONS.find((option) => option.value === style)?.label ?? 'Filled Circles';
+}
+
+function getTrailStyleCardLabel(style) {
+  if (!style || style === 'fill') {
+    return 'trail';
+  }
+
+  return `trail (${style})`;
+}
+
+function applyTrailStyleDefaults(layer) {
+  const style = TRAIL_STYLE_OPTIONS.some((option) => option.value === layer.style)
+    ? layer.style
+    : 'fill';
+  layer.style = style;
+  layer.radius = Number.isFinite(Number(layer.radius)) ? Number(layer.radius) : 12;
+  layer.segments = Number.isFinite(Number(layer.segments)) ? Math.max(1, Math.round(Number(layer.segments))) : 6;
+  layer.spacing = Number.isFinite(Number(layer.spacing)) ? Number(layer.spacing) : 0.06;
+  layer.falloff = Number.isFinite(Number(layer.falloff)) ? Number(layer.falloff) : 0.1;
+
+  if (style === 'ring') {
+    layer.thickness = Number.isFinite(Number(layer.thickness)) ? Number(layer.thickness) : 2.5;
+  }
+
+  if (style === 'sprite') {
+    layer.spriteId =
+      typeof layer.spriteId === 'string' && hasSpriteDefinition(layer.spriteId)
+        ? layer.spriteId
+        : getDefaultSpriteId();
+    layer.width = Number.isFinite(Number(layer.width)) ? Number(layer.width) : layer.radius * 2;
+    layer.height = Number.isFinite(Number(layer.height)) ? Number(layer.height) : layer.radius * 2;
+    layer.tintColor = typeof layer.tintColor === 'string' ? layer.tintColor : undefined;
+  }
+
+  if (style === 'streak' || style === 'diamond') {
+    layer.width = Number.isFinite(Number(layer.width))
+      ? Number(layer.width)
+      : style === 'streak'
+        ? 36
+        : 24;
+    layer.height = Number.isFinite(Number(layer.height))
+      ? Number(layer.height)
+      : style === 'streak'
+        ? 10
+        : 28;
+    layer.rotationDeg = Number.isFinite(Number(layer.rotationDeg))
+      ? Number(layer.rotationDeg)
+      : style === 'streak'
+        ? -24
+        : 0;
+  }
+
+  if (style === 'arc') {
+    layer.radius = Number.isFinite(Number(layer.radius)) ? Number(layer.radius) : 16;
+    layer.thickness = Number.isFinite(Number(layer.thickness)) ? Number(layer.thickness) : 3;
+    layer.sweepDeg = Number.isFinite(Number(layer.sweepDeg)) ? Number(layer.sweepDeg) : 130;
+    layer.rotationDeg = Number.isFinite(Number(layer.rotationDeg))
+      ? Number(layer.rotationDeg)
+      : -90;
+  }
+
+  if (style === 'starburst') {
+    layer.innerRadius = Number.isFinite(Number(layer.innerRadius)) ? Number(layer.innerRadius) : 6;
+    layer.outerRadius = Number.isFinite(Number(layer.outerRadius)) ? Number(layer.outerRadius) : 14;
+    layer.points = Number.isFinite(Number(layer.points))
+      ? Math.max(3, Math.round(Number(layer.points)))
+      : 6;
+    layer.rotationDeg = Number.isFinite(Number(layer.rotationDeg))
+      ? Number(layer.rotationDeg)
+      : -90;
+  }
+
+  return layer;
 }
 
 function getLayerCardSwatchStyle(layer) {
@@ -945,31 +1043,31 @@ function normalizeAsset(rawAsset) {
     }
 
     if (nextLayer.type === 'trail') {
-      nextLayer.style = ['fill', 'ring', 'sprite'].includes(nextLayer.style)
-        ? nextLayer.style
-        : 'fill';
-      nextLayer.segments = Number.isFinite(Number(nextLayer.segments))
-        ? Number(nextLayer.segments)
-        : 6;
-      nextLayer.spacing = Number.isFinite(Number(nextLayer.spacing))
-        ? Number(nextLayer.spacing)
-        : 0.06;
-      nextLayer.falloff = Number.isFinite(Number(nextLayer.falloff))
-        ? Number(nextLayer.falloff)
-        : undefined;
       nextLayer.thickness = Number.isFinite(Number(nextLayer.thickness))
         ? Number(nextLayer.thickness)
         : undefined;
-      nextLayer.spriteId =
-        typeof nextLayer.spriteId === 'string' && hasSpriteDefinition(nextLayer.spriteId)
-          ? nextLayer.spriteId
-          : getDefaultSpriteId();
       nextLayer.width = Number.isFinite(Number(nextLayer.width)) ? Number(nextLayer.width) : undefined;
       nextLayer.height = Number.isFinite(Number(nextLayer.height))
         ? Number(nextLayer.height)
         : undefined;
+      nextLayer.rotationDeg = Number.isFinite(Number(nextLayer.rotationDeg))
+        ? Number(nextLayer.rotationDeg)
+        : undefined;
+      nextLayer.sweepDeg = Number.isFinite(Number(nextLayer.sweepDeg))
+        ? Number(nextLayer.sweepDeg)
+        : undefined;
+      nextLayer.innerRadius = Number.isFinite(Number(nextLayer.innerRadius))
+        ? Number(nextLayer.innerRadius)
+        : undefined;
+      nextLayer.outerRadius = Number.isFinite(Number(nextLayer.outerRadius))
+        ? Number(nextLayer.outerRadius)
+        : undefined;
+      nextLayer.points = Number.isFinite(Number(nextLayer.points))
+        ? Math.max(3, Math.round(Number(nextLayer.points)))
+        : undefined;
       nextLayer.tintColor =
         typeof nextLayer.tintColor === 'string' ? nextLayer.tintColor : undefined;
+      applyTrailStyleDefaults(nextLayer);
     }
 
     return nextLayer;
@@ -983,6 +1081,7 @@ const state = {
   instance: createInstance(),
   repoRootHandle: null,
   recentFiles: [],
+  pendingLayerType: 'orb',
   layoutSizes: normalizeLayoutSizes(null),
   selectedLayerId: 'trail',
   selectedLayerTrack: 'scale',
@@ -1411,6 +1510,7 @@ function buildPersistedEditorSession() {
     asset: cloneData(state.asset),
     instance: cloneData(state.instance),
     recentFiles: cloneData(state.recentFiles),
+    pendingLayerType: state.pendingLayerType,
     layoutSizes: cloneData(state.layoutSizes),
     selectedLayerId: state.selectedLayerId,
     selectedLayerTrack: state.selectedLayerTrack,
@@ -1510,6 +1610,11 @@ function applyPersistedEditorSession(persisted) {
   state.asset = normalizeAsset(persisted.asset ?? createStarterAsset());
   state.instance = normalizeInstance(persisted.instance);
   state.recentFiles = sanitizeRecentFiles(persisted.recentFiles);
+  state.pendingLayerType =
+    typeof persisted.pendingLayerType === 'string' &&
+    LAYER_TYPE_OPTIONS.some((option) => option.value === persisted.pendingLayerType)
+      ? persisted.pendingLayerType
+      : 'orb';
   state.layoutSizes = normalizeLayoutSizes(persisted.layoutSizes);
   state.selectedLayerId =
     typeof persisted.selectedLayerId === 'string' ? persisted.selectedLayerId : 'trail';
@@ -2619,6 +2724,98 @@ function renderTrail(layer, progress) {
       continue;
     }
 
+    if (trailStyle === 'streak') {
+      const width = Math.max(1, (layer.width ?? 36) * scale * sizeFactor);
+      const height = Math.max(1, (layer.height ?? 10) * scale * sizeFactor);
+      svg += `
+        <rect
+          x="${x - width / 2}"
+          y="${y - height / 2}"
+          width="${width}"
+          height="${height}"
+          rx="${height / 2}"
+          ry="${height / 2}"
+          fill="${escapeHtml(layer.color)}"
+          opacity="${opacity}"
+          transform="rotate(${layer.rotationDeg ?? -24} ${x} ${y})"
+        ></rect>
+      `;
+      continue;
+    }
+
+    if (trailStyle === 'diamond') {
+      const halfWidth = Math.max(1, ((layer.width ?? 24) * scale * sizeFactor) / 2);
+      const halfHeight = Math.max(1, ((layer.height ?? 28) * scale * sizeFactor) / 2);
+      const angle = (((layer.rotationDeg ?? 0) * Math.PI) / 180);
+      const rotatePoint = (offsetX, offsetY) => ({
+        x: offsetX * Math.cos(angle) - offsetY * Math.sin(angle),
+        y: offsetX * Math.sin(angle) + offsetY * Math.cos(angle),
+      });
+      const points = [
+        rotatePoint(0, -halfHeight),
+        rotatePoint(halfWidth, 0),
+        rotatePoint(0, halfHeight),
+        rotatePoint(-halfWidth, 0),
+      ]
+        .map((point) => `${x + point.x},${y + point.y}`)
+        .join(' ');
+      svg += `
+        <polygon
+          points="${points}"
+          fill="${escapeHtml(layer.color)}"
+          opacity="${opacity}"
+        ></polygon>
+      `;
+      continue;
+    }
+
+    if (trailStyle === 'arc') {
+      const arcRadius = Math.max(1, (layer.radius ?? 12) * scale * sizeFactor);
+      const sweepDeg = layer.sweepDeg ?? 130;
+      const startAngle = (layer.rotationDeg ?? -90) - sweepDeg / 2;
+      const endAngle = startAngle + sweepDeg;
+      const toPoint = (angleDeg) => {
+        const angle = (angleDeg * Math.PI) / 180;
+        return {
+          x: x + arcRadius * Math.cos(angle),
+          y: y + arcRadius * Math.sin(angle),
+        };
+      };
+      const start = toPoint(startAngle);
+      const end = toPoint(endAngle);
+      svg += `
+        <path
+          d="M ${start.x} ${start.y} A ${arcRadius} ${arcRadius} 0 ${sweepDeg > 180 ? 1 : 0} 1 ${end.x} ${end.y}"
+          fill="transparent"
+          stroke="${escapeHtml(layer.color)}"
+          stroke-width="${Math.max(1, (layer.thickness ?? 3) * scale * sizeFactor)}"
+          stroke-linecap="round"
+          opacity="${opacity}"
+        ></path>
+      `;
+      continue;
+    }
+
+    if (trailStyle === 'starburst') {
+      const innerRadius = Math.max(0.5, (layer.innerRadius ?? 6) * scale * sizeFactor);
+      const outerRadius = Math.max(innerRadius + 0.5, (layer.outerRadius ?? 14) * scale * sizeFactor);
+      const pointCount = Math.max(3, Math.round(layer.points ?? 6));
+      const rotation = ((layer.rotationDeg ?? -90) * Math.PI) / 180;
+      const points = Array.from({ length: pointCount * 2 }, (_, pointIndex) => {
+        const pointRadius = pointIndex % 2 === 0 ? outerRadius : innerRadius;
+        const angle = rotation + (Math.PI * pointIndex) / pointCount;
+        return `${x + pointRadius * Math.cos(angle)},${y + pointRadius * Math.sin(angle)}`;
+      }).join(' ');
+      svg += `
+        <polygon
+          points="${points}"
+          fill="${escapeHtml(layer.color)}"
+          opacity="${opacity}"
+        ></polygon>
+      `;
+      continue;
+    }
+
     svg += `
       <circle
         cx="${x}"
@@ -3048,14 +3245,17 @@ function renderLayersPanel() {
   ui.layersPanel.innerHTML = `
     <div class="layer-toolbar">
       <div class="button-row">
-        <button class="chip-button" data-action="add-layer" data-layer-type="orb">Add Orb</button>
-        <button class="chip-button" data-action="add-layer" data-layer-type="ring">Add Ring</button>
-        <button class="chip-button" data-action="add-layer" data-layer-type="trail">Add Trail</button>
-        <button class="chip-button" data-action="add-layer" data-layer-type="streak">Add Streak</button>
-        <button class="chip-button" data-action="add-layer" data-layer-type="diamond">Add Diamond</button>
-        <button class="chip-button" data-action="add-layer" data-layer-type="arc">Add Arc</button>
-        <button class="chip-button" data-action="add-layer" data-layer-type="starburst">Add Starburst</button>
-        <button class="chip-button" data-action="add-layer" data-layer-type="sprite">Add Sprite</button>
+        <label class="field layer-add-field">
+          <span class="field-label">Add Layer</span>
+          <select class="field-select" data-layers-field="pendingLayerType">
+            ${LAYER_TYPE_OPTIONS.map(
+              (option) => `
+              <option value="${option.value}" ${state.pendingLayerType === option.value ? 'selected' : ''}>${escapeHtml(option.label)}</option>
+            `,
+            ).join('')}
+          </select>
+        </label>
+        <button class="chip-button" data-action="add-layer">Add Layer</button>
       </div>
 
       <div class="button-row">
@@ -3099,20 +3299,201 @@ function renderLayersPanel() {
                 <span class="swatch" style="${getLayerCardSwatchStyle(layer)}"></span>
               </div>
               <div class="layer-card-header">
-                <span class="layer-type">${escapeHtml(layer.type === 'trail' ? `trail${layer.style === 'ring' ? ' (ring)' : layer.style === 'sprite' ? ' (sprite)' : ''}` : layer.type)}</span>
+                <span class="layer-type">${escapeHtml(layer.type === 'trail' ? getTrailStyleCardLabel(layer.style) : layer.type)}</span>
                 <span class="section-note">${layer.tracks ? Object.keys(layer.tracks).length : 0} curve set${layer.tracks && Object.keys(layer.tracks).length === 1 ? '' : 's'}</span>
               </div>
             </button>
           `,
               )
               .join('')
-          : '<p class="empty-note">No layers yet. Start by adding an orb, ring, trail, streak, diamond, arc, starburst, or sprite layer.</p>'
+          : '<p class="empty-note">No layers yet. Pick a type from Add Layer, then build the stack from there.</p>'
       }
       `
       }
     </div>
   `;
   schedulePersistEditorSession();
+}
+
+function renderTrailInspectorFields(layer, trailStyle) {
+  return `
+    <label class="field">
+      <span class="field-label">Trail Style</span>
+      <select class="field-select" data-layer-field="style">
+        ${TRAIL_STYLE_OPTIONS.map(
+          (option) => `
+          <option value="${option.value}" ${trailStyle === option.value ? 'selected' : ''}>${escapeHtml(option.label)}</option>
+        `,
+        ).join('')}
+      </select>
+    </label>
+
+    ${
+      trailStyle === 'sprite'
+        ? renderSpriteField({
+            value: layer.spriteId,
+            field: 'spriteId',
+            datasetName: 'layer-field',
+          })
+        : renderColorField({
+            label: 'Base Color',
+            value: layer.color,
+            field: 'color',
+            datasetName: 'layer-field',
+            fallback: '#ffffff',
+          })
+    }
+
+    ${
+      trailStyle === 'sprite'
+        ? renderTintField({
+            value: layer.tintColor ?? '',
+            field: 'tintColor',
+            datasetName: 'layer-field',
+          })
+        : ''
+    }
+
+    <div class="field-grid two-up">
+      <label class="field">
+        <span class="field-label">Segments</span>
+        <input class="field-input" type="number" step="1" min="1" value="${layer.segments}" data-layer-field="segments" />
+      </label>
+
+      <label class="field">
+        <span class="field-label">Spacing</span>
+        <input class="field-input" type="number" step="0.01" value="${layer.spacing}" data-layer-field="spacing" />
+      </label>
+
+      <label class="field">
+        <span class="field-label">Falloff</span>
+        <input class="field-input" type="number" step="0.01" value="${layer.falloff ?? 0.1}" data-layer-field="falloff" />
+      </label>
+    </div>
+
+    ${
+      trailStyle === 'fill' || trailStyle === 'ring'
+        ? `
+      <div class="field-grid two-up">
+        <label class="field">
+          <span class="field-label">Radius</span>
+          <input class="field-input" type="number" step="0.1" value="${layer.radius}" data-layer-field="radius" />
+        </label>
+
+        ${
+          trailStyle === 'ring'
+            ? `
+          <label class="field">
+            <span class="field-label">Thickness</span>
+            <input class="field-input" type="number" step="0.1" value="${layer.thickness ?? 2.5}" data-layer-field="thickness" />
+          </label>
+        `
+            : ''
+        }
+      </div>
+    `
+        : ''
+    }
+
+    ${
+      trailStyle === 'sprite'
+        ? `
+      <div class="field-grid two-up">
+        <label class="field">
+          <span class="field-label">Sprite Width</span>
+          <input class="field-input" type="number" step="0.1" value="${layer.width ?? layer.radius * 2}" data-layer-field="width" />
+        </label>
+
+        <label class="field">
+          <span class="field-label">Sprite Height</span>
+          <input class="field-input" type="number" step="0.1" value="${layer.height ?? layer.radius * 2}" data-layer-field="height" />
+        </label>
+      </div>
+    `
+        : ''
+    }
+
+    ${
+      trailStyle === 'streak' || trailStyle === 'diamond'
+        ? `
+      <div class="field-grid two-up">
+        <label class="field">
+          <span class="field-label">Width</span>
+          <input class="field-input" type="number" step="0.1" value="${layer.width ?? (trailStyle === 'streak' ? 36 : 24)}" data-layer-field="width" />
+        </label>
+
+        <label class="field">
+          <span class="field-label">Height</span>
+          <input class="field-input" type="number" step="0.1" value="${layer.height ?? (trailStyle === 'streak' ? 10 : 28)}" data-layer-field="height" />
+        </label>
+
+        <label class="field">
+          <span class="field-label">Rotation</span>
+          <input class="field-input" type="number" step="1" value="${layer.rotationDeg ?? (trailStyle === 'streak' ? -24 : 0)}" data-layer-field="rotationDeg" />
+        </label>
+      </div>
+    `
+        : ''
+    }
+
+    ${
+      trailStyle === 'arc'
+        ? `
+      <div class="field-grid two-up">
+        <label class="field">
+          <span class="field-label">Radius</span>
+          <input class="field-input" type="number" step="0.1" value="${layer.radius}" data-layer-field="radius" />
+        </label>
+
+        <label class="field">
+          <span class="field-label">Thickness</span>
+          <input class="field-input" type="number" step="0.1" value="${layer.thickness ?? 3}" data-layer-field="thickness" />
+        </label>
+
+        <label class="field">
+          <span class="field-label">Sweep Degrees</span>
+          <input class="field-input" type="number" step="1" value="${layer.sweepDeg ?? 130}" data-layer-field="sweepDeg" />
+        </label>
+
+        <label class="field">
+          <span class="field-label">Rotation</span>
+          <input class="field-input" type="number" step="1" value="${layer.rotationDeg ?? -90}" data-layer-field="rotationDeg" />
+        </label>
+      </div>
+    `
+        : ''
+    }
+
+    ${
+      trailStyle === 'starburst'
+        ? `
+      <div class="field-grid two-up">
+        <label class="field">
+          <span class="field-label">Inner Radius</span>
+          <input class="field-input" type="number" step="0.1" value="${layer.innerRadius ?? 6}" data-layer-field="innerRadius" />
+        </label>
+
+        <label class="field">
+          <span class="field-label">Outer Radius</span>
+          <input class="field-input" type="number" step="0.1" value="${layer.outerRadius ?? 14}" data-layer-field="outerRadius" />
+        </label>
+
+        <label class="field">
+          <span class="field-label">Points</span>
+          <input class="field-input" type="number" step="1" min="3" value="${layer.points ?? 6}" data-layer-field="points" />
+        </label>
+
+        <label class="field">
+          <span class="field-label">Rotation</span>
+          <input class="field-input" type="number" step="1" value="${layer.rotationDeg ?? -90}" data-layer-field="rotationDeg" />
+        </label>
+      </div>
+    `
+        : ''
+    }
+
+    <p class="section-note">Trail style can reuse the existing primitive shapes while still following the effect motion.</p>
+  `;
 }
 
 function renderLayerInspector() {
@@ -3136,7 +3517,7 @@ function renderLayerInspector() {
       panelKey: 'layerProperties',
       kicker: 'Selected Layer',
       title: layer.id,
-      note: `<span class="layer-type">${escapeHtml(layer.type)}</span>`,
+      note: `<span class="layer-type">${escapeHtml(layer.type === 'trail' ? getTrailStyleLabel(trailStyle) : layer.type)}</span>`,
       className: 'inspector-block',
       body: `
       <div class="field-grid">
@@ -3145,19 +3526,26 @@ function renderLayerInspector() {
           <input class="field-input" type="text" value="${escapeHtml(layer.id)}" data-layer-field="id" />
         </label>
 
+        <label class="field">
+          <span class="field-label">Primitive Shape</span>
+          <select class="field-select" data-layer-field="type">
+            ${LAYER_TYPE_OPTIONS.map(
+              (option) => `
+              <option value="${option.value}" ${layer.type === option.value ? 'selected' : ''}>${escapeHtml(option.label)}</option>
+            `,
+            ).join('')}
+          </select>
+        </label>
+
         ${
-          layer.type === 'sprite'
+          layer.type === 'trail'
+            ? ''
+            : layer.type === 'sprite'
             ? renderSpriteField({
                 value: layer.spriteId,
                 field: 'spriteId',
                 datasetName: 'layer-field',
               })
-            : layer.type === 'trail' && trailStyle === 'sprite'
-              ? renderSpriteField({
-                  value: layer.spriteId,
-                  field: 'spriteId',
-                  datasetName: 'layer-field',
-                })
               : renderColorField({
                   label: 'Base Color',
                   value: layer.color,
@@ -3168,7 +3556,7 @@ function renderLayerInspector() {
         }
 
         ${
-          layer.type === 'sprite' || (layer.type === 'trail' && trailStyle === 'sprite')
+          layer.type === 'sprite'
             ? renderTintField({
                 value: layer.tintColor ?? '',
                 field: 'tintColor',
@@ -3259,6 +3647,8 @@ function renderLayerInspector() {
             </label>
           </div>
         `
+                : layer.type === 'trail'
+                  ? renderTrailInspectorFields(layer, trailStyle)
             : `
           <div class="field-grid two-up">
             <label class="field">
@@ -3307,59 +3697,7 @@ function renderLayerInspector() {
         }
 
         ${
-          layer.type === 'trail'
-            ? `
-          <label class="field">
-            <span class="field-label">Trail Style</span>
-            <select class="field-select" data-layer-field="style">
-              <option value="fill" ${trailStyle === 'fill' ? 'selected' : ''}>Filled Circles</option>
-              <option value="ring" ${trailStyle === 'ring' ? 'selected' : ''}>Outlined Circles</option>
-              <option value="sprite" ${trailStyle === 'sprite' ? 'selected' : ''}>Sprites</option>
-            </select>
-          </label>
-
-          <div class="field-grid two-up">
-            <label class="field">
-              <span class="field-label">Spacing</span>
-              <input class="field-input" type="number" step="0.01" value="${layer.spacing}" data-layer-field="spacing" />
-            </label>
-
-            <label class="field">
-              <span class="field-label">Falloff</span>
-              <input class="field-input" type="number" step="0.01" value="${layer.falloff ?? 0.1}" data-layer-field="falloff" />
-            </label>
-          </div>
-
-          ${
-            trailStyle === 'ring'
-              ? `
-            <label class="field">
-              <span class="field-label">Thickness</span>
-              <input class="field-input" type="number" step="0.1" value="${layer.thickness ?? 2.5}" data-layer-field="thickness" />
-            </label>
-          `
-              : ''
-          }
-
-          ${
-            trailStyle === 'sprite'
-              ? `
-            <div class="field-grid two-up">
-              <label class="field">
-                <span class="field-label">Sprite Width</span>
-                <input class="field-input" type="number" step="0.1" value="${layer.width ?? layer.radius * 2}" data-layer-field="width" />
-              </label>
-
-              <label class="field">
-                <span class="field-label">Sprite Height</span>
-                <input class="field-input" type="number" step="0.1" value="${layer.height ?? layer.radius * 2}" data-layer-field="height" />
-              </label>
-            </div>
-          `
-              : ''
-          }
-        `
-            : ''
+          ''
         }
       </div>
     `,
@@ -3657,6 +3995,100 @@ function createLayer(type) {
   };
 }
 
+function createConvertedLayer(sourceLayer, nextType) {
+  const converted = createLayer(nextType);
+  converted.id = sourceLayer.id;
+  converted.tracks = cloneData(sourceLayer.tracks ?? {});
+
+  if ('color' in converted) {
+    converted.color =
+      sourceLayer.color ?? sourceLayer.glowColor ?? sourceLayer.tintColor ?? converted.color;
+  }
+
+  if (nextType === 'orb') {
+    converted.radius = sourceLayer.radius ?? sourceLayer.outerRadius ?? converted.radius;
+    converted.glowColor = sourceLayer.glowColor ?? sourceLayer.color ?? converted.glowColor;
+    converted.glowScale = sourceLayer.glowScale ?? converted.glowScale;
+    return converted;
+  }
+
+  if (nextType === 'ring') {
+    converted.radius = sourceLayer.radius ?? sourceLayer.outerRadius ?? converted.radius;
+    converted.thickness = sourceLayer.thickness ?? converted.thickness;
+    return converted;
+  }
+
+  if (nextType === 'trail') {
+    converted.style = sourceLayer.type === 'trail' ? sourceLayer.style ?? 'fill' : 'fill';
+    converted.radius = sourceLayer.radius ?? sourceLayer.outerRadius ?? converted.radius;
+    converted.color = sourceLayer.color ?? sourceLayer.tintColor ?? converted.color;
+    converted.spriteId = sourceLayer.spriteId ?? converted.spriteId;
+    converted.tintColor = sourceLayer.tintColor ?? converted.tintColor;
+    converted.width = sourceLayer.width ?? converted.width;
+    converted.height = sourceLayer.height ?? converted.height;
+    converted.rotationDeg = sourceLayer.rotationDeg ?? converted.rotationDeg;
+    converted.thickness = sourceLayer.thickness ?? converted.thickness;
+    converted.sweepDeg = sourceLayer.sweepDeg ?? converted.sweepDeg;
+    converted.innerRadius = sourceLayer.innerRadius ?? converted.innerRadius;
+    converted.outerRadius = sourceLayer.outerRadius ?? converted.outerRadius;
+    converted.points = sourceLayer.points ?? converted.points;
+    converted.segments = sourceLayer.segments ?? converted.segments;
+    converted.spacing = sourceLayer.spacing ?? converted.spacing;
+    converted.falloff = sourceLayer.falloff ?? converted.falloff;
+    applyTrailStyleDefaults(converted);
+    return converted;
+  }
+
+  if (nextType === 'streak' || nextType === 'diamond') {
+    converted.width =
+      sourceLayer.width ??
+      (sourceLayer.radius ? sourceLayer.radius * 2 : undefined) ??
+      converted.width;
+    converted.height =
+      sourceLayer.height ??
+      (sourceLayer.radius ? sourceLayer.radius * 1.2 : undefined) ??
+      converted.height;
+    converted.rotationDeg = sourceLayer.rotationDeg ?? converted.rotationDeg;
+    return converted;
+  }
+
+  if (nextType === 'arc') {
+    converted.radius = sourceLayer.radius ?? sourceLayer.outerRadius ?? converted.radius;
+    converted.thickness = sourceLayer.thickness ?? converted.thickness;
+    converted.sweepDeg = sourceLayer.sweepDeg ?? converted.sweepDeg;
+    converted.rotationDeg = sourceLayer.rotationDeg ?? converted.rotationDeg;
+    return converted;
+  }
+
+  if (nextType === 'starburst') {
+    converted.innerRadius =
+      sourceLayer.innerRadius ??
+      (sourceLayer.radius ? Math.max(1, sourceLayer.radius * 0.55) : undefined) ??
+      converted.innerRadius;
+    converted.outerRadius =
+      sourceLayer.outerRadius ?? sourceLayer.radius ?? converted.outerRadius;
+    converted.points = sourceLayer.points ?? converted.points;
+    converted.rotationDeg = sourceLayer.rotationDeg ?? converted.rotationDeg;
+    return converted;
+  }
+
+  if (nextType === 'sprite') {
+    converted.spriteId = sourceLayer.spriteId ?? getDefaultSpriteId();
+    converted.tintColor =
+      sourceLayer.tintColor ?? sourceLayer.color ?? sourceLayer.glowColor ?? converted.tintColor;
+    converted.width =
+      sourceLayer.width ??
+      (sourceLayer.radius ? sourceLayer.radius * 2 : undefined) ??
+      converted.width;
+    converted.height =
+      sourceLayer.height ??
+      (sourceLayer.radius ? sourceLayer.radius * 2 : undefined) ??
+      converted.height;
+  }
+
+  return converted;
+}
+
 function updateAssetField(field, rawValue) {
   pushUndoCheckpoint();
   const nextAsset = cloneData(state.asset);
@@ -3710,7 +4142,19 @@ function updateSelectedLayerField(field, rawValue, fromColorPicker = false) {
   if (layerIndex < 0) return;
 
   const nextAsset = cloneData(state.asset);
-  const layer = nextAsset.layers[layerIndex];
+  let layer = nextAsset.layers[layerIndex];
+
+  if (field === 'type') {
+    if (!LAYER_TYPE_OPTIONS.some((option) => option.value === rawValue)) {
+      return;
+    }
+
+    nextAsset.layers[layerIndex] = createConvertedLayer(layer, rawValue);
+    commitAsset(nextAsset, { renderPanels: true });
+    return;
+  }
+
+  layer = nextAsset.layers[layerIndex];
 
   if (['radius', 'glowScale', 'thickness', 'spacing', 'falloff', 'width', 'height', 'rotationDeg', 'sweepDeg', 'innerRadius', 'outerRadius'].includes(field)) {
     if (rawValue === '') {
@@ -3726,9 +4170,7 @@ function updateSelectedLayerField(field, rawValue, fromColorPicker = false) {
     layer[field] = fromColorPicker ? mergePickedHexWithSource(currentValue, rawValue) : rawValue;
   } else if (field === 'style') {
     layer.style = rawValue;
-    if (rawValue === 'sprite' && !hasSpriteDefinition(layer.spriteId)) {
-      layer.spriteId = getDefaultSpriteId();
-    }
+    applyTrailStyleDefaults(layer);
   } else if (field === 'spriteId') {
     layer.spriteId = hasSpriteDefinition(rawValue) ? rawValue : getDefaultSpriteId();
   } else {
@@ -4128,9 +4570,16 @@ async function loadRecentFile(recentFileId) {
 }
 
 async function writeEffectToHandle(handle, suggestedFileName = '') {
+  flushActiveEditorField();
+  const exportedAsset = buildExportAsset();
   const writable = await handle.createWritable();
-  await writable.write(stringifyAsset(buildExportAsset()));
+  await writable.write(stringifyAsset(exportedAsset));
   await writable.close();
+  state.asset = normalizeAsset(exportedAsset);
+  ensureSelection();
+  syncJsonFromAsset();
+  ui.effectTitleLabel.textContent = `${state.asset.label} Preview`;
+  renderPreview();
   state.fileHandle = handle;
   state.fileName = handle.name || suggestedFileName || state.fileName || `${state.asset.id || 'effect'}.json`;
   renderPanels();
@@ -4179,6 +4628,7 @@ async function saveAsFile() {
 }
 
 function downloadJson() {
+  flushActiveEditorField();
   const blob = new Blob([stringifyAsset(buildExportAsset())], { type: 'application/json' });
   const url = URL.createObjectURL(blob);
   const anchor = document.createElement('a');
@@ -4190,6 +4640,7 @@ function downloadJson() {
 
 async function copyJson() {
   try {
+    flushActiveEditorField();
     await navigator.clipboard.writeText(stringifyAsset(buildExportAsset()));
     setSaveStatus('JSON copied to the clipboard.', 'success');
   } catch (error) {
@@ -4210,6 +4661,27 @@ function applyRawJson() {
   } catch (error) {
     setJsonStatus(`Could not apply JSON: ${error.message}`, 'error');
   }
+}
+
+function flushActiveEditorField() {
+  const activeElement = document.activeElement;
+  if (
+    !(
+      activeElement instanceof HTMLInputElement ||
+      activeElement instanceof HTMLTextAreaElement ||
+      activeElement instanceof HTMLSelectElement
+    )
+  ) {
+    return;
+  }
+
+  if (
+    !activeElement.closest('#assetPanel, #layerInspectorPanel, #layersPanel, #jsonPanelBody')
+  ) {
+    return;
+  }
+
+  activeElement.blur();
 }
 
 function updateInstanceField(field, rawValue) {
@@ -4258,6 +4730,9 @@ function handleAssetPanelInput(event) {
   }
 
   if (target.dataset.rangeField && target.dataset.curveScope && target.dataset.trackName) {
+    if (event.type !== 'change') {
+      return;
+    }
     setCurveValueRange(
       target.dataset.curveScope,
       target.dataset.trackName,
@@ -4313,7 +4788,7 @@ function handleLayersPanelClick(event) {
     togglePanelCollapse(button.dataset.panelKey);
     renderLayersPanel();
   } else if (action === 'add-layer') {
-    addLayer(layerType);
+    addLayer(layerType || state.pendingLayerType);
   } else if (action === 'duplicate-layer') {
     duplicateSelectedLayer();
   } else if (action === 'remove-layer') {
@@ -4322,6 +4797,18 @@ function handleLayersPanelClick(event) {
     moveSelectedLayer(Number(direction));
   } else if (action === 'select-layer') {
     selectLayer(layerId);
+  }
+}
+
+function handleLayersPanelInput(event) {
+  const target = event.target;
+  if (!(target instanceof HTMLSelectElement)) return;
+
+  if (target.dataset.layersField === 'pendingLayerType') {
+    state.pendingLayerType = LAYER_TYPE_OPTIONS.some((option) => option.value === target.value)
+      ? target.value
+      : 'orb';
+    schedulePersistEditorSession();
   }
 }
 
@@ -4337,6 +4824,9 @@ function handleLayerInspectorInput(event) {
   }
 
   if (target.dataset.layerField) {
+    if (target.dataset.layerField === 'id' && event.type !== 'change') {
+      return;
+    }
     updateSelectedLayerField(
       target.dataset.layerField,
       target.value,
@@ -4346,6 +4836,9 @@ function handleLayerInspectorInput(event) {
   }
 
   if (target.dataset.rangeField && target.dataset.curveScope && target.dataset.trackName) {
+    if (event.type !== 'change') {
+      return;
+    }
     setCurveValueRange(
       target.dataset.curveScope,
       target.dataset.trackName,
@@ -4839,6 +5332,8 @@ function wireEvents() {
   ui.assetPanel.addEventListener('pointerdown', handleCurvePointerDown);
 
   ui.layersPanel.addEventListener('click', handleLayersPanelClick);
+  ui.layersPanel.addEventListener('input', handleLayersPanelInput);
+  ui.layersPanel.addEventListener('change', handleLayersPanelInput);
 
   ui.layerInspectorPanel.addEventListener('input', handleLayerInspectorInput);
   ui.layerInspectorPanel.addEventListener('change', handleLayerInspectorInput);

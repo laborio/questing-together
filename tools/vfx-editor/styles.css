@@ -346,6 +346,14 @@ h3 {
   justify-content: space-between;
 }
 
+.layer-add-field {
+  min-width: 180px;
+}
+
+.layer-add-field .field-label {
+  white-space: nowrap;
+}
+
 .action-button,
 .chip-button,
 .stack-button,

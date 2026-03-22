@@ -20,7 +20,7 @@ export type OrbLayer = EffectLayerBase & {
   glowScale?: number;
 };
 
-export type TrailStyle = 'fill' | 'ring' | 'sprite';
+export type TrailStyle = 'fill' | 'ring' | 'streak' | 'diamond' | 'arc' | 'starburst' | 'sprite';
 
 export type TrailLayer = EffectLayerBase & {
   type: 'trail';
@@ -34,6 +34,11 @@ export type TrailLayer = EffectLayerBase & {
   spriteId?: string;
   width?: number;
   height?: number;
+  rotationDeg?: number;
+  sweepDeg?: number;
+  innerRadius?: number;
+  outerRadius?: number;
+  points?: number;
   tintColor?: string;
 };
 

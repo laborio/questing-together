@@ -48,7 +48,7 @@ const GameLauncher = () => {
     }
   };
 
-  const handleConfirm = (name: string, roleId: RoleId, enemyCount?: number) => {
+  const handleConfirm = (name: string, roleId: RoleId, enemyCount?: number, botCount?: number) => {
     if (isPlaytest) {
       void roomConnection.createPlaytest(
         playtestScreenType,
@@ -56,6 +56,7 @@ const GameLauncher = () => {
         name,
         roleId,
         enemyCount,
+        botCount,
       );
     } else if (isCreating) {
       void roomConnection.createRoom(name, roleId);

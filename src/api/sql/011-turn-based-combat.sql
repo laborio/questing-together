@@ -310,7 +310,15 @@ begin
   where e.id = p_enemy_id and e.room_id = p_room_id;
 
   if v_enemy_dead then
-    raise exception 'Enemy is already dead';
+    -- Enemy already dead: refund action, return miss
+    return jsonb_build_object(
+      'enemyDamage', 0,
+      'enemyKilled', false,
+      'xpGained', 0,
+      'goldGained', 0,
+      'roll', 0,
+      'rollLabel', 'miss'
+    );
   end if;
 
   -- Deal damage
@@ -466,7 +474,11 @@ begin
     where e.id = p_enemy_id and e.room_id = p_room_id;
 
     if v_enemy_record.is_dead then
-      raise exception 'Enemy is already dead';
+      return jsonb_build_object(
+        'ability', 'fireball', 'damage', 0,
+        'kills', 0, 'xpGained', 0, 'goldGained', 0,
+        'roll', 0, 'rollLabel', 'miss'
+      );
     end if;
 
     v_damage := 6;

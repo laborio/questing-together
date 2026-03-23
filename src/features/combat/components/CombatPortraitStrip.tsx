@@ -19,6 +19,7 @@ type FloatingText = {
   text: string;
   color: string;
   target: 'enemy' | 'player';
+  playerId?: string;
 };
 
 type CombatPortraitStripProps = {
@@ -27,6 +28,8 @@ type CombatPortraitStripProps = {
   playerLungeX: SharedValue<number>;
   playerLungeY: SharedValue<number>;
   playerFlash: SharedValue<number>;
+  botLunge: SharedValue<number>;
+  botLungePlayerId: string | null;
   localHpOverride: number | null;
   onPlayerLayout: (x: number, y: number) => void;
   floatingTexts: FloatingText[];
@@ -41,6 +44,8 @@ const CombatPortraitStrip = ({
   playerLungeX,
   playerLungeY,
   playerFlash,
+  botLunge,
+  botLungePlayerId,
   localHpOverride,
   onPlayerLayout,
   floatingTexts,
@@ -51,11 +56,13 @@ const CombatPortraitStrip = ({
     transform: [{ translateX: playerLungeX.value }, { translateY: playerLungeY.value }],
   }));
 
+  const botLungeStyle = useAnimatedStyle(() => ({
+    transform: [{ translateY: botLunge.value }],
+  }));
+
   const flashStyle = useAnimatedStyle(() => ({
     opacity: playerFlash.value,
   }));
-
-  const playerFloats = floatingTexts.filter((t) => t.target === 'player');
 
   return (
     <Stack direction="row" justify="space-evenly" style={{ paddingTop: 48, paddingBottom: 8 }}>
@@ -82,7 +89,15 @@ const CombatPortraitStrip = ({
                 : undefined
             }
           >
-            <Animated.View style={isLocal ? lungeStyle : undefined}>
+            <Animated.View
+              style={
+                isLocal
+                  ? lungeStyle
+                  : player.playerId === botLungePlayerId
+                    ? botLungeStyle
+                    : undefined
+              }
+            >
               <View
                 style={{
                   width: RING_SIZE,
@@ -136,9 +151,16 @@ const CombatPortraitStrip = ({
             >
               {isDead ? 'DEAD' : `${hp}/${hpMax}`}
             </Typography>
-            {isLocal
-              ? playerFloats.map((f) => <FloatingDamage key={f.id} text={f.text} color={f.color} />)
-              : null}
+            {floatingTexts
+              .filter((f) => {
+                if (f.target !== 'player') return false;
+                // Floats with playerId go to that specific player, others go to local
+                if (f.playerId) return f.playerId === player.playerId;
+                return isLocal;
+              })
+              .map((f) => (
+                <FloatingDamage key={f.id} text={f.text} color={f.color} />
+              ))}
           </Stack>
         );
       })}

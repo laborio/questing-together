@@ -1,38 +1,54 @@
 import type { RealtimeChannel } from '@supabase/supabase-js';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import type {
+  CharacterRow,
+  CombatTurnRow,
+  EnemyRow,
+  ListAvailableRoomsReturn,
+  ListMyRoomsReturn,
+  PeekRoomReturn,
+  PlayerId,
+  PlayerTurnStateRow,
+  RoleId,
+  RoomPlayerRow,
+  RoomRow,
+  ScreenType,
+} from '@/api/dbTypes';
 import type { Character } from '@/api/models/character';
 import type { Enemy } from '@/api/models/enemy';
 import { supabase } from '@/api/supabaseClient';
-import type { AdventureScreen, ScreenConfig, ScreenType } from '@/types/adventure';
+import type { AdventureScreen, ScreenConfig } from '@/types/adventure';
 import type { CombatTurn, PlayerTurnState } from '@/types/combatTurn';
-import type { PlayerId, RoleId } from '@/types/player';
 import { getErrorMessage } from '@/utils/getErrorMessage';
 import { STORY_CONFIG } from '@/utils/storyConfig';
 
 // ---------------------------------------------------------------------------
-// Types
+// Types — derived from database.types.ts
 // ---------------------------------------------------------------------------
 
-type RoomRecord = {
-  id: string;
-  code: string;
-  host_user_id: string;
-  status: 'lobby' | 'in_progress' | 'finished';
-  target_player_count: number;
-  current_screen_position: number;
-  current_bloc: number;
-};
+type RoomRecord = Pick<
+  RoomRow,
+  | 'id'
+  | 'code'
+  | 'host_user_id'
+  | 'status'
+  | 'target_player_count'
+  | 'current_screen_position'
+  | 'current_bloc'
+>;
 
-type RoomPlayerRecord = {
-  id: string;
-  room_id: string;
-  player_id: PlayerId;
-  user_id: string;
-  role_id: RoleId | null;
-  display_name: string | null;
-  is_connected: boolean;
-};
+type RoomPlayerRecord = Pick<
+  RoomPlayerRow,
+  | 'id'
+  | 'room_id'
+  | 'player_id'
+  | 'user_id'
+  | 'role_id'
+  | 'display_name'
+  | 'is_connected'
+  | 'is_bot'
+>;
 
 type RoomPeek = {
   roomId: string;
@@ -52,20 +68,20 @@ type RoomState = {
 };
 
 type MyRoom = {
-  roomId: string;
-  code: string;
+  roomId: ListMyRoomsReturn['room_id'];
+  code: ListMyRoomsReturn['room_code'];
   status: string;
-  playerCount: number;
-  isHost: boolean;
-  hostName: string;
+  playerCount: ListMyRoomsReturn['player_count'];
+  isHost: ListMyRoomsReturn['is_host'];
+  hostName: ListMyRoomsReturn['host_name'];
 };
 
 type AvailableRoom = {
-  roomId: string;
-  code: string;
+  roomId: ListAvailableRoomsReturn['room_id'];
+  code: ListAvailableRoomsReturn['room_code'];
   status: string;
-  playerCount: number;
-  hostName: string;
+  playerCount: ListAvailableRoomsReturn['player_count'];
+  hostName: ListAvailableRoomsReturn['host_name'];
 };
 
 type UseRoomConnectionResult = {
@@ -85,6 +101,7 @@ type UseRoomConnectionResult = {
     displayName?: string,
     roleId?: RoleId,
     enemyCount?: number,
+    botCount?: number,
   ) => Promise<void>;
   joinRoom: (code: string, displayName: string, roleId: RoleId) => Promise<void>;
   rejoinRoom: (roomId: string) => Promise<void>;
@@ -101,6 +118,7 @@ type UseRoomConnectionResult = {
   combatHeal: (targetPlayerId?: PlayerId) => Promise<unknown>;
   combatEndTurn: () => Promise<unknown>;
   combatEnemyPhase: () => Promise<unknown>;
+  combatBotTurn: (botPlayerId: PlayerId) => Promise<unknown>;
   combatTurn: CombatTurn | null;
   playerTurnStates: PlayerTurnState[];
   leaveRoom: () => Promise<void>;
@@ -135,13 +153,13 @@ async function fetchRoomSnapshot(roomId: string): Promise<RoomRecord | null> {
     .maybeSingle();
 
   if (error) throw error;
-  return (data as RoomRecord | null) ?? null;
+  return data ?? null;
 }
 
 async function fetchRoomPlayers(roomId: string): Promise<RoomPlayerRecord[]> {
   const { data, error } = await supabase
     .from('room_players')
-    .select('id, room_id, player_id, user_id, role_id, display_name, is_connected')
+    .select('id, room_id, player_id, user_id, role_id, display_name, is_connected, is_bot')
     .eq('room_id', roomId)
     .order('player_id', { ascending: true });
 
@@ -149,78 +167,53 @@ async function fetchRoomPlayers(roomId: string): Promise<RoomPlayerRecord[]> {
   return (data ?? []) as RoomPlayerRecord[];
 }
 
+const mapCharacterRow = (row: CharacterRow): Character => ({
+  id: row.id,
+  roomId: row.room_id,
+  playerId: row.player_id,
+  name: row.name,
+  level: row.level,
+  gold: row.gold,
+  exp: row.exp,
+  hp: row.hp,
+  hpMax: row.hp_max,
+  tauntTurnsLeft: row.taunt_turns_left,
+  abilityCooldownLeft: row.ability_cooldown_left,
+  healCooldownLeft: row.heal_cooldown_left,
+});
+
 async function fetchCharacters(roomId: string): Promise<Character[]> {
   const { data, error } = await supabase
     .from('characters')
-    .select(
-      'id, room_id, player_id, name, level, gold, exp, hp, hp_max, taunt_turns_left, ability_cooldown_left, heal_cooldown_left',
-    )
+    .select('*')
     .eq('room_id', roomId)
     .order('player_id', { ascending: true });
 
   if (error) return [];
-  return (
-    (data ?? []) as {
-      id: string;
-      room_id: string;
-      player_id: PlayerId;
-      name: string;
-      level: number;
-      gold: number;
-      exp: number;
-      hp: number;
-      hp_max: number;
-      taunt_turns_left: number;
-      ability_cooldown_left: number;
-      heal_cooldown_left: number;
-    }[]
-  ).map((row) => ({
-    id: row.id,
-    roomId: row.room_id,
-    playerId: row.player_id,
-    name: row.name,
-    level: row.level,
-    gold: row.gold,
-    exp: row.exp,
-    hp: row.hp,
-    hpMax: row.hp_max,
-    tauntTurnsLeft: row.taunt_turns_left,
-    abilityCooldownLeft: row.ability_cooldown_left,
-    healCooldownLeft: row.heal_cooldown_left,
-  }));
+  return (data ?? []).map(mapCharacterRow);
 }
+
+const mapEnemyRow = (row: EnemyRow): Enemy => ({
+  id: row.id,
+  roomId: row.room_id,
+  position: row.position,
+  name: row.name,
+  level: row.level,
+  hp: row.hp,
+  hpMax: row.hp_max,
+  attack: row.attack,
+  isDead: row.is_dead,
+});
 
 async function fetchEnemies(roomId: string): Promise<Enemy[]> {
   const { data, error } = await supabase
     .from('enemies')
-    .select('id, room_id, position, name, level, hp, hp_max, attack, is_dead')
+    .select('*')
     .eq('room_id', roomId)
     .order('position', { ascending: true });
 
   if (error) return [];
-  return (
-    (data ?? []) as {
-      id: string;
-      room_id: string;
-      position: number;
-      name: string;
-      level: number;
-      hp: number;
-      hp_max: number;
-      attack: number;
-      is_dead: boolean;
-    }[]
-  ).map((row) => ({
-    id: row.id,
-    roomId: row.room_id,
-    position: row.position,
-    name: row.name,
-    level: row.level,
-    hp: row.hp,
-    hpMax: row.hp_max,
-    attack: row.attack,
-    isDead: row.is_dead,
-  }));
+  return (data ?? []).map(mapEnemyRow);
 }
 
 async function fetchCurrentScreen(
@@ -259,14 +252,23 @@ async function fetchCombatTurn(roomId: string): Promise<CombatTurn | null> {
     .maybeSingle();
 
   if (error || !data) return null;
+  const row = data as CombatTurnRow;
   return {
-    id: data.id as string,
-    roomId: data.room_id as string,
-    screenId: data.screen_id as string,
-    turnNumber: data.turn_number as number,
-    phase: data.phase as CombatTurn['phase'],
+    id: row.id,
+    roomId: row.room_id,
+    screenId: row.screen_id,
+    turnNumber: row.turn_number,
+    phase: row.phase as CombatTurn['phase'],
   };
 }
+
+const mapPlayerTurnStateRow = (row: PlayerTurnStateRow): PlayerTurnState => ({
+  id: row.id,
+  combatTurnId: row.combat_turn_id,
+  playerId: row.player_id,
+  actionsRemaining: row.actions_remaining,
+  hasEndedTurn: row.has_ended_turn,
+});
 
 async function fetchPlayerTurnStates(roomId: string): Promise<PlayerTurnState[]> {
   const { data, error } = await supabase
@@ -277,21 +279,7 @@ async function fetchPlayerTurnStates(roomId: string): Promise<PlayerTurnState[]>
     .eq('combat_turns.room_id', roomId);
 
   if (error || !data) return [];
-  return (
-    data as {
-      id: string;
-      combat_turn_id: string;
-      player_id: PlayerId;
-      actions_remaining: number;
-      has_ended_turn: boolean;
-    }[]
-  ).map((row) => ({
-    id: row.id,
-    combatTurnId: row.combat_turn_id,
-    playerId: row.player_id,
-    actionsRemaining: row.actions_remaining,
-    hasEndedTurn: row.has_ended_turn,
-  }));
+  return (data as unknown as PlayerTurnStateRow[]).map(mapPlayerTurnStateRow);
 }
 
 async function fetchRoomState(roomId: string): Promise<RoomState | null> {
@@ -319,16 +307,7 @@ async function fetchRoomState(roomId: string): Promise<RoomState | null> {
 async function fetchMyRooms(): Promise<MyRoom[]> {
   const { data, error } = await supabase.rpc('list_my_rooms');
   if (error) return [];
-  return (
-    (data ?? []) as {
-      room_id: string;
-      room_code: string;
-      room_status: string;
-      player_count: number;
-      is_host: boolean;
-      host_name: string;
-    }[]
-  ).map((row) => ({
+  return (data ?? []).map((row: ListMyRoomsReturn) => ({
     roomId: row.room_id,
     code: row.room_code,
     status: row.room_status,
@@ -341,15 +320,7 @@ async function fetchMyRooms(): Promise<MyRoom[]> {
 async function fetchAvailableRooms(): Promise<AvailableRoom[]> {
   const { data, error } = await supabase.rpc('list_available_rooms');
   if (error) return [];
-  return (
-    (data ?? []) as {
-      room_id: string;
-      room_code: string;
-      room_status: string;
-      player_count: number;
-      host_name: string;
-    }[]
-  ).map((row) => ({
+  return (data ?? []).map((row: ListAvailableRoomsReturn) => ({
     roomId: row.room_id,
     code: row.room_code,
     status: row.room_status,
@@ -526,12 +497,14 @@ export function useRoomConnection(): UseRoomConnectionResult {
       displayName,
       roleId,
       enemyCount,
+      botCount,
     }: {
       screenType: ScreenType;
       bloc: number;
       displayName?: string;
       roleId?: RoleId;
       enemyCount?: number;
+      botCount?: number;
     }) => {
       const { data, error } = await supabase.rpc('create_playtest', {
         p_screen_type: screenType,
@@ -539,6 +512,7 @@ export function useRoomConnection(): UseRoomConnectionResult {
         p_display_name: displayName ?? 'Tester',
         p_role_id: roleId ?? 'warrior',
         p_enemy_count: enemyCount ?? null,
+        p_bot_count: botCount ?? 0,
       });
       if (error) throw error;
       if (!data) throw new Error('Playtest room was not created');
@@ -815,6 +789,22 @@ export function useRoomConnection(): UseRoomConnectionResult {
     onError: (error) => setRoomError(getErrorMessage(error, 'Enemy phase failed')),
   });
 
+  const combatBotTurnMutation = useMutation({
+    mutationFn: async (botPlayerId: PlayerId) => {
+      if (!room?.id) throw new Error('No room');
+      const { data, error } = await supabase.rpc('combat_bot_turn', {
+        p_room_id: room.id,
+        p_bot_player_id: botPlayerId,
+      });
+      if (error) throw error;
+      return data as { actions: unknown[] };
+    },
+    onSuccess: () => {
+      if (room?.id) void qc.invalidateQueries({ queryKey: roomKeys.roomState(room.id) });
+    },
+    onError: (error) => setRoomError(getErrorMessage(error, 'Bot turn failed')),
+  });
+
   // ---------------------------------------------------------------------------
   // peekRoom (standalone, no cache)
   // ---------------------------------------------------------------------------
@@ -836,11 +826,12 @@ export function useRoomConnection(): UseRoomConnectionResult {
       setRoomError('Room not found');
       return null;
     }
+    const peek = row as PeekRoomReturn;
     return {
-      roomId: row.room_id as string,
-      status: row.room_status as string,
-      playerCount: row.player_count as number,
-      takenRoles: (row.taken_roles ?? []) as RoleId[],
+      roomId: peek.room_id,
+      status: peek.room_status,
+      playerCount: peek.player_count,
+      takenRoles: peek.taken_roles ?? [],
     };
   }, []);
 
@@ -863,6 +854,7 @@ export function useRoomConnection(): UseRoomConnectionResult {
       displayName?: string,
       roleId?: RoleId,
       enemyCount?: number,
+      botCount?: number,
     ) => {
       setRoomError(null);
       await createPlaytestMutation.mutateAsync({
@@ -871,6 +863,7 @@ export function useRoomConnection(): UseRoomConnectionResult {
         displayName,
         roleId,
         enemyCount,
+        botCount,
       });
     },
     [createPlaytestMutation],
@@ -978,6 +971,14 @@ export function useRoomConnection(): UseRoomConnectionResult {
     return combatEnemyPhaseMutation.mutateAsync();
   }, [combatEnemyPhaseMutation]);
 
+  const combatBotTurn = useCallback(
+    async (botPlayerId: PlayerId) => {
+      setRoomError(null);
+      return combatBotTurnMutation.mutateAsync(botPlayerId);
+    },
+    [combatBotTurnMutation],
+  );
+
   // ---------------------------------------------------------------------------
   // Derived
   // ---------------------------------------------------------------------------
@@ -1023,6 +1024,7 @@ export function useRoomConnection(): UseRoomConnectionResult {
       combatHeal,
       combatEndTurn,
       combatEnemyPhase,
+      combatBotTurn,
       leaveRoom,
     }),
     [
@@ -1054,6 +1056,7 @@ export function useRoomConnection(): UseRoomConnectionResult {
       combatHeal,
       combatEndTurn,
       combatEnemyPhase,
+      combatBotTurn,
       leaveRoom,
     ],
   );

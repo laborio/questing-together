@@ -14,6 +14,7 @@ type FloatingText = {
   text: string;
   color: string;
   target: 'enemy' | 'player';
+  playerId?: string;
 };
 
 type LungeDirection = { x: number; y: number };
@@ -37,6 +38,8 @@ interface CombatAnimations {
   attackingEnemyId: string | null;
   enemyPhaseDamageDealt: number;
   prePhaseHp: number | null;
+  botLungePlayerId: string | null;
+  botLunge: SharedValue<number>;
   floatingTexts: FloatingText[];
   isAnimating: boolean;
   playAttack: (
@@ -47,6 +50,12 @@ interface CombatAnimations {
   ) => void;
   playAbility: (damage: number, abilityName: string, roll: number, rollLabel: string) => void;
   playHeal: (amount: number) => void;
+  playBotAction: (
+    botPlayerId: string,
+    actionType: string,
+    damage: number,
+    abilityName?: string,
+  ) => void;
   playEnemyPhase: (attacks: EnemyAttackInfo[], currentHp: number) => void;
 }
 
@@ -85,17 +94,22 @@ const useCombatAnimations = (): CombatAnimations => {
   const [isAnimating, setIsAnimating] = useState(false);
   const [attackingEnemyId, setAttackingEnemyId] = useState<string | null>(null);
   const [enemyPhaseDamageDealt, setEnemyPhaseDamageDealt] = useState(0);
+  const [botLungePlayerId, setBotLungePlayerId] = useState<string | null>(null);
+  const botLunge = useSharedValue(0);
   const [prePhaseHp, setPrePhaseHp] = useState<number | null>(null);
   const floatingIdRef = useRef(0);
 
-  const addFloating = useCallback((text: string, color: string, target: 'enemy' | 'player') => {
-    floatingIdRef.current += 1;
-    const id = floatingIdRef.current;
-    setFloatingTexts((prev) => [...prev, { id, text, color, target }]);
-    scheduleCallback(FLOATING_LIFETIME, () => {
-      setFloatingTexts((prev) => prev.filter((t) => t.id !== id));
-    });
-  }, []);
+  const addFloating = useCallback(
+    (text: string, color: string, target: 'enemy' | 'player', playerId?: string) => {
+      floatingIdRef.current += 1;
+      const id = floatingIdRef.current;
+      setFloatingTexts((prev) => [...prev, { id, text, color, target, playerId }]);
+      scheduleCallback(FLOATING_LIFETIME, () => {
+        setFloatingTexts((prev) => prev.filter((t) => t.id !== id));
+      });
+    },
+    [],
+  );
 
   const triggerScreenFlash = useCallback(
     (rollLabel: string) => {
@@ -283,6 +297,48 @@ const useCombatAnimations = (): CombatAnimations => {
     [playerFlash, addFloating],
   );
 
+  const playBotAction = useCallback(
+    (botPlayerId: string, actionType: string, damage: number, abilityName?: string) => {
+      // Trigger bot portrait lunge
+      setBotLungePlayerId(botPlayerId);
+      botLunge.value = withSequence(
+        withTiming(-15, { duration: LUNGE_IN }),
+        withTiming(0, { duration: LUNGE_OUT }),
+      );
+      scheduleCallback(LUNGE_IN + LUNGE_OUT, () => {
+        setBotLungePlayerId(null);
+      });
+
+      if (actionType === 'attack' && damage > 0) {
+        addFloating(`⚔️ -${damage}`, colors.combatAbilityDamage, 'player', botPlayerId);
+        enemyShake.value = withSequence(
+          withTiming(4, { duration: SHAKE_STEP }),
+          withTiming(-4, { duration: SHAKE_STEP }),
+          withTiming(0, { duration: SHAKE_STEP }),
+        );
+      } else if (actionType === 'ability') {
+        if (damage > 0) {
+          addFloating(
+            `${abilityName ?? '✨'} -${damage}`,
+            colors.combatAbilityDamage,
+            'player',
+            botPlayerId,
+          );
+          enemyShake.value = withSequence(
+            withTiming(6, { duration: SHAKE_STEP }),
+            withTiming(-6, { duration: SHAKE_STEP }),
+            withTiming(0, { duration: SHAKE_STEP }),
+          );
+        } else {
+          addFloating(`${abilityName ?? 'Buff'}`, colors.combatAbilityBuff, 'player', botPlayerId);
+        }
+      } else if (actionType === 'heal') {
+        addFloating(`💚 +10`, colors.combatHeal, 'player', botPlayerId);
+      }
+    },
+    [enemyShake, botLunge, addFloating],
+  );
+
   return {
     playerLungeX,
     playerLungeY,
@@ -296,11 +352,14 @@ const useCombatAnimations = (): CombatAnimations => {
     attackingEnemyId,
     enemyPhaseDamageDealt,
     prePhaseHp,
+    botLungePlayerId,
+    botLunge,
     floatingTexts,
     isAnimating,
     playAttack,
     playAbility,
     playHeal,
+    playBotAction,
     playEnemyPhase,
   };
 };

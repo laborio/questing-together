@@ -375,6 +375,7 @@ export type Database = {
         Row: {
           display_name: string | null;
           id: string;
+          is_bot: boolean;
           is_connected: boolean;
           joined_at: string;
           player_id: Database['public']['Enums']['player_id'];
@@ -386,6 +387,7 @@ export type Database = {
         Insert: {
           display_name?: string | null;
           id?: string;
+          is_bot?: boolean;
           is_connected?: boolean;
           joined_at?: string;
           player_id: Database['public']['Enums']['player_id'];
@@ -397,6 +399,7 @@ export type Database = {
         Update: {
           display_name?: string | null;
           id?: string;
+          is_bot?: boolean;
           is_connected?: boolean;
           joined_at?: string;
           player_id?: Database['public']['Enums']['player_id'];
@@ -475,6 +478,13 @@ export type Database = {
         Args: { p_enemy_id: string; p_room_id: string };
         Returns: Json;
       };
+      combat_bot_turn: {
+        Args: {
+          p_bot_player_id: Database['public']['Enums']['player_id'];
+          p_room_id: string;
+        };
+        Returns: Json;
+      };
       combat_check_level_up: { Args: { p_char_id: string }; Returns: undefined };
       combat_end_turn: { Args: { p_room_id: string }; Returns: Json };
       combat_enemy_phase: { Args: { p_room_id: string }; Returns: Json };
@@ -492,6 +502,7 @@ export type Database = {
       create_playtest: {
         Args: {
           p_bloc?: number;
+          p_bot_count?: number;
           p_display_name?: string;
           p_enemy_count?: number;
           p_role_id?: Database['public']['Enums']['role_id'];

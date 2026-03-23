@@ -24,7 +24,7 @@ import { portraitByRole } from '@/utils/portraitByRole';
 type CharacterPickerProps = {
   mode: 'create' | 'join' | 'playtest';
   takenRoles: RoleId[];
-  onConfirm: (name: string, roleId: RoleId, enemyCount?: number) => void;
+  onConfirm: (name: string, roleId: RoleId, enemyCount?: number, botCount?: number) => void;
   onBack: () => void;
   playtestScreenType?: ScreenType;
 };
@@ -44,6 +44,7 @@ const CharacterPicker = ({
   const [nameInput, setNameInput] = useState('');
   const [selectedRole, setSelectedRole] = useState<RoleId | null>(null);
   const [enemyCount, setEnemyCount] = useState(3);
+  const [botCount, setBotCount] = useState(0);
 
   const trimmedName = nameInput.replace(/\s+/g, '-').trim();
   const canConfirm = trimmedName.length > 0 && trimmedName.length <= 20 && selectedRole !== null;
@@ -66,7 +67,12 @@ const CharacterPicker = ({
 
   const handleConfirm = () => {
     if (canConfirm) {
-      onConfirm(trimmedName, selectedRole, showEnemyStepper ? enemyCount : undefined);
+      onConfirm(
+        trimmedName,
+        selectedRole,
+        showEnemyStepper ? enemyCount : undefined,
+        mode === 'playtest' && showEnemyStepper ? botCount : undefined,
+      );
     }
   };
 
@@ -157,15 +163,6 @@ const CharacterPicker = ({
             })}
           </Stack>
 
-          {showEnemyStepper ? (
-            <Stack gap={4} align="center" style={{ paddingTop: 8 }}>
-              <Typography variant="caption" bold style={{ color: colors.textAvatarNameParchment }}>
-                Enemies
-              </Typography>
-              <Stepper value={enemyCount} min={1} max={8} onValueChange={setEnemyCount} />
-            </Stack>
-          ) : null}
-
           {focusedRole ? (
             <Alert
               variant="warning"
@@ -173,6 +170,31 @@ const CharacterPicker = ({
             >
               {t(`roles.${focusedRole.id as 'warrior' | 'sage' | 'ranger'}Summary`)}
             </Alert>
+          ) : null}
+
+          {showEnemyStepper ? (
+            <>
+              <Stack gap={4} align="center" style={{ paddingTop: 8 }}>
+                <Typography
+                  variant="caption"
+                  bold
+                  style={{ color: colors.textAvatarNameParchment }}
+                >
+                  Enemies
+                </Typography>
+                <Stepper value={enemyCount} min={1} max={8} onValueChange={setEnemyCount} />
+              </Stack>
+              <Stack gap={4} align="center" style={{ paddingTop: 8 }}>
+                <Typography
+                  variant="caption"
+                  bold
+                  style={{ color: colors.textAvatarNameParchment }}
+                >
+                  Bot Allies
+                </Typography>
+                <Stepper value={botCount} min={0} max={2} onValueChange={setBotCount} />
+              </Stack>
+            </>
           ) : null}
         </Stack>
       </ScrollView>

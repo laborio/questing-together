@@ -41,7 +41,7 @@ begin
       ) as host_name,
       r.created_at
     from public.rooms r
-    join public.room_players rp on rp.room_id = r.id and rp.user_id = v_user_id
+    join public.room_players rp on rp.room_id = r.id and rp.user_id = v_user_id and rp.is_bot = false
     where r.status <> 'finished'
     order by r.created_at desc
     limit 10;

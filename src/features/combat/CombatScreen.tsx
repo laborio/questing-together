@@ -13,7 +13,9 @@ import CombatActionGrid from '@/features/combat/components/CombatActionGrid';
 import CombatHeader from '@/features/combat/components/CombatHeader';
 import CombatPortraitStrip from '@/features/combat/components/CombatPortraitStrip';
 import EnemyList from '@/features/combat/components/EnemyList';
+import useBotAI from '@/features/combat/hooks/useBotAI';
 import useCombatAnimations from '@/features/combat/hooks/useCombatAnimations';
+import useCombatBroadcast from '@/features/combat/hooks/useCombatBroadcast';
 import useCombatTurnPhase from '@/features/combat/hooks/useCombatTurnPhase';
 import { buildCombatPlayers } from '@/features/combat/utils/buildCombatPlayers';
 import { getEffectiveEnemyId } from '@/features/combat/utils/getEffectiveEnemyId';
@@ -82,6 +84,8 @@ const CombatScreen = () => {
     return computeDirection(enemyPos, playerPositionRef.current);
   }, []);
 
+  const botPlayerIds = roomConnection.players.filter((p) => p.is_bot).map((p) => p.player_id);
+
   useCombatTurnPhase({
     isHost,
     turnPhase,
@@ -91,6 +95,40 @@ const CombatScreen = () => {
     getDirectionForEnemy,
   });
 
+  const localPlayerName =
+    roomConnection.players.find((p) => p.player_id === localPlayerId)?.display_name ?? 'Player';
+
+  const { broadcastAction } = useCombatBroadcast({
+    roomId: roomConnection.room?.id ?? null,
+    localPlayerId,
+    onAllyAction: useCallback(
+      (event) => {
+        anim.playBotAction(event.playerId, event.actionType, event.damage, event.abilityName);
+      },
+      [anim],
+    ),
+  });
+
+  useBotAI({
+    turnPhase,
+    turnNumber,
+    botPlayerIds,
+    combatBotTurn: roomConnection.combatBotTurn,
+    playBotAction: (botId, action) => {
+      const botPlayer = roomConnection.players.find((p) => p.player_id === botId);
+      const botName = botPlayer?.display_name ?? 'Bot';
+      anim.playBotAction(botId, action.action, action.damage ?? 0, action.ability);
+      // Broadcast bot actions so other players see them
+      broadcastAction({
+        playerId: botId,
+        playerName: botName,
+        actionType: action.action === 'skip' ? 'attack' : action.action,
+        damage: action.damage ?? 0,
+        abilityName: action.ability,
+      });
+    },
+  });
+
   const handleAttack = async () => {
     if (!effectiveEnemyId || isDead || anim.isAnimating || hasEndedTurn) return;
     const direction = getLungeToEnemy();
@@ -98,6 +136,16 @@ const CombatScreen = () => {
     if (result) {
       const r = result as { enemyDamage: number; roll: number; rollLabel: string };
       anim.playAttack(r.enemyDamage, direction, r.roll, r.rollLabel);
+      if (localPlayerId) {
+        broadcastAction({
+          playerId: localPlayerId,
+          playerName: localPlayerName,
+          actionType: 'attack',
+          damage: r.enemyDamage,
+          roll: r.roll,
+          rollLabel: r.rollLabel,
+        });
+      }
     }
   };
 
@@ -116,6 +164,17 @@ const CombatScreen = () => {
       const abilityLabel =
         localRole && COMBAT.abilities[localRole] ? COMBAT.abilities[localRole].label : 'Ability';
       anim.playAbility(damage, abilityLabel, r.roll, r.rollLabel);
+      if (localPlayerId) {
+        broadcastAction({
+          playerId: localPlayerId,
+          playerName: localPlayerName,
+          actionType: 'ability',
+          damage,
+          abilityName: abilityLabel,
+          roll: r.roll,
+          rollLabel: r.rollLabel,
+        });
+      }
     }
   };
 
@@ -125,6 +184,14 @@ const CombatScreen = () => {
     if (result) {
       const r = result as { hpRestored: number };
       anim.playHeal(r.hpRestored);
+      if (localPlayerId) {
+        broadcastAction({
+          playerId: localPlayerId,
+          playerName: localPlayerName,
+          actionType: 'heal',
+          damage: r.hpRestored,
+        });
+      }
     }
   };
 
@@ -265,6 +332,8 @@ const CombatScreen = () => {
           playerLungeX={anim.playerLungeX}
           playerLungeY={anim.playerLungeY}
           playerFlash={anim.playerFlash}
+          botLunge={anim.botLunge}
+          botLungePlayerId={anim.botLungePlayerId}
           localHpOverride={
             anim.prePhaseHp !== null ? anim.prePhaseHp - anim.enemyPhaseDamageDealt : null
           }

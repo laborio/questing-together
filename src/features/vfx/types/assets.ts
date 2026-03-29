@@ -6,6 +6,8 @@ export type EffectKeyframe = {
 export type EffectTrackName = 'x' | 'y' | 'scale' | 'alpha' | 'glow' | 'travel';
 
 export type EffectTrackMap = Partial<Record<EffectTrackName, EffectKeyframe[]>>;
+export type EffectDynamicTrackMap = Record<string, EffectKeyframe[]>;
+export type ShaderUniformValue = number | number[];
 
 type EffectLayerBase = {
   id: string;
@@ -91,6 +93,57 @@ export type SpriteLayer = EffectLayerBase & {
   tintColor?: string;
 };
 
+export type PrimitiveLayerType =
+  | 'orb'
+  | 'ring'
+  | 'streak'
+  | 'diamond'
+  | 'arc'
+  | 'starburst'
+  | 'sprite';
+
+export type ParticleEmitterRenderMode = PrimitiveLayerType;
+
+export type ParticleEmitterLayer = EffectLayerBase & {
+  type: 'particleEmitter';
+  renderer: ParticleEmitterRenderMode;
+  color: string;
+  spriteId?: string;
+  tintColor?: string;
+  maxParticles: number;
+  emissionRate: number;
+  burstCount?: number;
+  particleLifetimeMs: number;
+  speed: number;
+  speedJitter?: number;
+  spreadDeg: number;
+  directionDeg?: number;
+  startSize: number;
+  endSize?: number;
+  startAlpha?: number;
+  endAlpha?: number;
+  gravityX?: number;
+  gravityY?: number;
+  drag?: number;
+  rotationDeg?: number;
+  spinDeg?: number;
+  emitterTracks?: EffectDynamicTrackMap;
+  particleTracks?: EffectDynamicTrackMap;
+};
+
+export type ShaderLayerTarget = 'screen' | 'layer' | 'sprite';
+
+export type ShaderLayer = EffectLayerBase & {
+  type: 'shaderLayer';
+  shaderId: string;
+  target: ShaderLayerTarget;
+  width?: number;
+  height?: number;
+  blendMode?: string;
+  uniforms?: Record<string, ShaderUniformValue>;
+  uniformTracks?: EffectDynamicTrackMap;
+};
+
 export type EffectLayer =
   | OrbLayer
   | TrailLayer
@@ -99,7 +152,9 @@ export type EffectLayer =
   | DiamondLayer
   | ArcLayer
   | StarburstLayer
-  | SpriteLayer;
+  | SpriteLayer
+  | ParticleEmitterLayer
+  | ShaderLayer;
 
 export type EffectMotion = {
   mode: 'fixed' | 'line' | 'path';

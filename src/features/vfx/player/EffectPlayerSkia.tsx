@@ -5,10 +5,11 @@ import {
   Group,
   Path,
   RoundedRect,
+  type SkImage,
   Image as SkiaImage,
   useImage,
 } from '@shopify/react-native-skia';
-import { useEffect, useMemo } from 'react';
+import { type ReactNode, useEffect, useMemo, useState } from 'react';
 import { Platform, Image as RNImage, StyleSheet } from 'react-native';
 import {
   cancelAnimation,
@@ -20,7 +21,12 @@ import {
   withTiming,
 } from 'react-native-reanimated';
 import { getEffectAsset } from '@/features/vfx/runtime/effectRegistry';
-import { sampleLayerTrack, sampleMotionPosition } from '@/features/vfx/runtime/sampleTrack';
+import { getEffectPlaybackDurationMs } from '@/features/vfx/runtime/getEffectPlaybackDurationMs';
+import {
+  sampleLayerTrack,
+  sampleMotionPosition,
+  sampleTrack,
+} from '@/features/vfx/runtime/sampleTrack';
 import { getVfxSpriteSource } from '@/features/vfx/runtime/spriteRegistry';
 import type {
   ArcLayer,
@@ -28,6 +34,7 @@ import type {
   EffectAsset,
   EffectLayer,
   OrbLayer,
+  ParticleEmitterLayer,
   RingLayer,
   SpriteLayer,
   StarburstLayer,
@@ -39,6 +46,7 @@ import type { EffectInstance } from '@/features/vfx/types/runtime';
 type EffectPlayerProps = {
   instance: EffectInstance;
   onComplete: (instanceId: string) => void;
+  spriteImageCache?: Partial<Record<string, SkImage>>;
 };
 
 type SharedLayerMetrics = {
@@ -46,6 +54,14 @@ type SharedLayerMetrics = {
   y: SharedValue<number>;
   scale: SharedValue<number>;
   alpha: SharedValue<number>;
+};
+
+type SharedParticleMetrics = {
+  x: SharedValue<number>;
+  y: SharedValue<number>;
+  size: SharedValue<number>;
+  alpha: SharedValue<number>;
+  rotationDeg: SharedValue<number>;
 };
 
 function resolveSkiaDataSource(spriteId: string) {
@@ -68,6 +84,55 @@ function resolveSkiaDataSource(spriteId: string) {
   return RNImage.resolveAssetSource(source)?.uri ?? null;
 }
 
+function resolveSkiaPreloadUri(spriteId: string) {
+  const source = getVfxSpriteSource(spriteId);
+
+  if (!source) {
+    return null;
+  }
+
+  if (typeof source === 'string') {
+    return source;
+  }
+
+  if (typeof source === 'number') {
+    return RNImage.resolveAssetSource(source)?.uri ?? null;
+  }
+
+  if (Array.isArray(source)) {
+    const first = source[0];
+    if (!first) return null;
+    if (typeof first === 'number') {
+      return RNImage.resolveAssetSource(first)?.uri ?? null;
+    }
+    return first.uri ?? null;
+  }
+
+  return RNImage.resolveAssetSource(source)?.uri ?? null;
+}
+
+function collectAssetSpriteIds(asset: EffectAsset) {
+  const spriteIds = new Set<string>();
+
+  for (const layer of asset.layers) {
+    if (layer.type === 'sprite' && layer.spriteId) {
+      spriteIds.add(layer.spriteId);
+      continue;
+    }
+
+    if (layer.type === 'trail' && layer.style === 'sprite' && layer.spriteId) {
+      spriteIds.add(layer.spriteId);
+      continue;
+    }
+
+    if (layer.type === 'particleEmitter' && layer.renderer === 'sprite' && layer.spriteId) {
+      spriteIds.add(layer.spriteId);
+    }
+  }
+
+  return [...spriteIds];
+}
+
 function rotatePoint(x: number, y: number, angleRad: number) {
   'worklet';
 
@@ -84,6 +149,252 @@ function polarToCartesian(cx: number, cy: number, radius: number, angleDeg: numb
   return {
     x: cx + radius * Math.cos(angleRad),
     y: cy + radius * Math.sin(angleRad),
+  };
+}
+
+function fract(value: number) {
+  'worklet';
+
+  return value - Math.floor(value);
+}
+
+function random01(seed: number) {
+  'worklet';
+
+  return fract(Math.sin(seed * 12.9898 + 78.233) * 43758.5453123);
+}
+
+function randomSigned(seed: number) {
+  'worklet';
+
+  return random01(seed) * 2 - 1;
+}
+
+function sampleDynamicTrackValue(
+  trackMap: Record<string, { at: number; value: number }[]> | undefined,
+  name: string,
+  progress: number,
+  fallback = 0,
+) {
+  'worklet';
+
+  return sampleTrack(trackMap?.[name], progress, fallback);
+}
+
+function resolveEffectDurationMs(asset: EffectAsset, instance: EffectInstance) {
+  'worklet';
+
+  return Math.max(1, instance.durationMsOverride ?? asset.durationMs);
+}
+
+function getDefaultParticleRotationDeg(renderer: ParticleEmitterLayer['renderer']) {
+  'worklet';
+
+  return renderer === 'arc' || renderer === 'starburst' ? -90 : 0;
+}
+
+function sampleMotionHeadingDeg(asset: EffectAsset, instance: EffectInstance, progress: number) {
+  'worklet';
+
+  const current = sampleMotionPosition(asset, instance, progress);
+  const next = sampleMotionPosition(asset, instance, Math.min(1, progress + 0.01));
+  const dx = next.x - current.x;
+  const dy = next.y - current.y;
+
+  if (Math.abs(dx) > 0.001 || Math.abs(dy) > 0.001) {
+    return (Math.atan2(dy, dx) * 180) / Math.PI;
+  }
+
+  return -90;
+}
+
+function resolveParticleBirthProgress(
+  layer: ParticleEmitterLayer,
+  effectDurationMs: number,
+  index: number,
+) {
+  'worklet';
+
+  const maxParticles = Math.max(1, Math.round(layer.maxParticles));
+  const burstCount = Math.min(maxParticles, Math.max(0, Math.round(layer.burstCount ?? 0)));
+  const durationSeconds = effectDurationMs / 1000;
+  const continuousCapacity = Math.max(0, maxParticles - burstCount);
+  const continuousCount =
+    layer.emissionRate > 0
+      ? Math.min(continuousCapacity, Math.max(1, Math.ceil(durationSeconds * layer.emissionRate)))
+      : 0;
+
+  if (index < burstCount) {
+    const burstWindow = burstCount > 1 ? Math.min(0.08, Math.max(0.015, burstCount * 0.01)) : 0;
+    return burstCount === 1 ? 0 : (index / Math.max(1, burstCount - 1)) * burstWindow;
+  }
+
+  const continuousIndex = index - burstCount;
+  if (continuousIndex < 0 || continuousIndex >= continuousCount) {
+    return null;
+  }
+
+  const continuousStart = burstCount > 0 ? Math.min(0.14, Math.max(0.02, burstCount * 0.012)) : 0;
+  return continuousCount === 1
+    ? continuousStart
+    : continuousStart + (continuousIndex / continuousCount) * (1 - continuousStart);
+}
+
+function sampleParticleState(
+  asset: EffectAsset,
+  instance: EffectInstance,
+  layer: ParticleEmitterLayer,
+  progress: number,
+  elapsedMs: number,
+  index: number,
+) {
+  'worklet';
+
+  const effectDurationMs = resolveEffectDurationMs(asset, instance);
+  const birthProgress = resolveParticleBirthProgress(layer, effectDurationMs, index);
+  const defaultRotationDeg = getDefaultParticleRotationDeg(layer.renderer);
+
+  if (birthProgress == null) {
+    return {
+      x: instance.x,
+      y: instance.y,
+      size: 0,
+      alpha: 0,
+      rotationDeg: layer.rotationDeg ?? defaultRotationDeg,
+    };
+  }
+
+  const lifetimeMs = Math.max(
+    1,
+    sampleDynamicTrackValue(
+      layer.emitterTracks,
+      'particleLifetimeMs',
+      birthProgress,
+      layer.particleLifetimeMs,
+    ),
+  );
+  const birthMs = birthProgress * effectDurationMs;
+  const ageMs = elapsedMs - birthMs;
+
+  if (ageMs < 0 || ageMs > lifetimeMs) {
+    return {
+      x: instance.x,
+      y: instance.y,
+      size: 0,
+      alpha: 0,
+      rotationDeg: layer.rotationDeg ?? defaultRotationDeg,
+    };
+  }
+
+  const lifeProgress = Math.max(0, Math.min(1, ageMs / lifetimeMs));
+  const ageSeconds = ageMs / 1000;
+  const origin = sampleMotionPosition(asset, instance, birthProgress);
+  const originX = origin.x + sampleLayerTrack(layer, 'x', birthProgress, 0);
+  const originY = origin.y + sampleLayerTrack(layer, 'y', birthProgress, 0);
+  const directionDeg = sampleDynamicTrackValue(
+    layer.emitterTracks,
+    'directionDeg',
+    birthProgress,
+    layer.directionDeg ?? sampleMotionHeadingDeg(asset, instance, birthProgress),
+  );
+  const spreadDeg = sampleDynamicTrackValue(
+    layer.emitterTracks,
+    'spreadDeg',
+    birthProgress,
+    layer.spreadDeg,
+  );
+  const speed = Math.max(
+    0,
+    sampleDynamicTrackValue(layer.emitterTracks, 'speed', birthProgress, layer.speed) +
+      randomSigned(index * 37.11 + birthProgress * 997.1) *
+        sampleDynamicTrackValue(
+          layer.emitterTracks,
+          'speedJitter',
+          birthProgress,
+          layer.speedJitter ?? 0,
+        ),
+  );
+  const gravityX = sampleDynamicTrackValue(
+    layer.emitterTracks,
+    'gravityX',
+    birthProgress,
+    layer.gravityX ?? 0,
+  );
+  const gravityY = sampleDynamicTrackValue(
+    layer.emitterTracks,
+    'gravityY',
+    birthProgress,
+    layer.gravityY ?? 0,
+  );
+  const drag = Math.max(
+    0,
+    sampleDynamicTrackValue(layer.emitterTracks, 'drag', birthProgress, layer.drag ?? 0),
+  );
+  const angleRad =
+    ((directionDeg + randomSigned(index * 83.17 + 11.9) * spreadDeg * 0.5) * Math.PI) / 180;
+  const travelTime = drag > 0 ? (1 - Math.exp(-drag * ageSeconds)) / drag : ageSeconds;
+  const offsetX = sampleDynamicTrackValue(layer.particleTracks, 'x', lifeProgress, 0);
+  const offsetY = sampleDynamicTrackValue(layer.particleTracks, 'y', lifeProgress, 0);
+  const startSize = sampleDynamicTrackValue(
+    layer.emitterTracks,
+    'startSize',
+    birthProgress,
+    layer.startSize,
+  );
+  const endSize = sampleDynamicTrackValue(
+    layer.emitterTracks,
+    'endSize',
+    birthProgress,
+    layer.endSize ?? startSize,
+  );
+  const startAlpha = sampleDynamicTrackValue(
+    layer.emitterTracks,
+    'startAlpha',
+    birthProgress,
+    layer.startAlpha ?? 1,
+  );
+  const endAlpha = sampleDynamicTrackValue(
+    layer.emitterTracks,
+    'endAlpha',
+    birthProgress,
+    layer.endAlpha ?? 0,
+  );
+  const size = Math.max(
+    0.5,
+    (startSize + (endSize - startSize) * lifeProgress) *
+      sampleDynamicTrackValue(layer.particleTracks, 'scale', lifeProgress, 1),
+  );
+  const alpha = Math.max(
+    0,
+    sampleLayerTrack(layer, 'alpha', progress, 1) *
+      (startAlpha + (endAlpha - startAlpha) * lifeProgress) *
+      sampleDynamicTrackValue(layer.particleTracks, 'alpha', lifeProgress, 1),
+  );
+  const rotationDeg =
+    sampleDynamicTrackValue(
+      layer.emitterTracks,
+      'rotationDeg',
+      birthProgress,
+      layer.rotationDeg ?? defaultRotationDeg,
+    ) +
+    sampleDynamicTrackValue(layer.emitterTracks, 'spinDeg', birthProgress, layer.spinDeg ?? 0) *
+      ageSeconds +
+    sampleDynamicTrackValue(layer.particleTracks, 'rotationDeg', lifeProgress, 0);
+
+  return {
+    x:
+      originX +
+      Math.cos(angleRad) * speed * travelTime +
+      0.5 * gravityX * ageSeconds * ageSeconds +
+      offsetX,
+    y:
+      originY +
+      Math.sin(angleRad) * speed * travelTime +
+      0.5 * gravityY * ageSeconds * ageSeconds +
+      offsetY,
+    size,
+    alpha,
+    rotationDeg,
   };
 }
 
@@ -109,6 +420,27 @@ function useLayerMetrics(
   );
 
   return { x, y, scale, alpha };
+}
+
+function useParticleMetrics(
+  asset: EffectAsset,
+  instance: EffectInstance,
+  layer: ParticleEmitterLayer,
+  progress: SharedValue<number>,
+  elapsedMs: SharedValue<number>,
+  index: number,
+): SharedParticleMetrics {
+  const state = useDerivedValue(() =>
+    sampleParticleState(asset, instance, layer, progress.value, elapsedMs.value, index),
+  );
+
+  const x = useDerivedValue(() => state.value.x);
+  const y = useDerivedValue(() => state.value.y);
+  const size = useDerivedValue(() => state.value.size);
+  const alpha = useDerivedValue(() => state.value.alpha);
+  const rotationDeg = useDerivedValue(() => state.value.rotationDeg);
+
+  return { x, y, size, alpha, rotationDeg };
 }
 
 const OrbPrimitiveSkia = ({
@@ -317,6 +649,7 @@ const SpriteNodeSkia = ({
   opacity,
   tintColor,
   rotationDeg,
+  imageOverride,
 }: {
   spriteId: string;
   x: SharedValue<number>;
@@ -326,9 +659,11 @@ const SpriteNodeSkia = ({
   opacity: SharedValue<number>;
   tintColor?: string;
   rotationDeg?: number;
+  imageOverride?: SkImage | null;
 }) => {
   const dataSource = useMemo(() => resolveSkiaDataSource(spriteId), [spriteId]);
-  const image = useImage(dataSource);
+  const loadedImage = useImage(imageOverride ? null : dataSource);
+  const image = imageOverride ?? loadedImage;
   const left = useDerivedValue(() => x.value - width.value / 2);
   const top = useDerivedValue(() => y.value - height.value / 2);
   const origin = useDerivedValue(() => ({ x: x.value, y: y.value }));
@@ -352,11 +687,13 @@ const SpritePrimitiveSkia = ({
   instance,
   layer,
   progress,
+  spriteImageCache,
 }: {
   asset: EffectAsset;
   instance: EffectInstance;
   layer: SpriteLayer;
   progress: SharedValue<number>;
+  spriteImageCache?: Partial<Record<string, SkImage>>;
 }) => {
   const { x, y, scale, alpha } = useLayerMetrics(asset, instance, layer, progress);
   const width = useDerivedValue(() => Math.max(1, layer.width * scale.value));
@@ -371,7 +708,429 @@ const SpritePrimitiveSkia = ({
       height={height}
       opacity={alpha}
       tintColor={layer.tintColor}
+      imageOverride={spriteImageCache?.[layer.spriteId]}
     />
+  );
+};
+
+const ParticleOrbNodeSkia = ({
+  asset,
+  instance,
+  layer,
+  progress,
+  elapsedMs,
+  index,
+}: {
+  asset: EffectAsset;
+  instance: EffectInstance;
+  layer: ParticleEmitterLayer;
+  progress: SharedValue<number>;
+  elapsedMs: SharedValue<number>;
+  index: number;
+}) => {
+  const { x, y, size, alpha } = useParticleMetrics(
+    asset,
+    instance,
+    layer,
+    progress,
+    elapsedMs,
+    index,
+  );
+  const radius = useDerivedValue(() => Math.max(0.5, size.value / 2));
+
+  return <Circle cx={x} cy={y} r={radius} color={layer.color} opacity={alpha} />;
+};
+
+const ParticleRingNodeSkia = ({
+  asset,
+  instance,
+  layer,
+  progress,
+  elapsedMs,
+  index,
+}: {
+  asset: EffectAsset;
+  instance: EffectInstance;
+  layer: ParticleEmitterLayer;
+  progress: SharedValue<number>;
+  elapsedMs: SharedValue<number>;
+  index: number;
+}) => {
+  const { x, y, size, alpha } = useParticleMetrics(
+    asset,
+    instance,
+    layer,
+    progress,
+    elapsedMs,
+    index,
+  );
+  const radius = useDerivedValue(() => Math.max(0.5, size.value / 2));
+  const strokeWidth = useDerivedValue(() => Math.max(1, size.value * 0.12));
+
+  return (
+    <Circle
+      cx={x}
+      cy={y}
+      r={radius}
+      color={layer.color}
+      opacity={alpha}
+      style="stroke"
+      strokeWidth={strokeWidth}
+    />
+  );
+};
+
+const ParticleStreakNodeSkia = ({
+  asset,
+  instance,
+  layer,
+  progress,
+  elapsedMs,
+  index,
+}: {
+  asset: EffectAsset;
+  instance: EffectInstance;
+  layer: ParticleEmitterLayer;
+  progress: SharedValue<number>;
+  elapsedMs: SharedValue<number>;
+  index: number;
+}) => {
+  const { x, y, size, alpha, rotationDeg } = useParticleMetrics(
+    asset,
+    instance,
+    layer,
+    progress,
+    elapsedMs,
+    index,
+  );
+  const path = useDerivedValue(() => {
+    const halfLength = Math.max(0.5, size.value / 2);
+    const angleRad = (rotationDeg.value * Math.PI) / 180;
+    const dx = Math.cos(angleRad) * halfLength;
+    const dy = Math.sin(angleRad) * halfLength;
+
+    return `M ${x.value - dx} ${y.value - dy} L ${x.value + dx} ${y.value + dy}`;
+  });
+  const strokeWidth = useDerivedValue(() => Math.max(1, size.value * 0.28));
+
+  return (
+    <Path
+      path={path}
+      color={layer.color}
+      opacity={alpha}
+      style="stroke"
+      strokeWidth={strokeWidth}
+      strokeCap="round"
+    />
+  );
+};
+
+const ParticleDiamondNodeSkia = ({
+  asset,
+  instance,
+  layer,
+  progress,
+  elapsedMs,
+  index,
+}: {
+  asset: EffectAsset;
+  instance: EffectInstance;
+  layer: ParticleEmitterLayer;
+  progress: SharedValue<number>;
+  elapsedMs: SharedValue<number>;
+  index: number;
+}) => {
+  const { x, y, size, alpha, rotationDeg } = useParticleMetrics(
+    asset,
+    instance,
+    layer,
+    progress,
+    elapsedMs,
+    index,
+  );
+  const path = useDerivedValue(() => {
+    const halfWidth = Math.max(1, size.value * 0.42);
+    const halfHeight = Math.max(1, size.value / 2);
+    const angleRad = (rotationDeg.value * Math.PI) / 180;
+    const points = [
+      { x: 0, y: -halfHeight },
+      { x: halfWidth, y: 0 },
+      { x: 0, y: halfHeight },
+      { x: -halfWidth, y: 0 },
+    ]
+      .map((point) => rotatePoint(point.x, point.y, angleRad))
+      .map((point) => ({ x: x.value + point.x, y: y.value + point.y }));
+
+    return `M ${points[0].x} ${points[0].y} L ${points[1].x} ${points[1].y} L ${points[2].x} ${points[2].y} L ${points[3].x} ${points[3].y} Z`;
+  });
+
+  return <Path path={path} color={layer.color} opacity={alpha} />;
+};
+
+const ParticleArcNodeSkia = ({
+  asset,
+  instance,
+  layer,
+  progress,
+  elapsedMs,
+  index,
+}: {
+  asset: EffectAsset;
+  instance: EffectInstance;
+  layer: ParticleEmitterLayer;
+  progress: SharedValue<number>;
+  elapsedMs: SharedValue<number>;
+  index: number;
+}) => {
+  const { x, y, size, alpha, rotationDeg } = useParticleMetrics(
+    asset,
+    instance,
+    layer,
+    progress,
+    elapsedMs,
+    index,
+  );
+  const path = useDerivedValue(() => {
+    const radius = Math.max(1, size.value / 2);
+    const sweepDeg = 130;
+    const startAngle = rotationDeg.value - sweepDeg / 2;
+    const endAngle = startAngle + sweepDeg;
+    const start = polarToCartesian(x.value, y.value, radius, startAngle);
+    const end = polarToCartesian(x.value, y.value, radius, endAngle);
+
+    return `M ${start.x} ${start.y} A ${radius} ${radius} 0 ${sweepDeg > 180 ? 1 : 0} 1 ${end.x} ${end.y}`;
+  });
+  const strokeWidth = useDerivedValue(() => Math.max(1, size.value * 0.1));
+
+  return (
+    <Path
+      path={path}
+      color={layer.color}
+      opacity={alpha}
+      style="stroke"
+      strokeWidth={strokeWidth}
+      strokeCap="round"
+    />
+  );
+};
+
+const ParticleStarburstNodeSkia = ({
+  asset,
+  instance,
+  layer,
+  progress,
+  elapsedMs,
+  index,
+}: {
+  asset: EffectAsset;
+  instance: EffectInstance;
+  layer: ParticleEmitterLayer;
+  progress: SharedValue<number>;
+  elapsedMs: SharedValue<number>;
+  index: number;
+}) => {
+  const { x, y, size, alpha, rotationDeg } = useParticleMetrics(
+    asset,
+    instance,
+    layer,
+    progress,
+    elapsedMs,
+    index,
+  );
+  const path = useDerivedValue(() => {
+    const innerRadius = Math.max(0.5, size.value * 0.21);
+    const outerRadius = Math.max(innerRadius + 0.5, size.value / 2);
+    const pointCount = 6;
+    const rotationRad = (rotationDeg.value * Math.PI) / 180;
+    const vertices = Array.from({ length: pointCount * 2 }, (_, pointIndex) => {
+      const radius = pointIndex % 2 === 0 ? outerRadius : innerRadius;
+      const angle = rotationRad + (Math.PI * pointIndex) / pointCount;
+      return {
+        x: x.value + radius * Math.cos(angle),
+        y: y.value + radius * Math.sin(angle),
+      };
+    });
+
+    return vertices
+      .map((point, pointIndex) => `${pointIndex === 0 ? 'M' : 'L'} ${point.x} ${point.y}`)
+      .join(' ')
+      .concat(' Z');
+  });
+
+  return <Path path={path} color={layer.color} opacity={alpha} />;
+};
+
+const ParticleSpriteNodeSkia = ({
+  asset,
+  instance,
+  layer,
+  progress,
+  elapsedMs,
+  index,
+  spriteImageCache,
+}: {
+  asset: EffectAsset;
+  instance: EffectInstance;
+  layer: ParticleEmitterLayer;
+  progress: SharedValue<number>;
+  elapsedMs: SharedValue<number>;
+  index: number;
+  spriteImageCache?: Partial<Record<string, SkImage>>;
+}) => {
+  const { x, y, size, alpha } = useParticleMetrics(
+    asset,
+    instance,
+    layer,
+    progress,
+    elapsedMs,
+    index,
+  );
+
+  return (
+    <SpriteNodeSkia
+      spriteId={layer.spriteId ?? ''}
+      x={x}
+      y={y}
+      width={size}
+      height={size}
+      opacity={alpha}
+      tintColor={layer.tintColor}
+      imageOverride={layer.spriteId ? spriteImageCache?.[layer.spriteId] : undefined}
+    />
+  );
+};
+
+const ParticleNodeSkia = ({
+  asset,
+  instance,
+  layer,
+  progress,
+  elapsedMs,
+  index,
+  spriteImageCache,
+}: {
+  asset: EffectAsset;
+  instance: EffectInstance;
+  layer: ParticleEmitterLayer;
+  progress: SharedValue<number>;
+  elapsedMs: SharedValue<number>;
+  index: number;
+  spriteImageCache?: Partial<Record<string, SkImage>>;
+}) => {
+  switch (layer.renderer) {
+    case 'sprite':
+      return (
+        <ParticleSpriteNodeSkia
+          asset={asset}
+          instance={instance}
+          layer={layer}
+          progress={progress}
+          elapsedMs={elapsedMs}
+          index={index}
+          spriteImageCache={spriteImageCache}
+        />
+      );
+    case 'ring':
+      return (
+        <ParticleRingNodeSkia
+          asset={asset}
+          instance={instance}
+          layer={layer}
+          progress={progress}
+          elapsedMs={elapsedMs}
+          index={index}
+        />
+      );
+    case 'streak':
+      return (
+        <ParticleStreakNodeSkia
+          asset={asset}
+          instance={instance}
+          layer={layer}
+          progress={progress}
+          elapsedMs={elapsedMs}
+          index={index}
+        />
+      );
+    case 'diamond':
+      return (
+        <ParticleDiamondNodeSkia
+          asset={asset}
+          instance={instance}
+          layer={layer}
+          progress={progress}
+          elapsedMs={elapsedMs}
+          index={index}
+        />
+      );
+    case 'arc':
+      return (
+        <ParticleArcNodeSkia
+          asset={asset}
+          instance={instance}
+          layer={layer}
+          progress={progress}
+          elapsedMs={elapsedMs}
+          index={index}
+        />
+      );
+    case 'starburst':
+      return (
+        <ParticleStarburstNodeSkia
+          asset={asset}
+          instance={instance}
+          layer={layer}
+          progress={progress}
+          elapsedMs={elapsedMs}
+          index={index}
+        />
+      );
+    default:
+      return (
+        <ParticleOrbNodeSkia
+          asset={asset}
+          instance={instance}
+          layer={layer}
+          progress={progress}
+          elapsedMs={elapsedMs}
+          index={index}
+        />
+      );
+  }
+};
+
+const ParticleEmitterPrimitiveSkia = ({
+  asset,
+  instance,
+  layer,
+  progress,
+  elapsedMs,
+  spriteImageCache,
+}: {
+  asset: EffectAsset;
+  instance: EffectInstance;
+  layer: ParticleEmitterLayer;
+  progress: SharedValue<number>;
+  elapsedMs: SharedValue<number>;
+  spriteImageCache?: Partial<Record<string, SkImage>>;
+}) => {
+  const particleCount = Math.max(1, Math.round(layer.maxParticles));
+
+  return (
+    <>
+      {Array.from({ length: particleCount }, (_, index) => (
+        <ParticleNodeSkia
+          key={`${layer.id}-particle-${index}`}
+          asset={asset}
+          instance={instance}
+          layer={layer}
+          progress={progress}
+          elapsedMs={elapsedMs}
+          index={index}
+          spriteImageCache={spriteImageCache}
+        />
+      ))}
+    </>
   );
 };
 
@@ -809,132 +1568,248 @@ const TrailPrimitiveSkia = ({
   );
 };
 
-function renderLayer(layer: EffectLayer, instance: EffectInstance, progress: SharedValue<number>) {
+function renderLayer(
+  layer: EffectLayer,
+  instance: EffectInstance,
+  progress: SharedValue<number>,
+  elapsedMs: SharedValue<number>,
+  coreLayerOpacity: SharedValue<number>,
+  spriteImageCache?: Partial<Record<string, SkImage>>,
+) {
   const asset = getEffectAsset(instance.assetId);
 
   if (!asset) return null;
 
+  const wrapCoreLayer = (content: ReactNode) => (
+    <Group key={layer.id} opacity={coreLayerOpacity}>
+      {content}
+    </Group>
+  );
+
   switch (layer.type) {
     case 'orb':
-      return (
-        <OrbPrimitiveSkia
-          key={layer.id}
-          asset={asset}
-          instance={instance}
-          layer={layer}
-          progress={progress}
-        />
+      return wrapCoreLayer(
+        <OrbPrimitiveSkia asset={asset} instance={instance} layer={layer} progress={progress} />,
       );
     case 'ring':
-      return (
-        <RingPrimitiveSkia
-          key={layer.id}
-          asset={asset}
-          instance={instance}
-          layer={layer}
-          progress={progress}
-        />
+      return wrapCoreLayer(
+        <RingPrimitiveSkia asset={asset} instance={instance} layer={layer} progress={progress} />,
       );
     case 'streak':
-      return (
-        <StreakPrimitiveSkia
-          key={layer.id}
-          asset={asset}
-          instance={instance}
-          layer={layer}
-          progress={progress}
-        />
+      return wrapCoreLayer(
+        <StreakPrimitiveSkia asset={asset} instance={instance} layer={layer} progress={progress} />,
       );
     case 'diamond':
-      return (
+      return wrapCoreLayer(
         <DiamondPrimitiveSkia
-          key={layer.id}
           asset={asset}
           instance={instance}
           layer={layer}
           progress={progress}
-        />
+        />,
       );
     case 'arc':
-      return (
-        <ArcPrimitiveSkia
-          key={layer.id}
-          asset={asset}
-          instance={instance}
-          layer={layer}
-          progress={progress}
-        />
+      return wrapCoreLayer(
+        <ArcPrimitiveSkia asset={asset} instance={instance} layer={layer} progress={progress} />,
       );
     case 'starburst':
-      return (
+      return wrapCoreLayer(
         <StarburstPrimitiveSkia
-          key={layer.id}
           asset={asset}
           instance={instance}
           layer={layer}
           progress={progress}
-        />
+        />,
       );
     case 'trail':
-      return (
-        <TrailPrimitiveSkia
-          key={layer.id}
-          asset={asset}
-          instance={instance}
-          layer={layer}
-          progress={progress}
-        />
+      return wrapCoreLayer(
+        <TrailPrimitiveSkia asset={asset} instance={instance} layer={layer} progress={progress} />,
       );
     case 'sprite':
-      return (
+      return wrapCoreLayer(
         <SpritePrimitiveSkia
+          asset={asset}
+          instance={instance}
+          layer={layer}
+          progress={progress}
+          spriteImageCache={spriteImageCache}
+        />,
+      );
+    case 'particleEmitter':
+      return (
+        <ParticleEmitterPrimitiveSkia
           key={layer.id}
           asset={asset}
           instance={instance}
           layer={layer}
           progress={progress}
+          elapsedMs={elapsedMs}
+          spriteImageCache={spriteImageCache}
         />
       );
+    case 'shaderLayer':
+      return null;
   }
 }
 
-const EffectPlayerSkia = ({ instance, onComplete }: EffectPlayerProps) => {
+const EffectPlayerSkia = ({ instance, onComplete, spriteImageCache }: EffectPlayerProps) => {
   const progress = useSharedValue(0);
+  const elapsedMs = useSharedValue(0);
+  const renderOpacity = useSharedValue(0);
   const asset = getEffectAsset(instance.assetId);
-  const playbackDurationMs = Math.max(1, instance.durationMsOverride ?? asset?.durationMs ?? 1);
+  const spriteIds = useMemo(() => (asset ? collectAssetSpriteIds(asset) : []), [asset]);
+  const allSpritesCached = spriteIds.every((spriteId) => spriteImageCache?.[spriteId]);
+  const [spritesReady, setSpritesReady] = useState(spriteIds.length === 0 || allSpritesCached);
+  const shouldLoop = instance.loopOverride ?? asset?.loop ?? false;
+  const animationDurationMs = Math.max(1, instance.durationMsOverride ?? asset?.durationMs ?? 1);
+  const playbackDurationMs =
+    asset && !shouldLoop
+      ? getEffectPlaybackDurationMs(asset, instance.durationMsOverride, true)
+      : animationDurationMs;
+  const coreLayerOpacity = useDerivedValue<number>(() =>
+    shouldLoop || elapsedMs.value <= animationDurationMs ? 1 : 0,
+  );
 
   useEffect(() => {
-    if (!asset) return;
-
-    cancelAnimation(progress);
-    progress.value = 0;
-    progress.value = withRepeat(
-      withTiming(1, { duration: playbackDurationMs, easing: Easing.linear }),
-      asset.loop ? -1 : 1,
-      false,
-    );
-
-    if (asset.loop) {
-      return () => {
-        cancelAnimation(progress);
-      };
+    if (!asset) {
+      setSpritesReady(true);
+      return;
     }
 
-    const timeoutId = setTimeout(() => {
-      onComplete(instance.instanceId);
-    }, playbackDurationMs + 32);
+    if (spriteIds.length === 0 || allSpritesCached) {
+      setSpritesReady(true);
+      return;
+    }
+
+    let cancelled = false;
+    setSpritesReady(false);
+
+    void Promise.all(
+      spriteIds.map(async (spriteId) => {
+        const uri = resolveSkiaPreloadUri(spriteId);
+        if (!uri) {
+          return;
+        }
+
+        try {
+          await RNImage.prefetch(uri);
+        } catch (error) {
+          console.warn(`Could not preload VFX sprite "${spriteId}".`, error);
+        }
+      }),
+    ).then(() => {
+      if (!cancelled) {
+        setSpritesReady(true);
+      }
+    });
 
     return () => {
-      clearTimeout(timeoutId);
-      cancelAnimation(progress);
+      cancelled = true;
     };
-  }, [asset, instance.instanceId, onComplete, playbackDurationMs, progress]);
+  }, [allSpritesCached, asset, spriteIds]);
+
+  useEffect(() => {
+    if (!asset || !spritesReady) {
+      cancelAnimation(progress);
+      cancelAnimation(elapsedMs);
+      progress.value = 0;
+      elapsedMs.value = 0;
+      renderOpacity.value = 0;
+      return;
+    }
+
+    cancelAnimation(progress);
+    cancelAnimation(elapsedMs);
+    progress.value = 0;
+    elapsedMs.value = 0;
+    renderOpacity.value = spriteIds.length === 0 ? 1 : 0;
+
+    let timeoutId: ReturnType<typeof setTimeout> | null = null;
+    let frameOne: number | null = null;
+    let frameTwo: number | null = null;
+    let cancelled = false;
+
+    const startPlayback = () => {
+      if (cancelled) {
+        return;
+      }
+
+      renderOpacity.value = 1;
+
+      if (shouldLoop) {
+        progress.value = withRepeat(
+          withTiming(1, { duration: animationDurationMs, easing: Easing.linear }),
+          -1,
+          false,
+        );
+        elapsedMs.value = withRepeat(
+          withTiming(animationDurationMs, {
+            duration: animationDurationMs,
+            easing: Easing.linear,
+          }),
+          -1,
+          false,
+        );
+        return;
+      }
+
+      progress.value = withTiming(1, { duration: animationDurationMs, easing: Easing.linear });
+      elapsedMs.value = withTiming(playbackDurationMs, {
+        duration: playbackDurationMs,
+        easing: Easing.linear,
+      });
+
+      timeoutId = setTimeout(() => {
+        onComplete(instance.instanceId);
+      }, playbackDurationMs + 32);
+    };
+
+    if (spriteIds.length > 0) {
+      frameOne = requestAnimationFrame(() => {
+        frameTwo = requestAnimationFrame(startPlayback);
+      });
+    } else {
+      startPlayback();
+    }
+
+    return () => {
+      cancelled = true;
+      if (frameOne != null) {
+        cancelAnimationFrame(frameOne);
+      }
+      if (frameTwo != null) {
+        cancelAnimationFrame(frameTwo);
+      }
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+      }
+      cancelAnimation(progress);
+      cancelAnimation(elapsedMs);
+      renderOpacity.value = 0;
+    };
+  }, [
+    asset,
+    animationDurationMs,
+    elapsedMs,
+    instance.instanceId,
+    onComplete,
+    playbackDurationMs,
+    progress,
+    renderOpacity,
+    shouldLoop,
+    spriteIds.length,
+    spritesReady,
+  ]);
 
   if (!asset) return null;
 
   return (
     <Canvas pointerEvents="none" style={styles.canvas}>
-      {asset.layers.map((layer) => renderLayer(layer, instance, progress))}
+      <Group opacity={renderOpacity}>
+        {asset.layers.map((layer) =>
+          renderLayer(layer, instance, progress, elapsedMs, coreLayerOpacity, spriteImageCache),
+        )}
+      </Group>
     </Canvas>
   );
 };

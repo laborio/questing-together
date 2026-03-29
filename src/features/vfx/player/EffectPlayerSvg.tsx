@@ -18,6 +18,7 @@ import StarburstPrimitive from '@/features/vfx/primitives/StarburstPrimitive';
 import StreakPrimitive from '@/features/vfx/primitives/StreakPrimitive';
 import TrailPrimitive from '@/features/vfx/primitives/TrailPrimitive';
 import { getEffectAsset } from '@/features/vfx/runtime/effectRegistry';
+import { getEffectPlaybackDurationMs } from '@/features/vfx/runtime/getEffectPlaybackDurationMs';
 import type { EffectLayer } from '@/features/vfx/types/assets';
 import type { EffectInstance } from '@/features/vfx/types/runtime';
 
@@ -112,13 +113,21 @@ function renderLayer(layer: EffectLayer, instance: EffectInstance, progress: Sha
           progress={progress}
         />
       );
+    case 'particleEmitter':
+    case 'shaderLayer':
+      return null;
   }
 }
 
 const EffectPlayer = ({ instance, onComplete }: EffectPlayerProps) => {
   const progress = useSharedValue(0);
   const asset = getEffectAsset(instance.assetId);
-  const playbackDurationMs = Math.max(1, instance.durationMsOverride ?? asset?.durationMs ?? 1);
+  const shouldLoop = instance.loopOverride ?? asset?.loop ?? false;
+  const animationDurationMs = Math.max(1, instance.durationMsOverride ?? asset?.durationMs ?? 1);
+  const playbackDurationMs =
+    asset && !shouldLoop
+      ? getEffectPlaybackDurationMs(asset, instance.durationMsOverride, true)
+      : animationDurationMs;
 
   useEffect(() => {
     if (!asset) return;
@@ -126,12 +135,12 @@ const EffectPlayer = ({ instance, onComplete }: EffectPlayerProps) => {
     cancelAnimation(progress);
     progress.value = 0;
     progress.value = withRepeat(
-      withTiming(1, { duration: playbackDurationMs, easing: Easing.linear }),
-      asset.loop ? -1 : 1,
+      withTiming(1, { duration: animationDurationMs, easing: Easing.linear }),
+      shouldLoop ? -1 : 1,
       false,
     );
 
-    if (asset.loop) {
+    if (shouldLoop) {
       return () => {
         cancelAnimation(progress);
       };
@@ -145,7 +154,15 @@ const EffectPlayer = ({ instance, onComplete }: EffectPlayerProps) => {
       clearTimeout(timeoutId);
       cancelAnimation(progress);
     };
-  }, [asset, instance.instanceId, onComplete, playbackDurationMs, progress]);
+  }, [
+    animationDurationMs,
+    asset,
+    instance.instanceId,
+    onComplete,
+    playbackDurationMs,
+    progress,
+    shouldLoop,
+  ]);
 
   if (!asset) return null;
 

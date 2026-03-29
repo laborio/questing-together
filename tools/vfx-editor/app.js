@@ -35,6 +35,8 @@ const TRACKS_BY_LAYER_TYPE = {
   arc: ['scale', 'alpha', 'x', 'y'],
   starburst: ['scale', 'alpha', 'x', 'y'],
   sprite: ['scale', 'alpha', 'x', 'y'],
+  particleEmitter: ['alpha', 'x', 'y'],
+  shaderLayer: ['alpha', 'x', 'y'],
 };
 
 const LAYER_TYPE_OPTIONS = [
@@ -46,6 +48,8 @@ const LAYER_TYPE_OPTIONS = [
   { value: 'arc', label: 'Arc' },
   { value: 'starburst', label: 'Starburst' },
   { value: 'sprite', label: 'Sprite' },
+  { value: 'particleEmitter', label: 'Particle Emitter' },
+  { value: 'shaderLayer', label: 'Shader Layer' },
 ];
 
 const TRAIL_STYLE_OPTIONS = [
@@ -58,11 +62,25 @@ const TRAIL_STYLE_OPTIONS = [
   { value: 'sprite', label: 'Sprites' },
 ];
 
+const PARTICLE_RENDER_OPTIONS = [
+  { value: 'orb', label: 'Orb' },
+  { value: 'ring', label: 'Ring' },
+  { value: 'streak', label: 'Streak' },
+  { value: 'diamond', label: 'Diamond' },
+  { value: 'arc', label: 'Arc' },
+  { value: 'starburst', label: 'Starburst' },
+  { value: 'sprite', label: 'Sprite' },
+];
+
 const SPRITE_MANIFEST_PATH = '../../src/features/vfx/assets/sprites/manifest.json';
 const SPRITE_EDITOR_BASE_PATH = '../../src/features/vfx/assets/sprites';
+const REPO_EFFECTS_SEGMENTS = ['src', 'features', 'vfx', 'assets', 'effects'];
+const REPO_SEQUENCES_SEGMENTS = ['src', 'features', 'vfx', 'assets', 'sequences'];
 const REPO_SPRITES_SEGMENTS = ['src', 'features', 'vfx', 'assets', 'sprites'];
 const REPO_RUNTIME_SEGMENTS = ['src', 'features', 'vfx', 'runtime'];
 const REPO_EDITOR_SEGMENTS = ['tools', 'vfx-editor'];
+const EFFECT_REGISTRY_FILE = 'effectRegistry.ts';
+const SEQUENCE_REGISTRY_FILE = 'sequenceRegistry.ts';
 const SPRITE_REGISTRY_FILE = 'spriteRegistry.ts';
 const EDITOR_SESSION_STORAGE_KEY = 'questing-together:vfx-editor-session:v1';
 const EDITOR_SESSION_FILE_NAME = 'editor-session.json';
@@ -88,6 +106,8 @@ const PREVIEW_VIEWPORT_LIMITS = {
 let spriteLibrary = {};
 let effectPreviewLibrary = {};
 let sequenceLibrary = {};
+const loadedSpritePreviewSrcs = new Set();
+const spritePreviewLoadPromises = new Map();
 
 function createDefaultPreviewBackground() {
   return {
@@ -324,6 +344,23 @@ function getSpriteImportName(spriteId) {
   return `${safe}Sprite`;
 }
 
+function getRegistryImportName(prefix, value, suffix = 'Data', usedNames = new Set()) {
+  const camel = slugify(value).replace(/-([a-z0-9])/g, (_, char) => char.toUpperCase());
+  const base = /^[a-zA-Z_$]/.test(camel)
+    ? `${camel}${suffix}`
+    : `${prefix}${camel.charAt(0).toUpperCase()}${camel.slice(1)}${suffix}`;
+  let candidate = base;
+  let index = 2;
+
+  while (usedNames.has(candidate)) {
+    candidate = `${base}${index}`;
+    index += 1;
+  }
+
+  usedNames.add(candidate);
+  return candidate;
+}
+
 function parseColorToRgba(color) {
   if (typeof color !== 'string') return null;
 
@@ -433,6 +470,63 @@ function getSpritePreviewSrc(spriteId) {
   return getSpriteDefinition(spriteId)?.src ?? '';
 }
 
+function preloadSpritePreviewSrc(src) {
+  if (!src) {
+    return Promise.resolve(false);
+  }
+
+  if (loadedSpritePreviewSrcs.has(src)) {
+    return Promise.resolve(true);
+  }
+
+  if (spritePreviewLoadPromises.has(src)) {
+    return spritePreviewLoadPromises.get(src);
+  }
+
+  const promise = new Promise((resolve) => {
+    const image = new window.Image();
+    image.onload = () => {
+      loadedSpritePreviewSrcs.add(src);
+      spritePreviewLoadPromises.delete(src);
+      resolve(true);
+    };
+    image.onerror = () => {
+      spritePreviewLoadPromises.delete(src);
+      resolve(false);
+    };
+    image.src = src;
+  });
+
+  spritePreviewLoadPromises.set(src, promise);
+  return promise;
+}
+
+function collectAssetSpritePreviewSources(asset) {
+  if (!asset) {
+    return [];
+  }
+
+  const spriteIds = new Set();
+
+  for (const layer of asset.layers ?? []) {
+    if (layer.type === 'sprite' && layer.spriteId) {
+      spriteIds.add(layer.spriteId);
+      continue;
+    }
+
+    if (layer.type === 'trail' && layer.style === 'sprite' && layer.spriteId) {
+      spriteIds.add(layer.spriteId);
+      continue;
+    }
+
+    if (layer.type === 'particleEmitter' && layer.renderer === 'sprite' && layer.spriteId) {
+      spriteIds.add(layer.spriteId);
+    }
+  }
+
+  return [...spriteIds].map((spriteId) => getSpritePreviewSrc(spriteId)).filter(Boolean);
+}
+
 function getTrailStyleLabel(style) {
   return TRAIL_STYLE_OPTIONS.find((option) => option.value === style)?.label ?? 'Filled Circles';
 }
@@ -443,6 +537,36 @@ function getTrailStyleCardLabel(style) {
   }
 
   return `trail (${style})`;
+}
+
+function normalizeParticleRenderer(renderer) {
+  return PARTICLE_RENDER_OPTIONS.some((option) => option.value === renderer) ? renderer : 'orb';
+}
+
+function getDefaultParticleRotationDeg(renderer) {
+  return renderer === 'arc' || renderer === 'starburst' ? -90 : 0;
+}
+
+function getParticleRendererForLayer(layer) {
+  if (layer.type === 'sprite') {
+    return 'sprite';
+  }
+
+  if (layer.type === 'trail') {
+    return {
+      fill: 'orb',
+      ring: 'ring',
+      streak: 'streak',
+      diamond: 'diamond',
+      arc: 'arc',
+      starburst: 'starburst',
+      sprite: 'sprite',
+    }[layer.style ?? 'fill'] ?? 'orb';
+  }
+
+  return ['orb', 'ring', 'streak', 'diamond', 'arc', 'starburst'].includes(layer.type)
+    ? layer.type
+    : 'orb';
 }
 
 function applyTrailStyleDefaults(layer) {
@@ -518,7 +642,18 @@ function getLayerCardSwatchStyle(layer) {
       : 'background: rgba(143, 215, 255, 0.22);';
   }
 
-  return `background: ${escapeHtml(layer.color)};`;
+  if (layer.type === 'shaderLayer') {
+    return 'background: linear-gradient(135deg, rgba(124, 87, 255, 0.82), rgba(255, 128, 161, 0.72));';
+  }
+
+  if (layer.type === 'particleEmitter' && layer.renderer === 'sprite') {
+    const href = getSpritePreviewSrc(layer.spriteId);
+    if (href) {
+      return `background-color: rgba(143, 215, 255, 0.16); background-image: url('${escapeHtml(href)}'); background-size: cover; background-position: center;`;
+    }
+  }
+
+  return `background: ${escapeHtml(layer.color ?? '#ffffff')};`;
 }
 
 function renderSpriteField({ label = 'Sprite Asset', value, field, datasetName }) {
@@ -567,6 +702,72 @@ function renderTintField({ value, field = 'tintColor', datasetName = 'layer-fiel
   `;
 }
 
+function renderJsonTextareaField({ label, value, field, rows = 6, note = '' }) {
+  const serializedValue =
+    value && typeof value === 'object' && Object.keys(value).length > 0
+      ? JSON.stringify(value, null, 2)
+      : '';
+
+  return `
+    <label class="field">
+      <span class="field-label">${escapeHtml(label)}</span>
+      <textarea
+        class="field-textarea"
+        rows="${rows}"
+        data-layer-json-field="${field}"
+        placeholder="{ }"
+      >${escapeHtml(serializedValue)}</textarea>
+      ${note ? `<span class="section-note">${note}</span>` : ''}
+    </label>
+  `;
+}
+
+function normalizeLooseTrackMap(trackMap) {
+  if (!trackMap || typeof trackMap !== 'object' || Array.isArray(trackMap)) {
+    return undefined;
+  }
+
+  const normalized = {};
+
+  for (const [key, value] of Object.entries(trackMap)) {
+    const nextTrack = normalizeTrack(value);
+    if (nextTrack.length > 0) {
+      normalized[key] = nextTrack;
+    }
+  }
+
+  return Object.keys(normalized).length > 0 ? normalized : undefined;
+}
+
+function normalizeShaderUniformValue(value) {
+  if (Array.isArray(value)) {
+    const normalized = value
+      .map((entry) => Number(entry))
+      .filter((entry) => Number.isFinite(entry));
+    return normalized.length === value.length ? normalized : undefined;
+  }
+
+  const numericValue = Number(value);
+  return Number.isFinite(numericValue) ? numericValue : undefined;
+}
+
+function normalizeUniformMap(uniforms) {
+  if (!uniforms || typeof uniforms !== 'object' || Array.isArray(uniforms)) {
+    return undefined;
+  }
+
+  const normalized = {};
+
+  for (const [key, value] of Object.entries(uniforms)) {
+    const normalizedValue = normalizeShaderUniformValue(value);
+    if (normalizedValue !== undefined) {
+      normalized[key] = normalizedValue;
+    }
+  }
+
+  return Object.keys(normalized).length > 0 ? normalized : undefined;
+}
+
 function renderToolbarColorField({ label, value, field, fallback = '#ffffff' }) {
   return `
     <label class="menu-compact-field">
@@ -613,6 +814,9 @@ async function loadSpriteManifest() {
     const manifest = await response.json();
     const entries = Array.isArray(manifest?.sprites) ? manifest.sprites : [];
     spriteLibrary = buildSpriteLibraryFromManifest(entries);
+    void Promise.all(
+      Object.values(spriteLibrary).map((sprite) => preloadSpritePreviewSrc(sprite.src)),
+    );
     return entries;
   } catch (error) {
     console.error('Could not load sprite manifest', error);
@@ -757,6 +961,100 @@ function buildSpriteRegistrySource(entries) {
   return `import type { ImageSourcePropType } from 'react-native';\n${imports}\n\nexport type VfxSpriteDefinition = {\n  id: string;\n  label: string;\n  source: ImageSourcePropType;\n  editorSrc: string;\n};\n\nconst vfxSprites: VfxSpriteDefinition[] = [\n${spriteObjects}\n];\n\nconst vfxSpriteById = new Map(vfxSprites.map((sprite) => [sprite.id, sprite]));\n\nexport function getVfxSprite(spriteId: string) {\n  return vfxSpriteById.get(spriteId) ?? null;\n}\n\nexport function getVfxSpriteSource(spriteId: string) {\n  return getVfxSprite(spriteId)?.source ?? null;\n}\n\nexport function listVfxSprites() {\n  return vfxSprites.map(({ id, label, editorSrc }) => ({ id, label, editorSrc }));\n}\n`;
 }
 
+async function discoverRepoEffectEntries(rootHandle) {
+  const effectsDirHandle = await getDirectoryHandle(rootHandle, REPO_EFFECTS_SEGMENTS);
+  const entries = [];
+
+  for await (const handle of effectsDirHandle.values()) {
+    if (handle.kind !== 'file' || !handle.name.endsWith('.json')) {
+      continue;
+    }
+
+    const file = await handle.getFile();
+    const asset = normalizeAsset(JSON.parse(await file.text()));
+    entries.push({
+      id: asset.id,
+      label: asset.label ?? titleCaseFromId(asset.id),
+      filename: handle.name,
+    });
+  }
+
+  return entries.sort((left, right) => left.id.localeCompare(right.id));
+}
+
+async function discoverRepoSequenceEntries(rootHandle) {
+  const sequencesDirHandle = await getDirectoryHandle(rootHandle, REPO_SEQUENCES_SEGMENTS);
+  const entries = [];
+
+  for await (const handle of sequencesDirHandle.values()) {
+    if (handle.kind !== 'file' || !handle.name.endsWith('.json')) {
+      continue;
+    }
+
+    const file = await handle.getFile();
+    const sequence = normalizeSequence(JSON.parse(await file.text()));
+    entries.push({
+      id: sequence.id,
+      label: sequence.label ?? titleCaseFromId(sequence.id),
+      filename: handle.name,
+    });
+  }
+
+  return entries.sort((left, right) => left.id.localeCompare(right.id));
+}
+
+function buildEffectRegistrySource(entries) {
+  const usedNames = new Set();
+  const imports = entries
+    .map((entry) => {
+      const importName = getRegistryImportName('effect', entry.id, 'Data', usedNames);
+      entry.importName = importName;
+      return `import ${importName} from '@/features/vfx/assets/effects/${entry.filename}';`;
+    })
+    .join('\n');
+
+  const assetNames = entries.map((entry) => `  ${entry.importName},`).join('\n');
+
+  return `import type { EffectAsset } from '@/features/vfx/types/assets';\n${imports}\n\nconst effectAssets = [\n${assetNames}\n] as EffectAsset[];\n\nconst effectAssetById = new Map(effectAssets.map((asset) => [asset.id, asset]));\n\nexport function getEffectAsset(assetId: string) {\n  return effectAssetById.get(assetId) ?? null;\n}\n\nexport function listEffectAssets() {\n  return effectAssets;\n}\n`;
+}
+
+function buildSequenceRegistrySource(entries) {
+  const usedNames = new Set();
+  const imports = entries
+    .map((entry) => {
+      const importName = getRegistryImportName('sequence', entry.id, 'Data', usedNames);
+      entry.importName = importName;
+      return `import ${importName} from '@/features/vfx/assets/sequences/${entry.filename}';`;
+    })
+    .join('\n');
+
+  const sequenceNames = entries.map((entry) => `  ${entry.importName},`).join('\n');
+
+  return `import type { EffectSequence } from '@/features/vfx/types/sequences';\n${imports}\n\nconst effectSequences = [\n${sequenceNames}\n] as EffectSequence[];\n\nconst effectSequenceById = new Map(effectSequences.map((sequence) => [sequence.id, sequence]));\n\nexport function getEffectSequence(sequenceId: string) {\n  return effectSequenceById.get(sequenceId) ?? null;\n}\n\nexport function listEffectSequences() {\n  return effectSequences;\n}\n`;
+}
+
+async function regenerateEffectRegistry(rootHandle) {
+  const hasPermission = await ensureHandlePermission(rootHandle, true);
+  if (!hasPermission) {
+    throw new Error('Permission was not granted for the linked repo root.');
+  }
+  const runtimeDirHandle = await getDirectoryHandle(rootHandle, REPO_RUNTIME_SEGMENTS);
+  const entries = await discoverRepoEffectEntries(rootHandle);
+  await writeTextFile(runtimeDirHandle, EFFECT_REGISTRY_FILE, buildEffectRegistrySource(entries));
+  return entries;
+}
+
+async function regenerateSequenceRegistry(rootHandle) {
+  const hasPermission = await ensureHandlePermission(rootHandle, true);
+  if (!hasPermission) {
+    throw new Error('Permission was not granted for the linked repo root.');
+  }
+  const runtimeDirHandle = await getDirectoryHandle(rootHandle, REPO_RUNTIME_SEGMENTS);
+  const entries = await discoverRepoSequenceEntries(rootHandle);
+  await writeTextFile(runtimeDirHandle, SEQUENCE_REGISTRY_FILE, buildSequenceRegistrySource(entries));
+  return entries;
+}
+
 async function importSprite() {
   try {
     if (!('showOpenFilePicker' in window) || !('showDirectoryPicker' in window)) {
@@ -827,6 +1125,7 @@ async function importSprite() {
     await writeTextFile(runtimeDirHandle, SPRITE_REGISTRY_FILE, buildSpriteRegistrySource(spriteEntries));
 
     spriteLibrary = buildSpriteLibraryFromManifest(spriteEntries);
+    void preloadSpritePreviewSrc(spriteLibrary[spriteId]?.src ?? '');
     renderPanels();
     renderPreview();
     setSaveStatus(`Imported sprite "${spriteId}" and regenerated the runtime sprite registry. Reload the app if Metro does not pick it up immediately.`, 'success');
@@ -993,13 +1292,106 @@ function normalizeAsset(rawAsset) {
   asset.layers = asset.layers.map((layer, index) => {
     const nextLayer = cloneData(layer);
     nextLayer.id = typeof nextLayer.id === 'string' ? nextLayer.id : `layer-${index + 1}`;
-    nextLayer.type = ['orb', 'ring', 'trail', 'streak', 'diamond', 'arc', 'starburst', 'sprite'].includes(nextLayer.type)
+    nextLayer.type = [
+      'orb',
+      'ring',
+      'trail',
+      'streak',
+      'diamond',
+      'arc',
+      'starburst',
+      'sprite',
+      'particleEmitter',
+      'shaderLayer',
+    ].includes(nextLayer.type)
       ? nextLayer.type
       : 'orb';
     nextLayer.tracks = typeof nextLayer.tracks === 'object' && nextLayer.tracks ? nextLayer.tracks : {};
 
     for (const trackName of Object.keys(nextLayer.tracks)) {
       nextLayer.tracks[trackName] = normalizeTrack(nextLayer.tracks[trackName]);
+    }
+
+    if (nextLayer.type === 'particleEmitter') {
+      nextLayer.renderer = normalizeParticleRenderer(nextLayer.renderer);
+      nextLayer.color = typeof nextLayer.color === 'string' ? nextLayer.color : '#ffffff';
+      nextLayer.spriteId =
+        typeof nextLayer.spriteId === 'string' && hasSpriteDefinition(nextLayer.spriteId)
+          ? nextLayer.spriteId
+          : getDefaultSpriteId();
+      nextLayer.tintColor =
+        typeof nextLayer.tintColor === 'string' ? nextLayer.tintColor : undefined;
+      nextLayer.maxParticles = Number.isFinite(Number(nextLayer.maxParticles))
+        ? Math.max(1, Math.round(Number(nextLayer.maxParticles)))
+        : 36;
+      nextLayer.emissionRate = Number.isFinite(Number(nextLayer.emissionRate))
+        ? Math.max(0, Number(nextLayer.emissionRate))
+        : 18;
+      nextLayer.burstCount = Number.isFinite(Number(nextLayer.burstCount))
+        ? Math.max(0, Math.round(Number(nextLayer.burstCount)))
+        : undefined;
+      nextLayer.particleLifetimeMs = Number.isFinite(Number(nextLayer.particleLifetimeMs))
+        ? Math.max(1, Number(nextLayer.particleLifetimeMs))
+        : 420;
+      nextLayer.speed = Number.isFinite(Number(nextLayer.speed)) ? Number(nextLayer.speed) : 120;
+      nextLayer.speedJitter = Number.isFinite(Number(nextLayer.speedJitter))
+        ? Number(nextLayer.speedJitter)
+        : undefined;
+      nextLayer.spreadDeg = Number.isFinite(Number(nextLayer.spreadDeg))
+        ? Number(nextLayer.spreadDeg)
+        : 45;
+      nextLayer.directionDeg = Number.isFinite(Number(nextLayer.directionDeg))
+        ? Number(nextLayer.directionDeg)
+        : undefined;
+      nextLayer.startSize = Number.isFinite(Number(nextLayer.startSize))
+        ? Number(nextLayer.startSize)
+        : 18;
+      nextLayer.endSize = Number.isFinite(Number(nextLayer.endSize))
+        ? Number(nextLayer.endSize)
+        : undefined;
+      nextLayer.startAlpha = Number.isFinite(Number(nextLayer.startAlpha))
+        ? Number(nextLayer.startAlpha)
+        : undefined;
+      nextLayer.endAlpha = Number.isFinite(Number(nextLayer.endAlpha))
+        ? Number(nextLayer.endAlpha)
+        : undefined;
+      nextLayer.gravityX = Number.isFinite(Number(nextLayer.gravityX))
+        ? Number(nextLayer.gravityX)
+        : undefined;
+      nextLayer.gravityY = Number.isFinite(Number(nextLayer.gravityY))
+        ? Number(nextLayer.gravityY)
+        : undefined;
+      nextLayer.drag = Number.isFinite(Number(nextLayer.drag)) ? Number(nextLayer.drag) : undefined;
+      nextLayer.rotationDeg = Number.isFinite(Number(nextLayer.rotationDeg))
+        ? Number(nextLayer.rotationDeg)
+        : undefined;
+      nextLayer.spinDeg = Number.isFinite(Number(nextLayer.spinDeg))
+        ? Number(nextLayer.spinDeg)
+        : undefined;
+      nextLayer.emitterTracks = normalizeLooseTrackMap(nextLayer.emitterTracks);
+      nextLayer.particleTracks = normalizeLooseTrackMap(nextLayer.particleTracks);
+      return nextLayer;
+    }
+
+    if (nextLayer.type === 'shaderLayer') {
+      nextLayer.shaderId =
+        typeof nextLayer.shaderId === 'string' && nextLayer.shaderId.trim()
+          ? nextLayer.shaderId
+          : 'ui-dissolve';
+      nextLayer.target = ['screen', 'layer', 'sprite'].includes(nextLayer.target)
+        ? nextLayer.target
+        : 'screen';
+      nextLayer.width = Number.isFinite(Number(nextLayer.width)) ? Number(nextLayer.width) : undefined;
+      nextLayer.height = Number.isFinite(Number(nextLayer.height))
+        ? Number(nextLayer.height)
+        : undefined;
+      nextLayer.blendMode =
+        typeof nextLayer.blendMode === 'string' && nextLayer.blendMode.trim()
+          ? nextLayer.blendMode
+          : undefined;
+      nextLayer.uniforms = normalizeUniformMap(nextLayer.uniforms);
+      nextLayer.uniformTracks = normalizeLooseTrackMap(nextLayer.uniformTracks);
+      return nextLayer;
     }
 
     if (nextLayer.type === 'sprite') {
@@ -1262,6 +1654,53 @@ function getActivePreviewSequence() {
   return state.previewSequence;
 }
 
+function getCurrentPreviewSpriteSources() {
+  const sequence = getActivePreviewSequence();
+  if (sequence) {
+    return [
+      ...new Set(
+        sequence.cues.flatMap((cue) =>
+          collectAssetSpritePreviewSources(getPreviewEffectAsset(cue.assetId)),
+        ),
+      ),
+    ];
+  }
+
+  return collectAssetSpritePreviewSources(state.asset);
+}
+
+function ensureCurrentPreviewSpritesLoaded() {
+  const sources = getCurrentPreviewSpriteSources();
+  const loadKey = sources.slice().sort().join('|');
+
+  if (!sources.length) {
+    state.previewSpriteLoadKey = '';
+    state.previewSpritesReady = true;
+    return;
+  }
+
+  if (state.previewSpriteLoadKey === loadKey && state.previewSpritesReady) {
+    return;
+  }
+
+  if (state.previewSpriteLoadKey === loadKey && !state.previewSpritesReady) {
+    return;
+  }
+
+  state.previewSpriteLoadKey = loadKey;
+  state.previewSpritesReady = false;
+
+  void Promise.all(sources.map((src) => preloadSpritePreviewSrc(src))).then(() => {
+    if (state.previewSpriteLoadKey !== loadKey) {
+      return;
+    }
+
+    state.previewSpritesReady = true;
+    state.lastFrameTime = 0;
+    renderPreview();
+  });
+}
+
 function resolvePreviewTitle() {
   const sequence = getActivePreviewSequence();
   if (sequence) {
@@ -1402,6 +1841,8 @@ const state = {
   activePanelResize: null,
   activeViewportPan: null,
   activeSequenceCueDrag: null,
+  previewSpritesReady: true,
+  previewSpriteLoadKey: '',
 };
 
 state.jsonDraft = stringifyAsset(state.asset);
@@ -2765,6 +3206,357 @@ function sampleMotionPosition(asset, instance, progress) {
   };
 }
 
+function sampleDynamicTrackValue(trackMap, name, progress, fallback = 0) {
+  return sampleTrack(trackMap?.[name], progress, fallback);
+}
+
+function fract(value) {
+  return value - Math.floor(value);
+}
+
+function random01(seed) {
+  return fract(Math.sin(seed * 12.9898 + 78.233) * 43758.5453123);
+}
+
+function randomSigned(seed) {
+  return random01(seed) * 2 - 1;
+}
+
+function sampleMotionHeadingDeg(asset, instance, progress) {
+  const current = sampleMotionPosition(asset, instance, progress);
+  const next = sampleMotionPosition(asset, instance, Math.min(1, progress + 0.01));
+  const dx = next.x - current.x;
+  const dy = next.y - current.y;
+
+  if (Math.abs(dx) > 0.001 || Math.abs(dy) > 0.001) {
+    return (Math.atan2(dy, dx) * 180) / Math.PI;
+  }
+
+  return -90;
+}
+
+function resolveParticleBirthProgress(layer, effectDurationMs, index) {
+  const maxParticles = Math.max(1, Math.round(layer.maxParticles));
+  const burstCount = Math.min(maxParticles, Math.max(0, Math.round(layer.burstCount ?? 0)));
+  const durationSeconds = effectDurationMs / 1000;
+  const continuousCapacity = Math.max(0, maxParticles - burstCount);
+  const continuousCount =
+    layer.emissionRate > 0
+      ? Math.min(continuousCapacity, Math.max(1, Math.ceil(durationSeconds * layer.emissionRate)))
+      : 0;
+
+  if (index < burstCount) {
+    const burstWindow = burstCount > 1 ? Math.min(0.08, Math.max(0.015, burstCount * 0.01)) : 0;
+    return burstCount === 1 ? 0 : (index / Math.max(1, burstCount - 1)) * burstWindow;
+  }
+
+  const continuousIndex = index - burstCount;
+  if (continuousIndex < 0 || continuousIndex >= continuousCount) {
+    return null;
+  }
+
+  const continuousStart = burstCount > 0 ? Math.min(0.14, Math.max(0.02, burstCount * 0.012)) : 0;
+  return continuousCount === 1
+    ? continuousStart
+    : continuousStart + (continuousIndex / continuousCount) * (1 - continuousStart);
+}
+
+function sampleParticleEmitterState(asset, instance, layer, progress, index) {
+  const effectDurationMs = Math.max(1, asset.durationMs);
+  const birthProgress = resolveParticleBirthProgress(layer, effectDurationMs, index);
+  const defaultRotationDeg = getDefaultParticleRotationDeg(layer.renderer);
+
+  if (birthProgress == null) {
+    return {
+      x: instance.x,
+      y: instance.y,
+      size: 0,
+      alpha: 0,
+      rotationDeg: layer.rotationDeg ?? defaultRotationDeg,
+    };
+  }
+
+  const lifetimeMs = Math.max(
+    1,
+    sampleDynamicTrackValue(
+      layer.emitterTracks,
+      'particleLifetimeMs',
+      birthProgress,
+      layer.particleLifetimeMs,
+    ),
+  );
+  const lifetimeProgress = Math.max(0.001, lifetimeMs / effectDurationMs);
+  let ageProgress = progress - birthProgress;
+
+  if (ageProgress < 0 || ageProgress > lifetimeProgress) {
+    return {
+      x: instance.x,
+      y: instance.y,
+      size: 0,
+      alpha: 0,
+      rotationDeg: layer.rotationDeg ?? defaultRotationDeg,
+    };
+  }
+
+  const lifeProgress = clamp01(ageProgress / lifetimeProgress);
+  const ageSeconds = (ageProgress * effectDurationMs) / 1000;
+  const origin = sampleMotionPosition(asset, instance, birthProgress);
+  const originX = origin.x + sampleLayerTrack(asset, layer, 'x', birthProgress, 0);
+  const originY = origin.y + sampleLayerTrack(asset, layer, 'y', birthProgress, 0);
+  const directionDeg = sampleDynamicTrackValue(
+    layer.emitterTracks,
+    'directionDeg',
+    birthProgress,
+    layer.directionDeg ?? sampleMotionHeadingDeg(asset, instance, birthProgress),
+  );
+  const spreadDeg = sampleDynamicTrackValue(
+    layer.emitterTracks,
+    'spreadDeg',
+    birthProgress,
+    layer.spreadDeg,
+  );
+  const speed = Math.max(
+    0,
+    sampleDynamicTrackValue(layer.emitterTracks, 'speed', birthProgress, layer.speed) +
+      randomSigned(index * 37.11 + birthProgress * 997.1) *
+        sampleDynamicTrackValue(
+          layer.emitterTracks,
+          'speedJitter',
+          birthProgress,
+          layer.speedJitter ?? 0,
+        ),
+  );
+  const gravityX = sampleDynamicTrackValue(
+    layer.emitterTracks,
+    'gravityX',
+    birthProgress,
+    layer.gravityX ?? 0,
+  );
+  const gravityY = sampleDynamicTrackValue(
+    layer.emitterTracks,
+    'gravityY',
+    birthProgress,
+    layer.gravityY ?? 0,
+  );
+  const drag = Math.max(
+    0,
+    sampleDynamicTrackValue(layer.emitterTracks, 'drag', birthProgress, layer.drag ?? 0),
+  );
+  const angleRad =
+    ((directionDeg + randomSigned(index * 83.17 + 11.9) * spreadDeg * 0.5) * Math.PI) / 180;
+  const travelTime = drag > 0 ? (1 - Math.exp(-drag * ageSeconds)) / drag : ageSeconds;
+  const startSize = sampleDynamicTrackValue(
+    layer.emitterTracks,
+    'startSize',
+    birthProgress,
+    layer.startSize,
+  );
+  const endSize = sampleDynamicTrackValue(
+    layer.emitterTracks,
+    'endSize',
+    birthProgress,
+    layer.endSize ?? startSize,
+  );
+  const startAlpha = sampleDynamicTrackValue(
+    layer.emitterTracks,
+    'startAlpha',
+    birthProgress,
+    layer.startAlpha ?? 1,
+  );
+  const endAlpha = sampleDynamicTrackValue(
+    layer.emitterTracks,
+    'endAlpha',
+    birthProgress,
+    layer.endAlpha ?? 0,
+  );
+  const size = Math.max(
+    0.5,
+    lerp(startSize, endSize, lifeProgress) *
+      sampleDynamicTrackValue(layer.particleTracks, 'scale', lifeProgress, 1),
+  );
+  const alpha = Math.max(
+    0,
+    sampleLayerTrack(asset, layer, 'alpha', progress, 1) *
+      lerp(startAlpha, endAlpha, lifeProgress) *
+      sampleDynamicTrackValue(layer.particleTracks, 'alpha', lifeProgress, 1),
+  );
+  const rotationDeg =
+    sampleDynamicTrackValue(
+      layer.emitterTracks,
+      'rotationDeg',
+      birthProgress,
+      layer.rotationDeg ?? defaultRotationDeg,
+    ) +
+    sampleDynamicTrackValue(layer.emitterTracks, 'spinDeg', birthProgress, layer.spinDeg ?? 0) *
+      ageSeconds +
+    sampleDynamicTrackValue(layer.particleTracks, 'rotationDeg', lifeProgress, 0);
+
+  return {
+    x:
+      originX +
+      Math.cos(angleRad) * speed * travelTime +
+      0.5 * gravityX * ageSeconds * ageSeconds +
+      sampleDynamicTrackValue(layer.particleTracks, 'x', lifeProgress, 0),
+    y:
+      originY +
+      Math.sin(angleRad) * speed * travelTime +
+      0.5 * gravityY * ageSeconds * ageSeconds +
+      sampleDynamicTrackValue(layer.particleTracks, 'y', lifeProgress, 0),
+    size,
+    alpha,
+    rotationDeg,
+  };
+}
+
+function renderParticlePrimitive(layer, particle, index) {
+  const size = Math.max(1, particle.size);
+  const renderer = normalizeParticleRenderer(layer.renderer);
+
+  if (renderer === 'sprite') {
+    return renderSpriteNode(
+      layer.spriteId,
+      particle.x,
+      particle.y,
+      size,
+      size,
+      particle.alpha,
+      layer.tintColor,
+      `particle-sprite-mask-${escapeHtml(layer.id)}-${index}`,
+      particle.rotationDeg,
+    );
+  }
+
+  if (renderer === 'ring') {
+    return `
+      <circle
+        cx="${particle.x}"
+        cy="${particle.y}"
+        r="${Math.max(0.5, size / 2)}"
+        fill="transparent"
+        stroke="${escapeHtml(layer.color)}"
+        stroke-width="${Math.max(1, size * 0.12)}"
+        opacity="${particle.alpha}"
+      ></circle>
+    `;
+  }
+
+  if (renderer === 'streak') {
+    const width = size;
+    const height = Math.max(1, size * 0.28);
+    return `
+      <rect
+        x="${particle.x - width / 2}"
+        y="${particle.y - height / 2}"
+        width="${width}"
+        height="${height}"
+        rx="${height / 2}"
+        ry="${height / 2}"
+        fill="${escapeHtml(layer.color)}"
+        opacity="${particle.alpha}"
+        transform="rotate(${particle.rotationDeg} ${particle.x} ${particle.y})"
+      ></rect>
+    `;
+  }
+
+  if (renderer === 'diamond') {
+    const halfWidth = Math.max(1, size * 0.42);
+    const halfHeight = Math.max(1, size / 2);
+    const angle = (particle.rotationDeg * Math.PI) / 180;
+    const rotatePoint = (offsetX, offsetY) => ({
+      x: offsetX * Math.cos(angle) - offsetY * Math.sin(angle),
+      y: offsetX * Math.sin(angle) + offsetY * Math.cos(angle),
+    });
+    const points = [
+      rotatePoint(0, -halfHeight),
+      rotatePoint(halfWidth, 0),
+      rotatePoint(0, halfHeight),
+      rotatePoint(-halfWidth, 0),
+    ]
+      .map((point) => `${particle.x + point.x},${particle.y + point.y}`)
+      .join(' ');
+
+    return `
+      <polygon
+        points="${points}"
+        fill="${escapeHtml(layer.color)}"
+        opacity="${particle.alpha}"
+      ></polygon>
+    `;
+  }
+
+  if (renderer === 'arc') {
+    const radius = Math.max(1, size / 2);
+    const sweepDeg = 130;
+    const startAngle = particle.rotationDeg - sweepDeg / 2;
+    const endAngle = startAngle + sweepDeg;
+    const toPoint = (angleDeg) => {
+      const angle = (angleDeg * Math.PI) / 180;
+      return {
+        x: particle.x + radius * Math.cos(angle),
+        y: particle.y + radius * Math.sin(angle),
+      };
+    };
+    const start = toPoint(startAngle);
+    const end = toPoint(endAngle);
+    return `
+      <path
+        d="M ${start.x} ${start.y} A ${radius} ${radius} 0 ${sweepDeg > 180 ? 1 : 0} 1 ${end.x} ${end.y}"
+        fill="transparent"
+        stroke="${escapeHtml(layer.color)}"
+        stroke-width="${Math.max(1, size * 0.1)}"
+        stroke-linecap="round"
+        opacity="${particle.alpha}"
+      ></path>
+    `;
+  }
+
+  if (renderer === 'starburst') {
+    const innerRadius = Math.max(0.5, size * 0.21);
+    const outerRadius = Math.max(innerRadius + 0.5, size / 2);
+    const pointCount = 6;
+    const rotation = (particle.rotationDeg * Math.PI) / 180;
+    const points = Array.from({ length: pointCount * 2 }, (_, pointIndex) => {
+      const pointRadius = pointIndex % 2 === 0 ? outerRadius : innerRadius;
+      const angle = rotation + (Math.PI * pointIndex) / pointCount;
+      return `${particle.x + pointRadius * Math.cos(angle)},${particle.y + pointRadius * Math.sin(angle)}`;
+    }).join(' ');
+    return `
+      <polygon
+        points="${points}"
+        fill="${escapeHtml(layer.color)}"
+        opacity="${particle.alpha}"
+      ></polygon>
+    `;
+  }
+
+  return `
+    <circle
+      cx="${particle.x}"
+      cy="${particle.y}"
+      r="${Math.max(0.5, size / 2)}"
+      fill="${escapeHtml(layer.color)}"
+      opacity="${particle.alpha}"
+    ></circle>
+  `;
+}
+
+function renderParticleEmitter(asset, instance, layer, progress) {
+  const particleCount = Math.max(1, Math.round(layer.maxParticles));
+  let svg = '';
+
+  for (let index = 0; index < particleCount; index += 1) {
+    const particle = sampleParticleEmitterState(asset, instance, layer, progress, index);
+
+    if (particle.alpha <= 0 || particle.size <= 0.1) {
+      continue;
+    }
+
+    svg += renderParticlePrimitive(layer, particle, index);
+  }
+
+  return svg;
+}
+
 function renderMotionGuide(asset, instance) {
   const motionMode = asset.motion?.mode ?? 'fixed';
 
@@ -2957,9 +3749,20 @@ function renderStarburst(asset, instance, layer, progress) {
   `;
 }
 
-function renderSpriteNode(spriteId, x, y, width, height, opacity, tintColor = '', maskId = '') {
+function renderSpriteNode(
+  spriteId,
+  x,
+  y,
+  width,
+  height,
+  opacity,
+  tintColor = '',
+  maskId = '',
+  rotationDeg = 0,
+) {
   const href = getSpritePreviewSrc(spriteId);
   if (!href) return '';
+  const transform = `rotate(${rotationDeg} ${x} ${y})`;
 
   if (tintColor) {
     const resolvedMaskId = maskId || `sprite-mask-${Math.round(x)}-${Math.round(y)}-${Math.round(width)}-${Math.round(height)}`;
@@ -2973,6 +3776,7 @@ function renderSpriteNode(spriteId, x, y, width, height, opacity, tintColor = ''
             width="${width}"
             height="${height}"
             preserveAspectRatio="xMidYMid meet"
+            transform="${transform}"
           ></image>
         </mask>
       </defs>
@@ -2984,6 +3788,7 @@ function renderSpriteNode(spriteId, x, y, width, height, opacity, tintColor = ''
         fill="${escapeHtml(tintColor)}"
         opacity="${opacity}"
         mask="url(#${escapeHtml(resolvedMaskId)})"
+        transform="${transform}"
       ></rect>
     `;
   }
@@ -2997,6 +3802,7 @@ function renderSpriteNode(spriteId, x, y, width, height, opacity, tintColor = ''
       height="${height}"
       opacity="${opacity}"
       preserveAspectRatio="xMidYMid meet"
+      transform="${transform}"
     ></image>
   `;
 }
@@ -3181,12 +3987,15 @@ function renderEffectShapes(asset, instance, progress) {
       if (layer.type === 'arc') return renderArc(asset, instance, layer, progress);
       if (layer.type === 'starburst') return renderStarburst(asset, instance, layer, progress);
       if (layer.type === 'sprite') return renderSpriteLayer(asset, instance, layer, progress);
-      return renderTrail(asset, instance, layer, progress);
+      if (layer.type === 'particleEmitter') return renderParticleEmitter(asset, instance, layer, progress);
+      if (layer.type === 'trail') return renderTrail(asset, instance, layer, progress);
+      return '';
     })
     .join('');
 }
 
 function renderPreview() {
+  ensureCurrentPreviewSpritesLoaded();
   const backdrop = state.previewBackground;
   applyStageViewportFrame();
   const viewport = getStageViewport();
@@ -3899,6 +4708,202 @@ function renderTrailInspectorFields(layer, trailStyle) {
   `;
 }
 
+function renderParticleEmitterInspectorFields(layer) {
+  return `
+    <label class="field">
+      <span class="field-label">Render Mode</span>
+      <select class="field-select" data-layer-field="renderer">
+        ${PARTICLE_RENDER_OPTIONS.map(
+          (option) => `
+          <option value="${option.value}" ${layer.renderer === option.value ? 'selected' : ''}>${escapeHtml(option.label)}</option>
+        `,
+        ).join('')}
+      </select>
+    </label>
+
+    ${
+      layer.renderer === 'sprite'
+        ? renderSpriteField({
+            label: 'Particle Sprite',
+            value: layer.spriteId,
+            field: 'spriteId',
+            datasetName: 'layer-field',
+          })
+        : renderColorField({
+            label: 'Particle Color',
+            value: layer.color,
+            field: 'color',
+            datasetName: 'layer-field',
+            fallback: '#ffffff',
+          })
+    }
+
+    ${
+      layer.renderer === 'sprite'
+        ? renderTintField({
+            value: layer.tintColor ?? '',
+            field: 'tintColor',
+            datasetName: 'layer-field',
+          })
+        : ''
+    }
+
+    <div class="field-grid two-up">
+      <label class="field">
+        <span class="field-label">Max Particles</span>
+        <input class="field-input" type="number" step="1" min="1" value="${layer.maxParticles}" data-layer-field="maxParticles" />
+      </label>
+
+      <label class="field">
+        <span class="field-label">Emission Rate</span>
+        <input class="field-input" type="number" step="0.1" min="0" value="${layer.emissionRate}" data-layer-field="emissionRate" />
+      </label>
+
+      <label class="field">
+        <span class="field-label">Burst Count</span>
+        <input class="field-input" type="number" step="1" min="0" value="${layer.burstCount ?? ''}" data-layer-field="burstCount" />
+      </label>
+
+      <label class="field">
+        <span class="field-label">Lifetime (ms)</span>
+        <input class="field-input" type="number" step="1" min="1" value="${layer.particleLifetimeMs}" data-layer-field="particleLifetimeMs" />
+      </label>
+
+      <label class="field">
+        <span class="field-label">Speed</span>
+        <input class="field-input" type="number" step="0.1" value="${layer.speed}" data-layer-field="speed" />
+      </label>
+
+      <label class="field">
+        <span class="field-label">Speed Jitter</span>
+        <input class="field-input" type="number" step="0.1" value="${layer.speedJitter ?? ''}" data-layer-field="speedJitter" />
+      </label>
+
+      <label class="field">
+        <span class="field-label">Spread Degrees</span>
+        <input class="field-input" type="number" step="1" value="${layer.spreadDeg}" data-layer-field="spreadDeg" />
+      </label>
+
+      <label class="field">
+        <span class="field-label">Direction</span>
+        <input class="field-input" type="number" step="1" value="${layer.directionDeg ?? ''}" data-layer-field="directionDeg" />
+      </label>
+
+      <label class="field">
+        <span class="field-label">Start Size</span>
+        <input class="field-input" type="number" step="0.1" value="${layer.startSize}" data-layer-field="startSize" />
+      </label>
+
+      <label class="field">
+        <span class="field-label">End Size</span>
+        <input class="field-input" type="number" step="0.1" value="${layer.endSize ?? ''}" data-layer-field="endSize" />
+      </label>
+
+      <label class="field">
+        <span class="field-label">Start Alpha</span>
+        <input class="field-input" type="number" step="0.05" value="${layer.startAlpha ?? ''}" data-layer-field="startAlpha" />
+      </label>
+
+      <label class="field">
+        <span class="field-label">End Alpha</span>
+        <input class="field-input" type="number" step="0.05" value="${layer.endAlpha ?? ''}" data-layer-field="endAlpha" />
+      </label>
+
+      <label class="field">
+        <span class="field-label">Gravity X</span>
+        <input class="field-input" type="number" step="0.1" value="${layer.gravityX ?? ''}" data-layer-field="gravityX" />
+      </label>
+
+      <label class="field">
+        <span class="field-label">Gravity Y</span>
+        <input class="field-input" type="number" step="0.1" value="${layer.gravityY ?? ''}" data-layer-field="gravityY" />
+      </label>
+
+      <label class="field">
+        <span class="field-label">Drag</span>
+        <input class="field-input" type="number" step="0.01" value="${layer.drag ?? ''}" data-layer-field="drag" />
+      </label>
+
+      <label class="field">
+        <span class="field-label">Rotation</span>
+        <input class="field-input" type="number" step="1" value="${layer.rotationDeg ?? ''}" data-layer-field="rotationDeg" />
+      </label>
+
+      <label class="field">
+        <span class="field-label">Spin Degrees</span>
+        <input class="field-input" type="number" step="1" value="${layer.spinDeg ?? ''}" data-layer-field="spinDeg" />
+      </label>
+    </div>
+
+    ${renderJsonTextareaField({
+      label: 'Emitter Tracks JSON',
+      value: layer.emitterTracks,
+      field: 'emitterTracks',
+      note: 'Optional keyframe map for emitter params like emissionRate, burstCount, spreadDeg, or speed.',
+    })}
+
+    ${renderJsonTextareaField({
+      label: 'Particle Tracks JSON',
+      value: layer.particleTracks,
+      field: 'particleTracks',
+      note: 'Optional keyframe map for particle properties like size, alpha, speed, drag, or spin.',
+    })}
+
+    <p class="section-note">First-pass emitter preview is live in the editor and native Skia runtime. Shader layers are still schema-only.</p>
+  `;
+}
+
+function renderShaderLayerInspectorFields(layer) {
+  return `
+    <label class="field">
+      <span class="field-label">Shader ID</span>
+      <input class="field-input" type="text" value="${escapeHtml(layer.shaderId)}" data-layer-field="shaderId" />
+    </label>
+
+    <label class="field">
+      <span class="field-label">Target</span>
+      <select class="field-select" data-layer-field="target">
+        <option value="screen" ${layer.target === 'screen' ? 'selected' : ''}>Screen</option>
+        <option value="layer" ${layer.target === 'layer' ? 'selected' : ''}>Layer</option>
+        <option value="sprite" ${layer.target === 'sprite' ? 'selected' : ''}>Sprite</option>
+      </select>
+    </label>
+
+    <div class="field-grid two-up">
+      <label class="field">
+        <span class="field-label">Width</span>
+        <input class="field-input" type="number" step="1" min="1" value="${layer.width ?? ''}" data-layer-field="width" />
+      </label>
+
+      <label class="field">
+        <span class="field-label">Height</span>
+        <input class="field-input" type="number" step="1" min="1" value="${layer.height ?? ''}" data-layer-field="height" />
+      </label>
+    </div>
+
+    <label class="field">
+      <span class="field-label">Blend Mode</span>
+      <input class="field-input" type="text" value="${escapeHtml(layer.blendMode ?? '')}" placeholder="screen, multiply, srcOver..." data-layer-field="blendMode" />
+    </label>
+
+    ${renderJsonTextareaField({
+      label: 'Uniforms JSON',
+      value: layer.uniforms,
+      field: 'uniforms',
+      note: 'Scalar or numeric array uniforms, for example {"progress":0.25,"edgeColor":[1,0.4,0.1,1]}.',
+    })}
+
+    ${renderJsonTextareaField({
+      label: 'Uniform Tracks JSON',
+      value: layer.uniformTracks,
+      field: 'uniformTracks',
+      note: 'Optional keyframe map for uniforms like progress, edgeWidth, noiseScale, or distortion.',
+    })}
+
+    <p class="section-note">Shader layers are schema-only for now. They export cleanly, but preview/runtime rendering is still a no-op.</p>
+  `;
+}
+
 function renderLayerInspector() {
   const layer = getSelectedLayer();
 
@@ -3941,7 +4946,7 @@ function renderLayerInspector() {
         </label>
 
         ${
-          layer.type === 'trail'
+          layer.type === 'trail' || layer.type === 'particleEmitter' || layer.type === 'shaderLayer'
             ? ''
             : layer.type === 'sprite'
             ? renderSpriteField({
@@ -4050,6 +5055,10 @@ function renderLayerInspector() {
             </label>
           </div>
         `
+                  : layer.type === 'particleEmitter'
+                    ? renderParticleEmitterInspectorFields(layer)
+                  : layer.type === 'shaderLayer'
+                    ? renderShaderLayerInspectorFields(layer)
                 : layer.type === 'trail'
                   ? renderTrailInspectorFields(layer, trailStyle)
             : `
@@ -4601,6 +5610,43 @@ function createLayer(type) {
     };
   }
 
+  if (type === 'particleEmitter') {
+    return {
+      id,
+      type: 'particleEmitter',
+      renderer: 'orb',
+      color: '#fff1c9',
+      maxParticles: 36,
+      emissionRate: 18,
+      particleLifetimeMs: 420,
+      speed: 120,
+      spreadDeg: 45,
+      startSize: 18,
+      tracks: {
+        alpha: [{ at: 0, value: 1 }],
+        x: [{ at: 0, value: 0 }],
+        y: [{ at: 0, value: 0 }],
+      },
+    };
+  }
+
+  if (type === 'shaderLayer') {
+    return {
+      id,
+      type: 'shaderLayer',
+      shaderId: 'ui-dissolve',
+      target: 'screen',
+      uniforms: {
+        progress: 0,
+      },
+      tracks: {
+        alpha: [{ at: 0, value: 1 }],
+        x: [{ at: 0, value: 0 }],
+        y: [{ at: 0, value: 0 }],
+      },
+    };
+  }
+
   return {
     id,
     type: 'trail',
@@ -4706,6 +5752,50 @@ function createConvertedLayer(sourceLayer, nextType) {
       sourceLayer.height ??
       (sourceLayer.radius ? sourceLayer.radius * 2 : undefined) ??
       converted.height;
+    return converted;
+  }
+
+  if (nextType === 'particleEmitter') {
+    converted.renderer = getParticleRendererForLayer(sourceLayer);
+    converted.color = sourceLayer.color ?? sourceLayer.tintColor ?? converted.color;
+    converted.spriteId = sourceLayer.spriteId ?? getDefaultSpriteId();
+    converted.tintColor = sourceLayer.tintColor ?? sourceLayer.color ?? converted.tintColor;
+    converted.speed =
+      sourceLayer.speed ??
+      sourceLayer.motionSpeed ??
+      (sourceLayer.radius ? sourceLayer.radius * 8 : undefined) ??
+      converted.speed;
+    converted.startSize =
+      sourceLayer.startSize ??
+      sourceLayer.radius ??
+      sourceLayer.outerRadius ??
+      converted.startSize;
+    converted.endSize =
+      sourceLayer.endSize ??
+      sourceLayer.innerRadius ??
+      converted.endSize;
+    converted.rotationDeg = sourceLayer.rotationDeg ?? converted.rotationDeg;
+    converted.emitterTracks = cloneData(sourceLayer.emitterTracks ?? converted.emitterTracks);
+    converted.particleTracks = cloneData(sourceLayer.particleTracks ?? converted.particleTracks);
+    return converted;
+  }
+
+  if (nextType === 'shaderLayer') {
+    converted.shaderId = sourceLayer.shaderId ?? converted.shaderId;
+    converted.target =
+      sourceLayer.target ??
+      (sourceLayer.type === 'sprite' || sourceLayer.spriteId ? 'sprite' : 'screen');
+    converted.width =
+      sourceLayer.width ??
+      (sourceLayer.radius ? sourceLayer.radius * 2 : undefined) ??
+      converted.width;
+    converted.height =
+      sourceLayer.height ??
+      (sourceLayer.radius ? sourceLayer.radius * 2 : undefined) ??
+      converted.height;
+    converted.uniforms = cloneData(sourceLayer.uniforms ?? converted.uniforms);
+    converted.uniformTracks = cloneData(sourceLayer.uniformTracks ?? converted.uniformTracks);
+    return converted;
   }
 
   return converted;
@@ -4800,13 +5890,47 @@ function updateSelectedLayerField(field, rawValue, fromColorPicker = false) {
 
   layer = nextAsset.layers[layerIndex];
 
-  if (['radius', 'glowScale', 'thickness', 'spacing', 'falloff', 'width', 'height', 'rotationDeg', 'sweepDeg', 'innerRadius', 'outerRadius'].includes(field)) {
+  if (
+    [
+      'radius',
+      'glowScale',
+      'thickness',
+      'spacing',
+      'falloff',
+      'width',
+      'height',
+      'rotationDeg',
+      'sweepDeg',
+      'innerRadius',
+      'outerRadius',
+      'emissionRate',
+      'particleLifetimeMs',
+      'speed',
+      'speedJitter',
+      'spreadDeg',
+      'directionDeg',
+      'startSize',
+      'endSize',
+      'startAlpha',
+      'endAlpha',
+      'gravityX',
+      'gravityY',
+      'drag',
+      'spinDeg',
+    ].includes(field)
+  ) {
     if (rawValue === '') {
       delete layer[field];
     } else {
       layer[field] = Number(rawValue);
     }
-  } else if (field === 'segments' || field === 'points') {
+  } else if (field === 'burstCount') {
+    if (rawValue === '') {
+      delete layer.burstCount;
+    } else {
+      layer.burstCount = Math.max(0, Math.round(Number(rawValue) || 0));
+    }
+  } else if (field === 'segments' || field === 'points' || field === 'maxParticles') {
     layer[field] = Math.max(field === 'points' ? 3 : 1, Math.round(Number(rawValue) || 1));
   } else if (field === 'color' || field === 'glowColor' || field === 'tintColor') {
     const currentValue =
@@ -4815,6 +5939,8 @@ function updateSelectedLayerField(field, rawValue, fromColorPicker = false) {
   } else if (field === 'style') {
     layer.style = rawValue;
     applyTrailStyleDefaults(layer);
+  } else if (field === 'renderer') {
+    layer.renderer = normalizeParticleRenderer(rawValue);
   } else if (field === 'spriteId') {
     layer.spriteId = hasSpriteDefinition(rawValue) ? rawValue : getDefaultSpriteId();
   } else {
@@ -4828,7 +5954,7 @@ function updateSelectedLayerField(field, rawValue, fromColorPicker = false) {
     return;
   }
 
-  if (field === 'style' || field === 'spriteId') {
+  if (field === 'style' || field === 'spriteId' || field === 'renderer' || field === 'target') {
     commitAsset(nextAsset, { renderPanels: true });
     return;
   }
@@ -4838,6 +5964,52 @@ function updateSelectedLayerField(field, rawValue, fromColorPicker = false) {
   if (field === 'color') {
     renderLayersPanel();
   }
+}
+
+function updateSelectedLayerJsonField(field, rawValue) {
+  pushUndoCheckpoint();
+  const layerIndex = getSelectedLayerIndex();
+  if (layerIndex < 0) return;
+
+  const nextAsset = cloneData(state.asset);
+  const layer = nextAsset.layers[layerIndex];
+  const trimmedValue = rawValue.trim();
+
+  if (!trimmedValue) {
+    delete layer[field];
+    commitAsset(nextAsset, { renderPanels: true });
+    setSaveStatus(`Cleared ${field} on ${layer.id}.`, 'info');
+    return;
+  }
+
+  let parsedValue;
+  try {
+    parsedValue = JSON.parse(trimmedValue);
+  } catch (error) {
+    setSaveStatus(`Invalid JSON for ${field}: ${error.message}`, 'error');
+    return;
+  }
+
+  if (field === 'uniforms') {
+    const normalized = normalizeUniformMap(parsedValue);
+    if (!normalized) {
+      setSaveStatus(`Uniforms JSON must be an object of numbers or numeric arrays.`, 'error');
+      return;
+    }
+    layer.uniforms = normalized;
+  } else if (field === 'emitterTracks' || field === 'particleTracks' || field === 'uniformTracks') {
+    const normalized = normalizeLooseTrackMap(parsedValue);
+    if (!normalized) {
+      setSaveStatus(`Track JSON for ${field} must be an object of keyframe arrays.`, 'error');
+      return;
+    }
+    layer[field] = normalized;
+  } else {
+    layer[field] = parsedValue;
+  }
+
+  commitAsset(nextAsset, { renderPanels: true });
+  setSaveStatus(`Updated ${field} on ${layer.id}.`, 'success');
 }
 
 function getCurveTrack(scope, trackName) {
@@ -5363,13 +6535,42 @@ async function writeEffectToHandle(handle, suggestedFileName = '') {
   state.fileName = handle.name || suggestedFileName || state.fileName || `${state.asset.id || 'effect'}.json`;
   renderPanels();
   await rememberRecentFile(handle, state.fileName);
+
+  if (state.repoRootHandle) {
+    try {
+      const entries = await regenerateEffectRegistry(state.repoRootHandle);
+      return {
+        registryUpdated: entries.some((entry) => entry.id === state.asset.id),
+        registryError: null,
+      };
+    } catch (error) {
+      return {
+        registryUpdated: null,
+        registryError: error.message,
+      };
+    }
+  }
+
+  return {
+    registryUpdated: null,
+    registryError: null,
+  };
 }
 
 async function saveToAttachedFile() {
   try {
     if (state.fileHandle && 'createWritable' in state.fileHandle) {
-      await writeEffectToHandle(state.fileHandle, state.fileName);
-      setSaveStatus(`Saved directly to ${state.fileName}.`, 'success');
+      const result = await writeEffectToHandle(state.fileHandle, state.fileName);
+      setSaveStatus(
+        result.registryError
+          ? `Saved ${state.fileName}, but could not refresh effectRegistry.ts: ${result.registryError}`
+          : result.registryUpdated === false
+          ? `Saved ${state.fileName}, but it is not inside src/features/vfx/assets/effects so effectRegistry.ts was not updated.`
+          : result.registryUpdated
+            ? `Saved ${state.fileName} and refreshed effectRegistry.ts.`
+            : `Saved directly to ${state.fileName}.`,
+        result.registryError || result.registryUpdated === false ? 'info' : 'success',
+      );
       return;
     }
 
@@ -5393,8 +6594,17 @@ async function saveAsFile() {
         ],
       });
 
-      await writeEffectToHandle(handle, `${state.asset.id || 'effect'}.json`);
-      setSaveStatus(`Saved directly to ${state.fileName}.`, 'success');
+      const result = await writeEffectToHandle(handle, `${state.asset.id || 'effect'}.json`);
+      setSaveStatus(
+        result.registryError
+          ? `Saved ${state.fileName}, but could not refresh effectRegistry.ts: ${result.registryError}`
+          : result.registryUpdated === false
+          ? `Saved ${state.fileName}, but it is not inside src/features/vfx/assets/effects so effectRegistry.ts was not updated.`
+          : result.registryUpdated
+            ? `Saved ${state.fileName} and refreshed effectRegistry.ts.`
+            : `Saved directly to ${state.fileName}.`,
+        result.registryError || result.registryUpdated === false ? 'info' : 'success',
+      );
       return;
     }
 
@@ -5475,13 +6685,42 @@ async function writeSequenceToHandle(handle, suggestedFileName = '') {
   renderSequenceTimelinePanel();
   renderPreview();
   schedulePersistEditorSession();
+
+  if (state.repoRootHandle) {
+    try {
+      const entries = await regenerateSequenceRegistry(state.repoRootHandle);
+      return {
+        registryUpdated: entries.some((entry) => entry.id === normalizedSequence.id),
+        registryError: null,
+      };
+    } catch (error) {
+      return {
+        registryUpdated: null,
+        registryError: error.message,
+      };
+    }
+  }
+
+  return {
+    registryUpdated: null,
+    registryError: null,
+  };
 }
 
 async function saveSequenceToAttachedFile() {
   try {
     if (state.sequenceFileHandle && 'createWritable' in state.sequenceFileHandle) {
-      await writeSequenceToHandle(state.sequenceFileHandle, state.sequenceFileName);
-      setSaveStatus(`Saved sequence to ${state.sequenceFileName}.`, 'success');
+      const result = await writeSequenceToHandle(state.sequenceFileHandle, state.sequenceFileName);
+      setSaveStatus(
+        result.registryError
+          ? `Saved sequence ${state.sequenceFileName}, but could not refresh sequenceRegistry.ts: ${result.registryError}`
+          : result.registryUpdated === false
+          ? `Saved sequence ${state.sequenceFileName}, but it is not inside src/features/vfx/assets/sequences so sequenceRegistry.ts was not updated.`
+          : result.registryUpdated
+            ? `Saved sequence ${state.sequenceFileName} and refreshed sequenceRegistry.ts.`
+            : `Saved sequence to ${state.sequenceFileName}.`,
+        result.registryError || result.registryUpdated === false ? 'info' : 'success',
+      );
       return;
     }
 
@@ -5511,8 +6750,17 @@ async function saveSequenceAsFile() {
       ],
     });
 
-    await writeSequenceToHandle(handle, suggestedName);
-    setSaveStatus(`Saved sequence to ${state.sequenceFileName}.`, 'success');
+    const result = await writeSequenceToHandle(handle, suggestedName);
+    setSaveStatus(
+      result.registryError
+        ? `Saved sequence ${state.sequenceFileName}, but could not refresh sequenceRegistry.ts: ${result.registryError}`
+        : result.registryUpdated === false
+        ? `Saved sequence ${state.sequenceFileName}, but it is not inside src/features/vfx/assets/sequences so sequenceRegistry.ts was not updated.`
+        : result.registryUpdated
+          ? `Saved sequence ${state.sequenceFileName} and refreshed sequenceRegistry.ts.`
+          : `Saved sequence to ${state.sequenceFileName}.`,
+      result.registryError || result.registryUpdated === false ? 'info' : 'success',
+    );
   } catch (error) {
     if (error?.name === 'AbortError') return;
     setSaveStatus(`Could not save sequence: ${error.message}`, 'error');
@@ -5707,7 +6955,15 @@ function handleLayersPanelInput(event) {
 
 function handleLayerInspectorInput(event) {
   const target = event.target;
-  if (!(target instanceof HTMLInputElement || target instanceof HTMLSelectElement)) return;
+  if (
+    !(
+      target instanceof HTMLInputElement ||
+      target instanceof HTMLSelectElement ||
+      target instanceof HTMLTextAreaElement
+    )
+  ) {
+    return;
+  }
 
   if (target.dataset.curvePresetSelect === 'true') {
     if (target.value) {
@@ -5725,6 +6981,14 @@ function handleLayerInspectorInput(event) {
       target.value,
       target.dataset.colorPicker === 'true',
     );
+    return;
+  }
+
+  if (target.dataset.layerJsonField) {
+    if (event.type !== 'change') {
+      return;
+    }
+    updateSelectedLayerJsonField(target.dataset.layerJsonField, target.value);
     return;
   }
 
@@ -6337,6 +7601,12 @@ function animationLoop(timestamp) {
   }
 
   if (state.playing) {
+    if (!state.previewSpritesReady) {
+      state.lastFrameTime = timestamp;
+      window.requestAnimationFrame(animationLoop);
+      return;
+    }
+
     const deltaMs = timestamp - state.lastFrameTime;
     const durationMs = getActivePreviewDurationMs();
     let nextProgress = state.progress + deltaMs / durationMs;

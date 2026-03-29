@@ -1,6 +1,8 @@
 import type { ImageSourcePropType } from 'react-native';
 import demoCoreSprite from '@/features/vfx/assets/sprites/demo-core.png';
 import demoSigilSprite from '@/features/vfx/assets/sprites/demo-sigil.png';
+import tVfxFirerockSprite from '@/features/vfx/assets/sprites/t-vfx-firerock.png';
+import tVfxParticleDefaultSprite from '@/features/vfx/assets/sprites/t-vfx-particle-default.png';
 import tVfxParticleStarSprite from '@/features/vfx/assets/sprites/t-vfx-particle-star.png';
 
 export type VfxSpriteDefinition = {
@@ -22,6 +24,18 @@ const vfxSprites: VfxSpriteDefinition[] = [
     label: 'Demo Sigil',
     source: demoSigilSprite,
     editorSrc: '../../src/features/vfx/assets/sprites/demo-sigil.png',
+  },
+  {
+    id: 't-vfx-firerock',
+    label: 'T Vfx Firerock',
+    source: tVfxFirerockSprite,
+    editorSrc: '../../src/features/vfx/assets/sprites/t-vfx-firerock.png',
+  },
+  {
+    id: 't-vfx-particle-default',
+    label: 'T Vfx Particle Default',
+    source: tVfxParticleDefaultSprite,
+    editorSrc: '../../src/features/vfx/assets/sprites/t-vfx-particle-default.png',
   },
   {
     id: 't-vfx-particle-star',

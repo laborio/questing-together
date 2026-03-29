@@ -4,6 +4,7 @@ export type PlayEffectOptions = {
   targetX?: number;
   targetY?: number;
   durationMsOverride?: number;
+  loopOverride?: boolean;
 };
 
 export type EffectInstance = PlayEffectOptions & {

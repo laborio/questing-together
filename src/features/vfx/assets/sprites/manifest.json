@@ -11,6 +11,16 @@
       "filename": "demo-sigil.png"
     },
     {
+      "id": "t-vfx-firerock",
+      "label": "T Vfx Firerock",
+      "filename": "t-vfx-firerock.png"
+    },
+    {
+      "id": "t-vfx-particle-default",
+      "label": "T Vfx Particle Default",
+      "filename": "t-vfx-particle-default.png"
+    },
+    {
       "id": "t-vfx-particle-star",
       "label": "T Vfx Particle Star",
       "filename": "t-vfx-particle-star.png"

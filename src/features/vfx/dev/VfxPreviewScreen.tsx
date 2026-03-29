@@ -1,21 +1,38 @@
+import { type SkImage, useImage } from '@shopify/react-native-skia';
 import { useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { type LayoutChangeEvent, PanResponder, StyleSheet, View } from 'react-native';
-import { Button, Card, ContentContainer, ScreenContainer, Stack, Typography } from '@/components';
+import {
+  Button,
+  Card,
+  ContentContainer,
+  ScreenContainer,
+  Select,
+  Stack,
+  Typography,
+} from '@/components';
 import { colors } from '@/constants/colors';
 import EffectPlayer from '@/features/vfx/player/EffectPlayer';
 import { createEffectInstance } from '@/features/vfx/runtime/createEffectInstance';
-import { getEffectAsset } from '@/features/vfx/runtime/effectRegistry';
+import { getEffectAsset, listEffectAssets } from '@/features/vfx/runtime/effectRegistry';
 import { playEffectSequence } from '@/features/vfx/runtime/playEffectSequence';
+import {
+  collectEffectSpriteIds,
+  preloadEffectSprites,
+} from '@/features/vfx/runtime/preloadEffectSprites';
+import { listEffectSequences } from '@/features/vfx/runtime/sequenceRegistry';
+import { getVfxSpriteSource } from '@/features/vfx/runtime/spriteRegistry';
 import type { EffectInstance } from '@/features/vfx/types/runtime';
 
 type AnchorKey = 'caster' | 'target';
 type Point = { x: number; y: number };
+type PreviewMode = 'sequence' | 'effect';
 
 type VfxPreviewScreenProps = {
-  sequenceId: string;
+  sequenceId?: string;
   travelAssetId?: string;
   impactAssetId?: string;
+  effectId?: string;
   title?: string;
   description?: string;
 };
@@ -24,17 +41,80 @@ function clamp(value: number, min: number, max: number) {
   return Math.max(min, Math.min(max, value));
 }
 
+function resolveSkiaSpriteSource(spriteId: string) {
+  const source = getVfxSpriteSource(spriteId);
+
+  if (!source) {
+    return null;
+  }
+
+  if (typeof source === 'number' || typeof source === 'string') {
+    return source;
+  }
+
+  if (Array.isArray(source)) {
+    const first = source[0];
+    if (!first) return null;
+    return typeof first === 'number' ? first : (first.uri ?? null);
+  }
+
+  return null;
+}
+
+type SpriteWarmupImageProps = {
+  spriteId: string;
+  onResolved: (spriteId: string, image: SkImage | null) => void;
+};
+
+const SpriteWarmupImage = ({ spriteId, onResolved }: SpriteWarmupImageProps) => {
+  const source = useMemo(() => resolveSkiaSpriteSource(spriteId), [spriteId]);
+  const image = useImage(source);
+
+  useEffect(() => {
+    onResolved(spriteId, image);
+  }, [image, onResolved, spriteId]);
+
+  return null;
+};
+
 const VfxPreviewScreen = ({
   sequenceId,
   travelAssetId,
   impactAssetId,
+  effectId,
   title = 'VFX Playground',
-  description = 'Drag the caster and target anchors, then preview the full cast sequence or its individual cues directly in the stage.',
+  description = 'Drag the caster and target anchors, then preview either a full sequence or a single effect directly in the stage.',
 }: VfxPreviewScreenProps) => {
   const router = useRouter();
   const stageRef = useRef<View>(null);
   const timeoutIdsRef = useRef<ReturnType<typeof setTimeout>[]>([]);
   const stageBoundsRef = useRef({ x: 0, y: 0, width: 0, height: 0 });
+  const effectOptions = useMemo(
+    () =>
+      listEffectAssets().map((asset) => ({
+        value: asset.id,
+        label: `${asset.label} (${asset.id})`,
+      })),
+    [],
+  );
+  const sequenceOptions = useMemo(
+    () =>
+      listEffectSequences().map((sequence) => ({
+        value: sequence.id,
+        label: `${sequence.label} (${sequence.id})`,
+      })),
+    [],
+  );
+  const defaultEffectId =
+    effectId ?? travelAssetId ?? impactAssetId ?? effectOptions[0]?.value ?? '';
+  const defaultSequenceId = sequenceId ?? sequenceOptions[0]?.value ?? '';
+  const [previewMode, setPreviewMode] = useState<PreviewMode>(
+    defaultSequenceId ? 'sequence' : 'effect',
+  );
+  const [selectedEffectId, setSelectedEffectId] = useState(defaultEffectId);
+  const [selectedSequenceId, setSelectedSequenceId] = useState(defaultSequenceId);
+  const [spriteImageCache, setSpriteImageCache] = useState<Partial<Record<string, SkImage>>>({});
+  const [selectionReady, setSelectionReady] = useState(true);
   const [instances, setInstances] = useState<EffectInstance[]>([]);
   const [stageReady, setStageReady] = useState(false);
   const [anchors, setAnchors] = useState<{ caster: Point; target: Point }>({
@@ -135,74 +215,48 @@ const VfxPreviewScreen = ({
   }, []);
 
   const handlePlaySequence = useCallback(() => {
+    if (!selectedSequenceId) {
+      return;
+    }
+
     resetPreviewPlayback();
-    const durationMs = playEffectSequence({
-      sequenceId,
+    playEffectSequence({
+      sequenceId: selectedSequenceId,
       caster: anchors.caster,
       target: anchors.target,
       playEffect: playLocalEffect,
       onTimeout: queueLocalTimeout,
     });
-    queueLocalTimeout(() => {
-      setInstances([]);
-    }, durationMs + 120);
   }, [
     anchors.caster,
     anchors.target,
     playLocalEffect,
     queueLocalTimeout,
     resetPreviewPlayback,
-    sequenceId,
+    selectedSequenceId,
   ]);
 
-  const handleTravelOnly = useCallback(() => {
-    if (!travelAssetId) {
+  const handlePlayEffect = useCallback(() => {
+    if (!selectedEffectId) {
       return;
     }
 
     resetPreviewPlayback();
-    playLocalEffect(travelAssetId, {
+    playLocalEffect(selectedEffectId, {
       x: anchors.caster.x,
       y: anchors.caster.y,
       targetX: anchors.target.x,
       targetY: anchors.target.y,
+      loopOverride: false,
     });
-    const durationMs = getEffectAsset(travelAssetId)?.durationMs ?? 0;
-    queueLocalTimeout(() => {
-      setInstances([]);
-    }, durationMs + 120);
   }, [
     anchors.caster.x,
     anchors.caster.y,
     anchors.target.x,
     anchors.target.y,
     playLocalEffect,
-    queueLocalTimeout,
     resetPreviewPlayback,
-    travelAssetId,
-  ]);
-
-  const handleImpactOnly = useCallback(() => {
-    if (!impactAssetId) {
-      return;
-    }
-
-    resetPreviewPlayback();
-    playLocalEffect(impactAssetId, {
-      x: anchors.target.x,
-      y: anchors.target.y,
-    });
-    const durationMs = getEffectAsset(impactAssetId)?.durationMs ?? 0;
-    queueLocalTimeout(() => {
-      setInstances([]);
-    }, durationMs + 120);
-  }, [
-    anchors.target.x,
-    anchors.target.y,
-    impactAssetId,
-    playLocalEffect,
-    queueLocalTimeout,
-    resetPreviewPlayback,
+    selectedEffectId,
   ]);
 
   const casterPanResponder = useMemo(
@@ -239,6 +293,93 @@ const VfxPreviewScreen = ({
     [refreshStageBounds, updateAnchorFromPage],
   );
 
+  const selectedEffect = useMemo(
+    () => (selectedEffectId ? getEffectAsset(selectedEffectId) : null),
+    [selectedEffectId],
+  );
+  const selectedSequence = useMemo(
+    () => listEffectSequences().find((sequence) => sequence.id === selectedSequenceId) ?? null,
+    [selectedSequenceId],
+  );
+  const selectedSpriteIds = useMemo(() => {
+    const assets =
+      previewMode === 'sequence'
+        ? (selectedSequence?.cues
+            .map((cue) => getEffectAsset(cue.assetId))
+            .filter((asset) => asset != null) ?? [])
+        : selectedEffect
+          ? [selectedEffect]
+          : [];
+
+    return [...new Set(assets.flatMap((asset) => collectEffectSpriteIds(asset)))];
+  }, [previewMode, selectedEffect, selectedSequence]);
+  const canPlaySequence =
+    previewMode === 'sequence' && Boolean(selectedSequenceId) && selectionReady;
+  const canPlayEffect = previewMode === 'effect' && Boolean(selectedEffectId) && selectionReady;
+
+  useEffect(() => {
+    let cancelled = false;
+    if (selectedSpriteIds.length === 0) {
+      setSelectionReady(true);
+      return;
+    }
+
+    setSelectionReady(false);
+    const unresolvedSpriteIds = selectedSpriteIds.filter((spriteId) => !spriteImageCache[spriteId]);
+    if (unresolvedSpriteIds.length === 0) {
+      setSelectionReady(true);
+      return;
+    }
+
+    const assetsToWarm =
+      previewMode === 'sequence'
+        ? (selectedSequence?.cues
+            .map((cue) => getEffectAsset(cue.assetId))
+            .filter((asset) => asset != null) ?? [])
+        : selectedEffect
+          ? [selectedEffect]
+          : [];
+
+    void preloadEffectSprites(assetsToWarm).then(() => {
+      if (!cancelled) {
+        const stillUnresolved = unresolvedSpriteIds.some((spriteId) => !spriteImageCache[spriteId]);
+        if (!stillUnresolved) {
+          setSelectionReady(true);
+        }
+      }
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [previewMode, selectedEffect, selectedSequence, selectedSpriteIds, spriteImageCache]);
+
+  useEffect(() => {
+    if (selectedSpriteIds.length === 0) {
+      setSelectionReady(true);
+      return;
+    }
+
+    setSelectionReady(selectedSpriteIds.every((spriteId) => Boolean(spriteImageCache[spriteId])));
+  }, [selectedSpriteIds, spriteImageCache]);
+
+  const handleSpriteResolved = useCallback((spriteId: string, image: SkImage | null) => {
+    if (!image) {
+      return;
+    }
+
+    setSpriteImageCache((current) => {
+      if (current[spriteId] === image) {
+        return current;
+      }
+
+      return {
+        ...current,
+        [spriteId]: image,
+      };
+    });
+  }, []);
+
   return (
     <ScreenContainer>
       <ContentContainer style={{ justifyContent: 'center', maxWidth: 520, flex: 1 }}>
@@ -250,6 +391,61 @@ const VfxPreviewScreen = ({
 
           <Card backgroundColor={colors.backgroundOverlayPanel} borderColor={colors.borderOverlay}>
             <Stack gap={12}>
+              <Stack gap={6}>
+                <Typography variant="body" style={{ color: colors.textSecondary }}>
+                  Preview Mode
+                </Typography>
+                <Select
+                  value={previewMode}
+                  options={[
+                    { value: 'sequence', label: 'Sequence' },
+                    { value: 'effect', label: 'Single Effect' },
+                  ]}
+                  onSelect={(value) => setPreviewMode(value)}
+                />
+              </Stack>
+
+              {previewMode === 'sequence' ? (
+                <Stack gap={6}>
+                  <Typography variant="body" style={{ color: colors.textSecondary }}>
+                    Sequence
+                  </Typography>
+                  <Select
+                    value={selectedSequenceId}
+                    options={sequenceOptions}
+                    disabled={sequenceOptions.length === 0}
+                    onSelect={setSelectedSequenceId}
+                  />
+                  {selectedSequence ? (
+                    <Typography variant="caption" style={{ color: colors.textSecondary }}>
+                      {selectedSequence.cues.length} cue
+                      {selectedSequence.cues.length === 1 ? '' : 's'}
+                    </Typography>
+                  ) : null}
+                </Stack>
+              ) : (
+                <Stack gap={6}>
+                  <Typography variant="body" style={{ color: colors.textSecondary }}>
+                    Effect
+                  </Typography>
+                  <Select
+                    value={selectedEffectId}
+                    options={effectOptions}
+                    disabled={effectOptions.length === 0}
+                    onSelect={setSelectedEffectId}
+                  />
+                  {selectedEffect ? (
+                    <Typography variant="caption" style={{ color: colors.textSecondary }}>
+                      Duration: {selectedEffect.durationMs} ms
+                    </Typography>
+                  ) : null}
+                </Stack>
+              )}
+            </Stack>
+          </Card>
+
+          <Card backgroundColor={colors.backgroundOverlayPanel} borderColor={colors.borderOverlay}>
+            <Stack gap={12}>
               <View ref={stageRef} onLayout={handleStageLayout} style={styles.stage}>
                 <View pointerEvents="none" style={styles.stageEffects}>
                   {instances.map((instance) => (
@@ -257,6 +453,7 @@ const VfxPreviewScreen = ({
                       key={instance.instanceId}
                       instance={instance}
                       onComplete={handleComplete}
+                      spriteImageCache={spriteImageCache}
                     />
                   ))}
                 </View>
@@ -330,32 +527,27 @@ const VfxPreviewScreen = ({
           <Stack gap={12}>
             <Stack direction="row" gap={12}>
               <Button
-                label="Cast Sequence"
+                label={
+                  selectionReady
+                    ? previewMode === 'sequence'
+                      ? 'Play Sequence'
+                      : 'Play Effect'
+                    : 'Preparing...'
+                }
                 size="md"
-                onPress={handlePlaySequence}
+                disabled={previewMode === 'sequence' ? !canPlaySequence : !canPlayEffect}
+                onPress={previewMode === 'sequence' ? handlePlaySequence : handlePlayEffect}
                 style={{ flex: 1 }}
               />
-              {travelAssetId ? (
-                <Button
-                  label="Travel Only"
-                  size="md"
-                  variant="ghost"
-                  textured={false}
-                  onPress={handleTravelOnly}
-                  style={{ flex: 1 }}
-                />
-              ) : null}
-            </Stack>
-            {impactAssetId ? (
               <Button
-                label="Impact Only"
+                label="Clear"
                 size="md"
                 variant="ghost"
                 textured={false}
-                onPress={handleImpactOnly}
-                style={{ width: '100%' }}
+                onPress={resetPreviewPlayback}
+                style={{ flex: 1 }}
               />
-            ) : null}
+            </Stack>
             <Button
               label="Back"
               size="md"
@@ -366,6 +558,9 @@ const VfxPreviewScreen = ({
             />
           </Stack>
         </Stack>
+        {selectedSpriteIds.map((spriteId) => (
+          <SpriteWarmupImage key={spriteId} spriteId={spriteId} onResolved={handleSpriteResolved} />
+        ))}
       </ContentContainer>
     </ScreenContainer>
   );

@@ -80,6 +80,9 @@ const HANDLE_STORE_NAME = 'file-system-handles';
 const REPO_ROOT_HANDLE_KEY = 'repo-root';
 const REPO_EDITOR_SEGMENTS = ['tools', 'vfx-editor'];
 const REPO_EFFECTS_SEGMENTS = ['src', 'features', 'vfx', 'assets', 'effects'];
+const REPO_SEQUENCES_SEGMENTS = ['src', 'features', 'vfx', 'assets', 'sequences'];
+const REPO_RUNTIME_SEGMENTS = ['src', 'features', 'vfx', 'runtime'];
+const SEQUENCE_REGISTRY_FILE = 'sequenceRegistry.ts';
 
 const ui = {
   sequenceTitleLabel: document.getElementById('sequenceTitleLabel'),
@@ -261,12 +264,37 @@ function lerp(start, end, amount) {
   return start + (end - start) * amount;
 }
 
+function slugify(value) {
+  return String(value)
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '') || 'sequence';
+}
+
 function titleCaseFromId(value) {
   return String(value)
     .split(/[-_]+/g)
     .filter(Boolean)
     .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
     .join(' ');
+}
+
+function getRegistryImportName(prefix, value, suffix = 'Data', usedNames = new Set()) {
+  const camel = slugify(value).replace(/-([a-z0-9])/g, (_, char) => char.toUpperCase());
+  const base = /^[a-zA-Z_$]/.test(camel)
+    ? `${camel}${suffix}`
+    : `${prefix}${camel.charAt(0).toUpperCase()}${camel.slice(1)}${suffix}`;
+  let candidate = base;
+  let index = 2;
+
+  while (usedNames.has(candidate)) {
+    candidate = `${base}${index}`;
+    index += 1;
+  }
+
+  usedNames.add(candidate);
+  return candidate;
 }
 
 function escapeHtml(value) {
@@ -292,6 +320,57 @@ async function writeTextFile(directoryHandle, filename, contents) {
   const writable = await fileHandle.createWritable();
   await writable.write(contents);
   await writable.close();
+}
+
+async function discoverRepoSequenceEntries(rootHandle) {
+  const sequencesDirHandle = await getDirectoryHandle(rootHandle, REPO_SEQUENCES_SEGMENTS);
+  const entries = [];
+
+  for await (const handle of sequencesDirHandle.values()) {
+    if (handle.kind !== 'file' || !handle.name.endsWith('.json')) {
+      continue;
+    }
+
+    const file = await handle.getFile();
+    const sequence = normalizeSequence(JSON.parse(await file.text()));
+    entries.push({
+      id: sequence.id,
+      label: sequence.label ?? titleCaseFromId(sequence.id),
+      filename: handle.name,
+    });
+  }
+
+  return entries.sort((left, right) => left.id.localeCompare(right.id));
+}
+
+function buildSequenceRegistrySource(entries) {
+  const usedNames = new Set();
+  const imports = entries
+    .map((entry) => {
+      const importName = getRegistryImportName('sequence', entry.id, 'Data', usedNames);
+      entry.importName = importName;
+      return `import ${importName} from '@/features/vfx/assets/sequences/${entry.filename}';`;
+    })
+    .join('\n');
+
+  const sequenceNames = entries.map((entry) => `  ${entry.importName},`).join('\n');
+
+  return `import type { EffectSequence } from '@/features/vfx/types/sequences';\n${imports}\n\nconst effectSequences = [\n${sequenceNames}\n] as EffectSequence[];\n\nconst effectSequenceById = new Map(effectSequences.map((sequence) => [sequence.id, sequence]));\n\nexport function getEffectSequence(sequenceId: string) {\n  return effectSequenceById.get(sequenceId) ?? null;\n}\n\nexport function listEffectSequences() {\n  return effectSequences;\n}\n`;
+}
+
+async function regenerateSequenceRegistry(rootHandle) {
+  const hasPermission = await ensureHandlePermission(rootHandle, true);
+  if (!hasPermission) {
+    throw new Error('Permission was not granted for the linked repo root.');
+  }
+  const runtimeDirHandle = await getDirectoryHandle(rootHandle, REPO_RUNTIME_SEGMENTS);
+  const entries = await discoverRepoSequenceEntries(rootHandle);
+  await writeTextFile(
+    runtimeDirHandle,
+    SEQUENCE_REGISTRY_FILE,
+    buildSequenceRegistrySource(entries),
+  );
+  return entries;
 }
 
 let handleDatabasePromise = null;
@@ -2075,13 +2154,42 @@ async function writeSequenceToHandle(handle) {
   state.fileName = handle.name || `${state.sequence.id}.json`;
   renderToolbar();
   schedulePersistSequenceSession();
+
+  if (state.repoRootHandle) {
+    try {
+      const entries = await regenerateSequenceRegistry(state.repoRootHandle);
+      return {
+        registryUpdated: entries.some((entry) => entry.id === state.sequence.id),
+        registryError: null,
+      };
+    } catch (error) {
+      return {
+        registryUpdated: null,
+        registryError: error.message,
+      };
+    }
+  }
+
+  return {
+    registryUpdated: null,
+    registryError: null,
+  };
 }
 
 async function saveSequence() {
   try {
     if (state.fileHandle && 'createWritable' in state.fileHandle) {
-      await writeSequenceToHandle(state.fileHandle);
-      setStatus(`Saved ${state.fileName}.`, 'success');
+      const result = await writeSequenceToHandle(state.fileHandle);
+      setStatus(
+        result.registryError
+          ? `Saved ${state.fileName}, but could not refresh sequenceRegistry.ts: ${result.registryError}`
+          : result.registryUpdated === false
+          ? `Saved ${state.fileName}, but it is not inside src/features/vfx/assets/sequences so sequenceRegistry.ts was not updated.`
+          : result.registryUpdated
+            ? `Saved ${state.fileName} and refreshed sequenceRegistry.ts.`
+            : `Saved ${state.fileName}.`,
+        result.registryError || result.registryUpdated === false ? 'info' : 'success',
+      );
       return;
     }
 
@@ -2099,8 +2207,17 @@ async function saveSequenceAs() {
         suggestedName: `${state.sequence.id || 'sequence'}.json`,
         types: [{ description: 'VFX Sequence JSON', accept: { 'application/json': ['.json'] } }],
       });
-      await writeSequenceToHandle(handle);
-      setStatus(`Saved ${state.fileName}.`, 'success');
+      const result = await writeSequenceToHandle(handle);
+      setStatus(
+        result.registryError
+          ? `Saved ${state.fileName}, but could not refresh sequenceRegistry.ts: ${result.registryError}`
+          : result.registryUpdated === false
+          ? `Saved ${state.fileName}, but it is not inside src/features/vfx/assets/sequences so sequenceRegistry.ts was not updated.`
+          : result.registryUpdated
+            ? `Saved ${state.fileName} and refreshed sequenceRegistry.ts.`
+            : `Saved ${state.fileName}.`,
+        result.registryError || result.registryUpdated === false ? 'info' : 'success',
+      );
       return;
     }
 

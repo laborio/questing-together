@@ -1,0 +1,183 @@
+{
+  "id": "Stars Travel",
+  "label": "Stars Travel",
+  "durationMs": 600,
+  "motion": {
+    "mode": "path",
+    "tracks": {
+      "travel": [
+        {
+          "at": 0,
+          "value": 0
+        },
+        {
+          "at": 1,
+          "value": 1
+        }
+      ]
+    }
+  },
+  "layers": [
+    {
+      "id": "particleEmitter-3",
+      "type": "particleEmitter",
+      "renderer": "sprite",
+      "color": "#fff1c9",
+      "maxParticles": 18,
+      "particleLifetimeMs": 1200,
+      "tracks": {
+        "alpha": [
+          {
+            "at": 0,
+            "value": 1
+          }
+        ],
+        "x": [
+          {
+            "at": 0,
+            "value": 0
+          }
+        ],
+        "y": [
+          {
+            "at": 0,
+            "value": 0
+          }
+        ]
+      },
+      "spriteId": "t-vfx-particle-default",
+      "spreadDeg": 360,
+      "endSize": 0,
+      "startAlpha": 1,
+      "tintColor": "#000000",
+      "speed": 60,
+      "emissionRate": 8,
+      "startSize": 20
+    },
+    {
+      "id": "Fire Orb",
+      "type": "sprite",
+      "spriteId": "t-vfx-firerock",
+      "height": 30,
+      "tintColor": "",
+      "tracks": {
+        "scale": [
+          {
+            "at": 0,
+            "value": 1
+          }
+        ],
+        "alpha": [
+          {
+            "at": 0,
+            "value": 1
+          }
+        ]
+      },
+      "width": 30
+    },
+    {
+      "id": "particleEmitter-4",
+      "type": "particleEmitter",
+      "renderer": "sprite",
+      "color": "#fff1c9",
+      "maxParticles": 64,
+      "emissionRate": 32,
+      "particleLifetimeMs": 720,
+      "speed": 12,
+      "spreadDeg": 180,
+      "startSize": 36,
+      "tracks": {
+        "x": [
+          {
+            "at": 0,
+            "value": 0
+          }
+        ],
+        "y": [
+          {
+            "at": 0,
+            "value": 0
+          }
+        ],
+        "alpha": [
+          {
+            "at": 0,
+            "value": 1
+          },
+          {
+            "at": 0.0625,
+            "value": 0.994384765625
+          },
+          {
+            "at": 0.125,
+            "value": 0.978515625
+          },
+          {
+            "at": 0.1875,
+            "value": 0.953857421875
+          },
+          {
+            "at": 0.25,
+            "value": 0.921875
+          },
+          {
+            "at": 0.3125,
+            "value": 0.884033203125
+          },
+          {
+            "at": 0.375,
+            "value": 0.841796875
+          },
+          {
+            "at": 0.4375,
+            "value": 0.796630859375
+          },
+          {
+            "at": 0.5,
+            "value": 0.75
+          },
+          {
+            "at": 0.5625,
+            "value": 0.703369140625
+          },
+          {
+            "at": 0.625,
+            "value": 0.658203125
+          },
+          {
+            "at": 0.6875,
+            "value": 0.615966796875
+          },
+          {
+            "at": 0.75,
+            "value": 0.578125
+          },
+          {
+            "at": 0.8125,
+            "value": 0.546142578125
+          },
+          {
+            "at": 0.875,
+            "value": 0.521484375
+          },
+          {
+            "at": 0.9375,
+            "value": 0.505615234375
+          },
+          {
+            "at": 1,
+            "value": 0.5
+          }
+        ]
+      },
+      "spriteId": "t-vfx-particle-default",
+      "burstCount": 0,
+      "endSize": 0,
+      "startAlpha": 1,
+      "speedJitter": 0,
+      "tintColor": "#ff5900"
+    }
+  ],
+  "loop": true
+}

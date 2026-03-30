@@ -22,7 +22,17 @@ type FloatingText = {
   target: 'enemy' | 'player';
 };
 
+type EnemyData = {
+  id: string;
+  name: string;
+  hp: number;
+  hpMax: number;
+  isDead: boolean;
+  position: number;
+};
+
 type EnemyListProps = {
+  enemies?: EnemyData[];
   selectedEnemyId: string | null;
   onSelectEnemy: (id: string) => void;
   enemyShake: SharedValue<number>;
@@ -71,6 +81,7 @@ const DyingPortrait = ({ nameKey }: { nameKey: string }) => {
 };
 
 const EnemyList = ({
+  enemies: enemiesProp,
   selectedEnemyId,
   onSelectEnemy,
   enemyShake,
@@ -84,7 +95,7 @@ const EnemyList = ({
   const { roomConnection } = useGame();
   const { t } = useTranslation();
 
-  const allEnemies = roomConnection.enemies;
+  const allEnemies = enemiesProp ?? roomConnection.enemies;
   const { dyingEnemies, aliveEnemies } = useDyingEnemies(allEnemies);
   const killCount = allEnemies.filter((e) => e.isDead).length;
 
@@ -96,7 +107,12 @@ const EnemyList = ({
 
   const enemyFloats = floatingTexts.filter((ft) => ft.target === 'enemy');
 
-  const translateName = (nameKey: string) => t(`enemies.${nameKey}` as 'enemies.goule') || nameKey;
+  // New enemies use display names directly; old ones use translation keys
+  const translateName = (nameKey: string) => {
+    const translated = t(`enemies.${nameKey}` as 'enemies.goule');
+    // If translation returned the key path (not found), use the name as-is
+    return translated.startsWith('enemies.') ? nameKey : translated || nameKey;
+  };
 
   const shakeStyle = useAnimatedStyle(() => ({
     transform: [{ translateX: enemyShake.value }],

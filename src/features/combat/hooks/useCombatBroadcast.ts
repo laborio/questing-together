@@ -6,9 +6,10 @@ import type { PlayerId } from '@/types/player';
 type CombatActionEvent = {
   playerId: PlayerId;
   playerName: string;
-  actionType: 'attack' | 'ability' | 'heal';
+  actionType: 'spell' | 'convergence';
   damage: number;
-  abilityName?: string;
+  spellName?: string;
+  effectType?: string;
   roll?: number;
   rollLabel?: string;
 };
@@ -49,7 +50,9 @@ const useCombatBroadcast = ({ roomId, localPlayerId, onAllyAction }: UseCombatBr
 
   const broadcastAction = useCallback((event: CombatActionEvent) => {
     const channel = channelRef.current;
+
     if (!channel) return;
+
     void channel.send({
       type: 'broadcast',
       event: 'combat-action',

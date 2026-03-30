@@ -2,11 +2,14 @@ import { useEffect, useRef } from 'react';
 import { scheduleCallback } from '@/features/combat/utils/scheduleCallback';
 import type { PlayerId } from '@/types/player';
 
-const BOT_TURN_DELAY = 3000;
-const BOT_ACTION_REPLAY_INTERVAL = 1000;
+const BOT_INITIAL_DELAY = 2000;
+const BOT_ACTION_REPLAY_INTERVAL = 800;
+const BOT_BETWEEN_DELAY = 1500;
 
 type BotAction = {
-  action: 'attack' | 'ability' | 'heal' | 'skip';
+  action: 'spell' | 'convergence' | 'skip';
+  spellId?: string;
+  spellName?: string;
   ability?: string;
   damage?: number;
   targetId?: string;
@@ -14,6 +17,7 @@ type BotAction = {
 };
 
 type PlayBotActionFn = (botPlayerId: PlayerId, action: BotAction) => void;
+type OnBotSkipFn = (botPlayerId: PlayerId, reason: string) => void;
 
 type UseBotAIParams = {
   turnPhase: string;
@@ -21,6 +25,7 @@ type UseBotAIParams = {
   botPlayerIds: PlayerId[];
   combatBotTurn: (botPlayerId: PlayerId) => Promise<unknown>;
   playBotAction: PlayBotActionFn;
+  onBotSkip?: OnBotSkipFn;
 };
 
 const useBotAI = ({
@@ -29,6 +34,7 @@ const useBotAI = ({
   botPlayerIds,
   combatBotTurn,
   playBotAction,
+  onBotSkip,
 }: UseBotAIParams) => {
   const triggeredTurnRef = useRef<number>(0);
   const currentTurnRef = useRef<number>(0);
@@ -44,29 +50,60 @@ const useBotAI = ({
 
     const capturedTurn = turnNumber;
 
-    botPlayerIds.forEach((botId, botIndex) => {
-      scheduleCallback(BOT_TURN_DELAY * (botIndex + 1), () => {
-        if (currentTurnRef.current !== capturedTurn || currentPhaseRef.current !== 'player') return;
+    // Run bots sequentially: bot 1 finishes all actions, then bot 2, then bot 3
+    const runBotsSequentially = async () => {
+      await new Promise((r) => scheduleCallback(BOT_INITIAL_DELAY, r as () => void));
 
-        void combatBotTurn(botId)
-          .then((result) => {
-            if (!result) return;
-            const r = result as { actions: BotAction[] };
-            const actions = r.actions ?? [];
+      for (const botId of botPlayerIds) {
+        // Check phase hasn't changed
+        if (currentTurnRef.current !== capturedTurn || currentPhaseRef.current !== 'player') break;
 
-            const visibleActions = actions.filter((a) => a.action !== 'skip');
-            visibleActions.forEach((action, actionIndex) => {
-              scheduleCallback(BOT_ACTION_REPLAY_INTERVAL * actionIndex, () => {
-                playBotAction(botId, action);
+        try {
+          const result = await combatBotTurn(botId);
+          if (!result) {
+            onBotSkip?.(botId, 'No actions');
+            continue;
+          }
+
+          const r = result as { actions: BotAction[]; dead?: boolean };
+
+          if (r.dead) {
+            onBotSkip?.(botId, 'Dead');
+            continue;
+          }
+
+          const visibleActions = (r.actions ?? []).filter((a) => a.action !== 'skip');
+
+          if (visibleActions.length === 0) {
+            onBotSkip?.(botId, 'No energy');
+            continue;
+          }
+
+          // Replay each action with delay
+          for (let i = 0; i < visibleActions.length; i++) {
+            await new Promise<void>((resolve) => {
+              scheduleCallback(BOT_ACTION_REPLAY_INTERVAL * i, () => {
+                playBotAction(botId, visibleActions[i]);
+                resolve();
               });
             });
-          })
-          .catch(() => {
-            // Bot turn failed (e.g. enemy already dead) — ignore silently
-          });
-      });
-    });
-  }, [turnPhase, turnNumber, botPlayerIds, combatBotTurn, playBotAction]);
+          }
+
+          // Wait for last action animation to finish before next bot
+          await new Promise((r) =>
+            scheduleCallback(
+              BOT_ACTION_REPLAY_INTERVAL * visibleActions.length + BOT_BETWEEN_DELAY,
+              r as () => void,
+            ),
+          );
+        } catch {
+          onBotSkip?.(botId, 'Error');
+        }
+      }
+    };
+
+    void runBotsSequentially();
+  }, [turnPhase, turnNumber, botPlayerIds, combatBotTurn, playBotAction, onBotSkip]);
 };
 
 export default useBotAI;

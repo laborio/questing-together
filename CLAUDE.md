@@ -20,60 +20,115 @@ BLOC 2: CORE → RESOLVE (difficulty ↑)
 BLOC 3: CORE → FINAL BOSS
 ```
 
-### Roles
-- **Warrior** — 60 HP, Taunt (5 turns, redirects damage, -60% reduction)
-- **Sage** — 40 HP, Fireball (6 damage single target)
-- **Ranger** — 50 HP, Arrows (3 damage AoE)
+### Identities (replaces classes)
+- No fixed classes — all players share the same universal card pool
+- Player picks an **Identity** that defines a dominant trait and Attune behavior
+- **Ashbound** (Fire), **Bulwark** (Guard), **Nightglass** (Shadow), **Tempest Core** (Storm), **Worldroot** (Nature)
+- Identity definitions: `src/content/identities.ts`
 
-### Combat (turn-based)
+### Combat (deckbuilder, turn-based)
 
-Each combat encounter alternates between **Player Phase** and **Enemy Phase**.
+Slay the Spire-inspired deckbuilder combat. Players play cards from a hand, spending energy. Cards belong to 5 traits (Fire, Guard, Shadow, Storm, Nature). Trait empowerment and convergence add strategic depth.
+
+#### Card system
+- **Starter deck**: 15 cards (3 Fire, 3 Guard, 3 Shadow, 2 Storm, 2 Nature, 2 Neutral, 1 Focus)
+- **Reward card pool**: 20+ additional cards earned between fights
+- Cards have **energy cost** (0-3), **trait**, **base/upgraded** values
+- Cards **auto-upgrade** after being played X times (upgradeThreshold)
+- Card definitions: `src/content/cards.ts` (client) + `card_definitions` SQL table (server)
+
+#### Energy system
+- Start each turn with **3 energy** (upgradeable via bonuses)
+- Each card costs 0-3 energy to play
+- Unspent energy is lost at end of turn
+
+#### Deck zones
+- **Draw pile** → **Hand** (draw 5) → **Discard pile**
+- When draw pile is exhausted, shuffle discard back in
+- Hand, draw pile, discard all tracked as JSONB arrays server-side
+
+#### Block & status effects
+- **Block**: absorbs damage before HP. Resets each turn (unless persist bonus)
+- **Burn**: DOT — deals damage at start of enemy phase, decrements by 1
+- **Vulnerable**: +50% damage taken (turns-based, decrements each turn)
+- **Weakened**: -25% damage dealt (turns-based, decrements each turn)
+- **Thorns**: reflects damage when hit
+- **Regen**: heals HP at end of each turn
+
+#### Trait empowerment
+- 5 traits: Fire, Guard, Shadow, Storm, Nature
+- Each tracks a **charge counter** (0 to 3)
+- Playing a card adds +1 charge to its trait
+- At **3 charges** = **empowered** — next card from that trait is **amplified** (+50% all values)
+- After amplified play: trait charge resets to 0, grants +1 Attune
+
+#### Attune
+- Start each fight with **1 Attune** (max 2)
+- Spend 1 to **retag** a card's trait for charging purposes
+- Consuming an amplified card grants +1 Attune
+
+#### Convergence
+- If **2+ traits** empowered simultaneously → **Convergence** button appears
+- **Free action** — doesn't cost energy
+- Each trait contributes its effect: Fire=16dmg, Guard=14block, Shadow=2vuln+2weak, Storm=2energy, Nature=12heal
+- Multiplied by count: 2 traits=x1, 3=x1.5, 4=x2, 5=x2.5
+- Resets all empowered traits to 0
+
+#### Enemy intents
+- Enemies have **intent patterns** (cycling list of actions per turn)
+- Intents: 0=attack, 1=defend, 2=buff(+str), 3=heavy, 4=multi, 5=debuff, 6=charge, 7=special
+- Enemy templates with HP/strength scaling per fight number
+- Enemy definitions: `src/content/encounters.ts`
 
 #### Turn flow
 ```
 TURN N
 ├── Player Phase (simultaneous)
-│   ├── Each player has 3 actions (attack, ability, heal — any mix)
-│   ├── Actions apply damage immediately on enemies
-│   ├── Cooldowns decrement once per turn (not per action)
-│   ├── Player presses "End Turn" when done (can skip remaining actions)
-│   └── Wait until ALL alive players have ended their turn
+│   ├── Hand of 5 cards drawn from draw pile
+│   ├── Play cards by spending energy (3 base)
+│   ├── Optional: Convergence (free action, if 2+ traits empowered)
+│   ├── "End Turn" when done
+│   └── Wait for all alive players
 │
-├── Enemy Phase (automatic, host-triggered)
-│   ├── Each alive enemy attacks ALL alive players
-│   ├── Taunt redirects all damage to Warrior (-60% reduction)
-│   ├── Taunt/ability/heal cooldowns decrement by 1
-│   └── Check party wipe → resolved or next turn
+├── Enemy Phase (host-triggered)
+│   ├── Burn DOT ticks on enemies
+│   ├── Each enemy acts based on intent pattern
+│   ├── Damage goes through block first, then HP
+│   ├── Status effects decrement
+│   ├── Regen ticks on players
+│   ├── Hand → discard, draw new hand of 5
+│   └── Energy resets, block resets (unless persist)
 │
-└── TURN N+1 (reset 3 actions per player)
+└── TURN N+1
 ```
 
-#### Actions
-- **Attack** — 3 dmg + (level - 1) to single target. No cooldown.
-- **Ability** — role-dependent, 2-turn cooldown (server-enforced):
-  - Warrior: Taunt (5 turns, redirects all enemy attacks, -60% reduction)
-  - Sage: Fireball (6 damage, single target)
-  - Ranger: Arrows (3 damage, AoE all enemies)
-- **Heal** — +10 HP (capped at hp_max), 2-turn cooldown (server-enforced)
-
 #### State tracking
-- `combat_turns` table — turn number, phase (`player`/`enemy`/`resolved`), per room+screen
-- `player_turn_state` table — actions remaining, has_ended_turn, per player per turn
-- `characters` columns — `ability_cooldown_left`, `heal_cooldown_left` (server-authoritative)
-- Realtime subscriptions on both tables for live sync
+- `combat_turns` table — turn number, phase, per room+screen
+- `player_turn_state` table — has_ended_turn
+- `player_combat_state` table — identity, draw_pile, hand, discard_pile (all JSONB), energy, block, trait_charges, attune, status effects, bonuses
+- `enemy_combat_state` table — template_id, hp, strength, block, intent_index, status effects
+- `card_definitions` table — server-side card data (mirrors `src/content/cards.ts`)
+- Realtime subscriptions on all combat tables
 
 #### Key RPCs
-- `combat_init_turn(room_id, screen_id)` — creates turn 1, player states
-- `combat_attack/ability/heal` — check actions remaining + cooldowns, apply effect, decrement action
+- `combat_init_turn(room_id, screen_id)` — creates turn 1, player states, starter deck, draws hand
+- `combat_play_card(room_id, hand_index, target_enemy_idx?, ...)` — validates energy, applies effects, updates charges
+- `combat_use_convergence(room_id, target_enemy_idx?)` — free action, requires 2+ empowered traits
 - `combat_end_turn(room_id)` — marks player done, if all done → phase = 'enemy'
-- `combat_enemy_phase(room_id)` — all enemies attack, decrement cooldowns, next turn or party wipe
+- `combat_enemy_phase(room_id)` — burn DOT, enemy intents, damage through block, draw new hands
 
-#### Level up
-- XP needed = level × 100, HP scales with level (+10/level)
+#### Post-combat rewards
+- Card choices (pick 1 of 3 from reward pool)
+- Upgrade choices (pick 1 of 3 cards to upgrade)
+- Bonuses (+HP, +block, +energy, healing)
+- Bonus definitions: `src/content/bonuses.ts`
 
 #### Settings
-- `src/constants/combatSettings.ts` — damage values, cooldowns, actions per turn
-- Adventure settings in `src/constants/adventureSettings.ts`
+- `src/constants/combatSettings.ts` — base HP, energy, hand size, empower threshold, attune limits, reward params
+- `src/content/cards.ts` — all card definitions, traits, convergence effects
+- `src/content/encounters.ts` — enemy templates, encounter compositions
+- `src/content/identities.ts` — identity definitions
+- `src/content/bonuses.ts` — post-combat bonus definitions
 
 ### Content system (`src/content/`)
 - **Data-driven** — all game content is in TS files, designed to be migrated to a Supabase DB + admin portal later
@@ -81,9 +136,11 @@ TURN N
 - `enemies.ts` — enemy templates per biome (early/core/bosses/finalBoss) with HP/attack multipliers
 - `riddles.ts` — puzzle riddles with choices, rewards, penalties, time limits. Biome-specific or universal
 - `shop.ts` — shop items with costs, effects, min bloc availability
+- `spells.ts` — spell definitions (8 per class, 3 schools), school metadata, convergence effects. Mirrored in `spell_definitions` SQL table for server validation
 - `index.ts` — barrel export for all content
 - To add a new biome: add entry in `biomes.ts` + `enemies.ts`, optionally add riddles in `riddles.ts`
 - To add new enemies/items/riddles: add to the relevant file, the adventure generator picks randomly
+- To add/modify spells: update both `spells.ts` AND `spell_definitions` SQL table (must stay in sync)
 
 ### Database (Supabase)
 - `rooms` — status (lobby/in_progress/finished), current_screen_position, current_bloc
@@ -93,14 +150,17 @@ TURN N
 - `adventure_screens` — bloc, phase, position, screen_type, config_json, is_completed
 - `combat_turns` — turn_number, phase (player/enemy/resolved), per room+screen
 - `player_turn_state` — actions_remaining, has_ended_turn, per player per combat turn
-- Key RPCs: `create_room`, `join_room`, `peek_room`, `start_adventure`, `cancel_adventure`, `generate_adventure`, `advance_screen`, `seed_enemies_for_screen`, `combat_init_turn`, `combat_attack`, `combat_ability`, `combat_heal`, `combat_end_turn`, `combat_enemy_phase`, `reset_combat`, `list_my_rooms`, `list_available_rooms`, `delete_room`
-- SQL migrations in `src/api/sql/` (numbered 001-009), applied via `bun run db:migrate`
+- `card_definitions` — server-side card reference (id, name, cost, trait, base/upgraded values, flags)
+- `player_combat_state` — per-player deckbuilder state: identity, deck zones (JSONB), energy, block, trait_charges, status effects
+- `enemy_combat_state` — per-enemy state: template_id, hp, strength, block, intent_index, status effects
+- Key RPCs: `create_room`, `join_room`, `peek_room`, `start_adventure`, `cancel_adventure`, `generate_adventure`, `advance_screen`, `seed_enemies_for_screen`, `combat_init_turn`, `combat_play_card`, `combat_use_convergence`, `combat_end_turn`, `combat_enemy_phase`, `reset_combat`, `list_my_rooms`, `list_available_rooms`, `delete_room`
+- SQL migrations in `src/api/sql/` (numbered 001-013), applied via `bun run db:migrate`
 
 ### State management
 - TanStack Query for all Supabase data (queries + mutations)
 - `useRoomConnection` hook — room state, players, characters, enemies, currentScreen, all mutations
 - `GameContext` — wraps everything, exposed via `useGame()`
-- Supabase Realtime subscriptions for live sync (rooms, room_players, characters, enemies, adventure_screens, combat_turns, player_turn_state)
+- Supabase Realtime subscriptions for live sync (rooms, room_players, characters, enemies, adventure_screens, combat_turns, player_turn_state, player_combat_state, enemy_combat_state)
 
 ## Project structure
 
@@ -121,16 +181,16 @@ src/
 │   ├── input/          — Button, ActionButton, TextField, Stepper...
 │   └── layout/         — Stack, BottomSheet, Card, Overlay, ScreenContainer...
 ├── constants/          — colors, combatSettings, adventureSettings, constants
-├── content/            — game content data (biomes, enemies, riddles, shop items)
+├── content/            — game content data (biomes, cards, encounters, identities, bonuses, riddles, shop items)
 ├── contexts/           — GameContext, DecisionContext
 ├── features/
 │   ├── home/           — GameLauncher, TitleScreen, RoomBrowser, CharacterPicker, PlayTestMenu
 │   ├── lobby/          — LobbyContent
-│   ├── combat/         — CombatScreen, components/ (EnemyList, ActionGrid, Header, PortraitStrip...), hooks/, utils/
+│   ├── combat/         — CombatScreen, components/ (EnemyList, CardHandGrid, CardView, SchoolChargeBar, Header, PortraitStrip...), hooks/, utils/
 │   ├── story/          — story flow components
 │   └── emote/          — party emotes
 ├── hooks/              — useRoomStory, usePartyEmotes, useColorScheme...
-├── types/              — player.ts, story.ts, adventure.ts
+├── types/              — player.ts, story.ts, adventure.ts, combatTurn.ts, spellCombat.ts
 └── utils/              — getErrorMessage, portraitByRole, homeScreenLayout...
 ```
 

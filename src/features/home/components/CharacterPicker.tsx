@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Pressable, ScrollView } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import paperTexture from '@/assets/images/T_Background_Paper.png';
@@ -41,7 +41,73 @@ const CharacterPicker = ({
   const { isBusy, roomError } = roomConnection;
   const { t } = useTranslation();
 
-  const [nameInput, setNameInput] = useState('');
+  const randomName = useMemo(() => {
+    const prefixes = [
+      'Ash',
+      'Blaze',
+      'Dusk',
+      'Ember',
+      'Frost',
+      'Grim',
+      'Iron',
+      'Luna',
+      'Nyx',
+      'Onyx',
+      'Raven',
+      'Shadow',
+      'Storm',
+      'Thorn',
+      'Vale',
+      'Wren',
+      'Zephyr',
+      'Cinder',
+      'Drake',
+      'Flint',
+      'Hawk',
+      'Jade',
+      'Kai',
+      'Lyra',
+      'Moss',
+      'Oak',
+      'Pike',
+      'Quinn',
+      'Reed',
+      'Sage',
+      'Talon',
+      'Vex',
+    ];
+    const suffixes = [
+      'blade',
+      'born',
+      'claw',
+      'fall',
+      'fire',
+      'forge',
+      'heart',
+      'moon',
+      'root',
+      'shade',
+      'song',
+      'spark',
+      'stone',
+      'strike',
+      'sworn',
+      'ward',
+      'wind',
+      'wood',
+      'bane',
+      'fang',
+      'helm',
+      'lock',
+      'mark',
+      'ridge',
+    ];
+    const p = prefixes[Math.floor(Math.random() * prefixes.length)];
+    const s = suffixes[Math.floor(Math.random() * suffixes.length)];
+    return `${p}${s}`;
+  }, []);
+
+  const [nameInput, setNameInput] = useState(randomName);
   const [selectedRole, setSelectedRole] = useState<RoleId | null>(null);
   const [enemyCount, setEnemyCount] = useState(3);
   const [botCount, setBotCount] = useState(0);

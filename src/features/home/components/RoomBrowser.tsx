@@ -75,13 +75,26 @@ const RoomBrowser = ({ onSelectRoom, onBack }: RoomBrowserProps) => {
       </ScrollView>
 
       <BottomSheet size="xs">
-        <Button
-          size="sm"
-          variant="ghost"
-          disabled={isBusy}
-          onPress={onBack}
-          label={t('common.back')}
-        />
+        <Stack direction="row" gap={10}>
+          <Stack flex={1}>
+            <Button
+              size="sm"
+              variant="ghost"
+              disabled={isBusy}
+              onPress={onBack}
+              label={t('common.back')}
+            />
+          </Stack>
+          <Stack flex={1}>
+            <Button
+              size="sm"
+              variant="danger"
+              disabled={isBusy}
+              onPress={() => void roomConnection.adminDeleteAllRooms()}
+              label="Delete all"
+            />
+          </Stack>
+        </Stack>
         {roomError ? <Typography variant="error">{roomError}</Typography> : null}
       </BottomSheet>
     </Stack>

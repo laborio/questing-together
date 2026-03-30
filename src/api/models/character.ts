@@ -11,8 +11,6 @@ type Character = {
   hp: number;
   hpMax: number;
   tauntTurnsLeft: number;
-  abilityCooldownLeft: number;
-  healCooldownLeft: number;
 };
 
 export type { Character };

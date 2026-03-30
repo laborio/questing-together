@@ -173,6 +173,12 @@ const colors = {
   timedFinishText: '#d6b48d',
   timedFinishTextEmbedded: '#7b5d46',
 
+  // Screen flash
+  screenFlashCriticalFail: 'rgba(255, 50, 50, 0.25)',
+  screenFlashStrong: 'rgba(255, 179, 0, 0.15)',
+  screenFlashCritical: 'rgba(255, 215, 0, 0.3)',
+  screenFlashConvergence: 'rgba(255, 215, 0, 0.35)',
+
   // Header
   dotsButtonBg: 'rgba(36, 27, 19, 0.55)',
 } as const;

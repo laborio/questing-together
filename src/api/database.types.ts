@@ -55,13 +55,83 @@ export type Database = {
           },
         ];
       };
+      card_definitions: {
+        Row: {
+          base_block: number | null;
+          base_burn: number | null;
+          base_damage: number | null;
+          base_heal: number | null;
+          cost: number;
+          description: string;
+          id: string;
+          is_aoe: boolean;
+          is_rare: boolean;
+          is_signature: boolean;
+          is_starter: boolean;
+          name: string;
+          starter_role: Database['public']['Enums']['role_id'] | null;
+          trait: string;
+          upgrade_description: string;
+          upgrade_name: string;
+          upgrade_threshold: number;
+          upgraded_block: number | null;
+          upgraded_burn: number | null;
+          upgraded_damage: number | null;
+          upgraded_heal: number | null;
+        };
+        Insert: {
+          base_block?: number | null;
+          base_burn?: number | null;
+          base_damage?: number | null;
+          base_heal?: number | null;
+          cost?: number;
+          description?: string;
+          id: string;
+          is_aoe?: boolean;
+          is_rare?: boolean;
+          is_signature?: boolean;
+          is_starter?: boolean;
+          name: string;
+          starter_role?: Database['public']['Enums']['role_id'] | null;
+          trait: string;
+          upgrade_description?: string;
+          upgrade_name?: string;
+          upgrade_threshold?: number;
+          upgraded_block?: number | null;
+          upgraded_burn?: number | null;
+          upgraded_damage?: number | null;
+          upgraded_heal?: number | null;
+        };
+        Update: {
+          base_block?: number | null;
+          base_burn?: number | null;
+          base_damage?: number | null;
+          base_heal?: number | null;
+          cost?: number;
+          description?: string;
+          id?: string;
+          is_aoe?: boolean;
+          is_rare?: boolean;
+          is_signature?: boolean;
+          is_starter?: boolean;
+          name?: string;
+          starter_role?: Database['public']['Enums']['role_id'] | null;
+          trait?: string;
+          upgrade_description?: string;
+          upgrade_name?: string;
+          upgrade_threshold?: number;
+          upgraded_block?: number | null;
+          upgraded_burn?: number | null;
+          upgraded_damage?: number | null;
+          upgraded_heal?: number | null;
+        };
+        Relationships: [];
+      };
       characters: {
         Row: {
-          ability_cooldown_left: number;
           created_at: string;
           exp: number;
           gold: number;
-          heal_cooldown_left: number;
           hp: number;
           hp_max: number;
           id: string;
@@ -73,11 +143,9 @@ export type Database = {
           updated_at: string;
         };
         Insert: {
-          ability_cooldown_left?: number;
           created_at?: string;
           exp?: number;
           gold?: number;
-          heal_cooldown_left?: number;
           hp?: number;
           hp_max?: number;
           id?: string;
@@ -89,11 +157,9 @@ export type Database = {
           updated_at?: string;
         };
         Update: {
-          ability_cooldown_left?: number;
           created_at?: string;
           exp?: number;
           gold?: number;
-          heal_cooldown_left?: number;
           hp?: number;
           hp_max?: number;
           id?: string;
@@ -209,6 +275,184 @@ export type Database = {
             columns: ['screen_id'];
             isOneToOne: false;
             referencedRelation: 'adventure_screens';
+            referencedColumns: ['id'];
+          },
+        ];
+      };
+      enemy_combat_state: {
+        Row: {
+          block: number;
+          burn: number;
+          hp: number;
+          hp_max: number;
+          icon: string;
+          id: string;
+          intent_index: number;
+          is_dead: boolean;
+          name: string;
+          position: number;
+          room_id: string;
+          screen_id: string;
+          strength: number;
+          template_id: string;
+          vulnerable: number;
+          weakened: number;
+        };
+        Insert: {
+          block?: number;
+          burn?: number;
+          hp: number;
+          hp_max: number;
+          icon?: string;
+          id?: string;
+          intent_index?: number;
+          is_dead?: boolean;
+          name: string;
+          position?: number;
+          room_id: string;
+          screen_id: string;
+          strength?: number;
+          template_id: string;
+          vulnerable?: number;
+          weakened?: number;
+        };
+        Update: {
+          block?: number;
+          burn?: number;
+          hp?: number;
+          hp_max?: number;
+          icon?: string;
+          id?: string;
+          intent_index?: number;
+          is_dead?: boolean;
+          name?: string;
+          position?: number;
+          room_id?: string;
+          screen_id?: string;
+          strength?: number;
+          template_id?: string;
+          vulnerable?: number;
+          weakened?: number;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'enemy_combat_state_room_id_fkey';
+            columns: ['room_id'];
+            isOneToOne: false;
+            referencedRelation: 'rooms';
+            referencedColumns: ['id'];
+          },
+        ];
+      };
+      enemy_templates: {
+        Row: {
+          base_hp: number;
+          base_strength: number;
+          icon: string;
+          id: string;
+          intent_pattern: number[];
+          name: string;
+          scaling_per_fight: number;
+          strength_scaling: number;
+        };
+        Insert: {
+          base_hp: number;
+          base_strength?: number;
+          icon?: string;
+          id: string;
+          intent_pattern?: number[];
+          name: string;
+          scaling_per_fight?: number;
+          strength_scaling?: number;
+        };
+        Update: {
+          base_hp?: number;
+          base_strength?: number;
+          icon?: string;
+          id?: string;
+          intent_pattern?: number[];
+          name?: string;
+          scaling_per_fight?: number;
+          strength_scaling?: number;
+        };
+        Relationships: [];
+      };
+      player_combat_state: {
+        Row: {
+          attune_charges: number;
+          attune_target_trait: string | null;
+          block: number;
+          burn: number;
+          discard_pile: Json;
+          draw_pile: Json;
+          energy: number;
+          free_reroll: boolean;
+          hand: Json;
+          id: string;
+          identity_id: string;
+          max_energy: number;
+          player_id: Database['public']['Enums']['player_id'];
+          regen: number;
+          room_id: string;
+          screen_id: string;
+          starting_block: number;
+          thorns: number;
+          trait_charges: Json;
+          vulnerable: number;
+          weakened: number;
+        };
+        Insert: {
+          attune_charges?: number;
+          attune_target_trait?: string | null;
+          block?: number;
+          burn?: number;
+          discard_pile?: Json;
+          draw_pile?: Json;
+          energy?: number;
+          free_reroll?: boolean;
+          hand?: Json;
+          id?: string;
+          identity_id?: string;
+          max_energy?: number;
+          player_id: Database['public']['Enums']['player_id'];
+          regen?: number;
+          room_id: string;
+          screen_id: string;
+          starting_block?: number;
+          thorns?: number;
+          trait_charges?: Json;
+          vulnerable?: number;
+          weakened?: number;
+        };
+        Update: {
+          attune_charges?: number;
+          attune_target_trait?: string | null;
+          block?: number;
+          burn?: number;
+          discard_pile?: Json;
+          draw_pile?: Json;
+          energy?: number;
+          free_reroll?: boolean;
+          hand?: Json;
+          id?: string;
+          identity_id?: string;
+          max_energy?: number;
+          player_id?: Database['public']['Enums']['player_id'];
+          regen?: number;
+          room_id?: string;
+          screen_id?: string;
+          starting_block?: number;
+          thorns?: number;
+          trait_charges?: Json;
+          vulnerable?: number;
+          weakened?: number;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'player_combat_state_room_id_fkey';
+            columns: ['room_id'];
+            isOneToOne: false;
+            referencedRelation: 'rooms';
             referencedColumns: ['id'];
           },
         ];
@@ -459,6 +703,19 @@ export type Database = {
       [_ in never]: never;
     };
     Functions: {
+      _apply_roll: {
+        Args: { p_damage: number };
+        Returns: Record<string, unknown>;
+      };
+      _draw_hand: {
+        Args: { p_discard_pile: Json; p_draw_pile: Json; p_hand_size?: number };
+        Returns: Json;
+      };
+      _draw_spell_hand: {
+        Args: { p_role_id: Database['public']['Enums']['role_id'] };
+        Returns: string[];
+      };
+      admin_delete_all_rooms: { Args: never; Returns: undefined };
       advance_screen: { Args: { p_room_id: string }; Returns: Json };
       apply_screen_effect: {
         Args: {
@@ -470,14 +727,6 @@ export type Database = {
         Returns: Json;
       };
       cancel_adventure: { Args: { p_room_id: string }; Returns: boolean };
-      combat_ability: {
-        Args: { p_enemy_id?: string; p_room_id: string };
-        Returns: Json;
-      };
-      combat_attack: {
-        Args: { p_enemy_id: string; p_room_id: string };
-        Returns: Json;
-      };
       combat_bot_turn: {
         Args: {
           p_bot_player_id: Database['public']['Enums']['player_id'];
@@ -488,17 +737,34 @@ export type Database = {
       combat_check_level_up: { Args: { p_char_id: string }; Returns: undefined };
       combat_end_turn: { Args: { p_room_id: string }; Returns: Json };
       combat_enemy_phase: { Args: { p_room_id: string }; Returns: Json };
-      combat_heal: {
-        Args: {
-          p_room_id: string;
-          p_target_player_id?: Database['public']['Enums']['player_id'];
-        };
-        Returns: Json;
-      };
+      combat_generate_rewards: { Args: { p_room_id: string }; Returns: Json };
       combat_init_turn: {
         Args: { p_room_id: string; p_screen_id: string };
         Returns: undefined;
       };
+      combat_play_card: {
+        Args: {
+          p_attune_trait?: string;
+          p_hand_index: number;
+          p_room_id: string;
+          p_target_enemy_idx?: number;
+          p_use_attune?: boolean;
+        };
+        Returns: Json;
+      };
+      combat_select_reward: {
+        Args: { p_reward_id: string; p_reward_type: string; p_room_id: string };
+        Returns: Json;
+      };
+      combat_use_convergence:
+        | {
+            Args: { p_room_id: string; p_target_enemy_id?: string };
+            Returns: Json;
+          }
+        | {
+            Args: { p_room_id: string; p_target_enemy_idx?: number };
+            Returns: Json;
+          };
       create_playtest: {
         Args: {
           p_bloc?: number;

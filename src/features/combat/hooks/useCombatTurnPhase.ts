@@ -33,12 +33,15 @@ const useCombatTurnPhase = ({
     enemyPhaseTriggeredRef.current = true;
     void combatEnemyPhase().then((result) => {
       if (result) {
-        const r = result as { attacks: { enemyId: string; damage: number }[] };
-        const attacks = r.attacks.map((a) => ({
-          enemyId: a.enemyId,
-          damage: a.damage,
-          direction: getDirectionForEnemy(a.enemyId),
-        }));
+        const r = result as { attacks: { enemyId: string; damage?: number; type?: string }[] };
+        // Filter to only damage-dealing attacks and ensure damage is a number
+        const attacks = (r.attacks ?? [])
+          .filter((a) => a.enemyId && (a.damage ?? 0) > 0)
+          .map((a) => ({
+            enemyId: a.enemyId,
+            damage: a.damage ?? 0,
+            direction: getDirectionForEnemy(a.enemyId),
+          }));
         playEnemyPhase(attacks, localHp);
       }
     });

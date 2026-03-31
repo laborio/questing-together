@@ -319,7 +319,7 @@ set search_path = public
 as $$
 declare
   v_user_id uuid := auth.uid();
-  v_player_id text;
+  v_player_id public.player_id;
   v_screen_id uuid;
   v_pcs record;
   v_draw_result jsonb;

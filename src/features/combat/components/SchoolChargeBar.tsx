@@ -6,6 +6,8 @@ import { COMBAT } from '@/constants/combatSettings';
 import type { TraitMeta } from '@/features/gameConfig';
 
 type SchoolChargeBarProps = {
+  energy: number;
+  maxEnergy: number;
   schools: TraitMeta[];
   schoolCharges: Record<string, number>;
   attuneCharges: number;
@@ -42,6 +44,8 @@ const ChargeDots = ({
 );
 
 const SchoolChargeBar = ({
+  energy,
+  maxEnergy,
   schools,
   schoolCharges,
   attuneCharges,
@@ -57,6 +61,12 @@ const SchoolChargeBar = ({
     justify="space-between"
     style={{ paddingVertical: 4 }}
   >
+    <Typography
+      variant="caption"
+      style={{ color: colors.intentConfirmedBorder, fontWeight: '700' }}
+    >
+      ⚡ {energy}/{maxEnergy}
+    </Typography>
     <Stack direction="row" gap={8} align="center" flex={1}>
       {schools.map((school) => {
         const charge = schoolCharges[school.id] ?? 0;

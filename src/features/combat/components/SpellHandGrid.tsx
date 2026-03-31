@@ -1,12 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Pressable, View } from 'react-native';
-import Animated, {
-  useAnimatedStyle,
-  useSharedValue,
-  withRepeat,
-  withSequence,
-  withTiming,
-} from 'react-native-reanimated';
 import { ActionButton, Stack, Typography } from '@/components';
 import { colors } from '@/constants/colors';
 import { COMBAT } from '@/constants/combatSettings';
@@ -70,26 +63,7 @@ const CardHandGrid = ({
   ).length;
   const canConverge = empoweredCount >= COMBAT.convergenceRequiredTraits;
 
-  // Convergence glow pulse
-  const convergenceGlow = useSharedValue(0);
-  useEffect(() => {
-    if (canConverge) {
-      convergenceGlow.value = withRepeat(
-        withSequence(withTiming(1, { duration: 600 }), withTiming(0.3, { duration: 600 })),
-        -1,
-        true,
-      );
-    } else {
-      convergenceGlow.value = 0;
-    }
-  }, [canConverge, convergenceGlow]);
-
-  const convergenceGlowStyle = useAnimatedStyle(() => ({
-    shadowColor: colors.intentConfirmedBorder,
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: convergenceGlow.value,
-    shadowRadius: 12,
-  }));
+  // Convergence glow (static — reanimated breaks with React Compiler)
 
   const handleAttunePress = useCallback(() => {
     if (attuneActive) {
@@ -147,33 +121,10 @@ const CardHandGrid = ({
 
   return (
     <Stack gap={12}>
-      {/* Energy display */}
-      <Stack direction="row" align="center" justify="space-between">
-        <Stack direction="row" gap={4} align="center">
-          <Typography
-            variant="caption"
-            style={{ color: colors.intentConfirmedBorder, fontWeight: '700' }}
-          >
-            {combatState.energy}/{combatState.maxEnergy}
-          </Typography>
-          <Typography variant="micro" style={{ color: colors.textSecondary }}>
-            ENERGY
-          </Typography>
-        </Stack>
-        {combatState.block > 0 ? (
-          <Stack direction="row" gap={4} align="center">
-            <Typography variant="caption" style={{ color: '#5b9bd5', fontWeight: '700' }}>
-              {combatState.block}
-            </Typography>
-            <Typography variant="micro" style={{ color: colors.textSecondary }}>
-              BLOCK
-            </Typography>
-          </Stack>
-        ) : null}
-      </Stack>
-
       {/* Trait charges */}
       <SchoolChargeBar
+        energy={combatState.energy}
+        maxEnergy={combatState.maxEnergy}
         schools={schools}
         schoolCharges={combatState.traitCharges}
         attuneCharges={combatState.attuneCharges}
@@ -233,19 +184,20 @@ const CardHandGrid = ({
       {/* Convergence banner — ulti popup */}
       {canConverge && identity ? (
         <Pressable onPress={onConvergence} disabled={disabled}>
-          <Animated.View
-            style={[
-              convergenceGlowStyle,
-              {
-                padding: 12,
-                borderRadius: 10,
-                borderWidth: 2,
-                borderColor: colors.intentConfirmedBorder,
-                backgroundColor: `${colors.intentConfirmedBorder}20`,
-                alignItems: 'center',
-                gap: 2,
-              },
-            ]}
+          <View
+            style={{
+              padding: 12,
+              borderRadius: 10,
+              borderWidth: 2,
+              borderColor: colors.intentConfirmedBorder,
+              backgroundColor: `${colors.intentConfirmedBorder}20`,
+              alignItems: 'center',
+              gap: 2,
+              shadowColor: colors.intentConfirmedBorder,
+              shadowOffset: { width: 0, height: 0 },
+              shadowOpacity: 0.8,
+              shadowRadius: 12,
+            }}
           >
             <Typography
               variant="caption"
@@ -261,12 +213,12 @@ const CardHandGrid = ({
             <Typography variant="micro" style={{ color: colors.textSecondary }}>
               {empoweredCount} traits empowered — FREE ACTION
             </Typography>
-          </Animated.View>
+          </View>
         </Pressable>
       ) : null}
 
       {/* Divider */}
-      <View style={{ height: 1, backgroundColor: colors.tabBorder, opacity: 0.4 }} />
+      <View style={{ height: 1, backgroundColor: colors.tabBorder, opacity: 0.4, marginTop: 8 }} />
 
       {/* Bottom row: Reroll + End Turn */}
       <Stack direction="row" gap={8}>
@@ -280,13 +232,7 @@ const CardHandGrid = ({
           }}
           disabled={disabled || rerolled}
         />
-        <ActionButton
-          label="End Turn"
-          icon="⏭️"
-          subtitle={`${combatState.energy} energy left`}
-          onPress={onEndTurn}
-          disabled={disabled}
-        />
+        <ActionButton label="End Turn" icon="⏭️" onPress={onEndTurn} disabled={disabled} />
       </Stack>
     </Stack>
   );

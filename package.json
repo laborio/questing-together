@@ -14,7 +14,7 @@
     "build:dev": "eas build --profile development --platform ios",
     "build:preview": "eas build --profile preview --platform ios",
     "update:preview": "eas update --channel preview",
-    "db:types": "npx supabase gen types typescript --project-id jjomkrlwakrtshdnsrtu > src/api/database.types.ts",
+    "db:types": "npx supabase gen types typescript --project-id jjomkrlwakrtshdnsrtu > src/api/database.types.ts && npx biome check --write src/api/database.types.ts",
     "db:migrate": "bash bin/db-migrate.sh"
   },
   "dependencies": {

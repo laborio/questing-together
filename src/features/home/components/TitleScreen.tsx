@@ -32,7 +32,8 @@ const TitleScreen = ({ onCreate, onBrowse, onPlayTest }: TitleScreenProps) => {
     insets,
   } = useHomeScreenLayout();
   const { roomConnection } = useGame();
-  const { isBusy, roomError } = roomConnection;
+  const { isBusy, roomError, availableRooms, myRooms } = roomConnection;
+  const hasRooms = availableRooms.length > 0 || myRooms.length > 0;
   const { t } = useTranslation();
   const router = useRouter();
 
@@ -68,10 +69,10 @@ const TitleScreen = ({ onCreate, onBrowse, onPlayTest }: TitleScreenProps) => {
           />
           <Button
             size="lg"
-            disabled={isBusy}
+            disabled={isBusy || !hasRooms}
             onPress={onBrowse}
             label={t('home.joinRoom')}
-            hint={t('home.joinRoomHint')}
+            hint={hasRooms ? t('home.joinRoomHint') : t('roomBrowser.noRooms')}
           />
           <Button
             size="lg"

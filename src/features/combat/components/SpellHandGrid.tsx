@@ -29,6 +29,7 @@ type CardHandGridProps = {
   ) => void;
   onConvergence: () => void;
   onEndTurn: () => void;
+  onReroll: () => void;
   selectedEnemyIdx: number | null;
 };
 
@@ -38,6 +39,7 @@ const CardHandGrid = ({
   onPlayCard,
   onConvergence,
   onEndTurn,
+  onReroll,
   selectedEnemyIdx,
 }: CardHandGridProps) => {
   const [attuneActive, setAttuneActive] = useState(false);
@@ -144,7 +146,7 @@ const CardHandGrid = ({
   }));
 
   return (
-    <Stack gap={6}>
+    <Stack gap={12}>
       {/* Energy display */}
       <Stack direction="row" align="center" justify="space-between">
         <Stack direction="row" gap={4} align="center">
@@ -183,19 +185,12 @@ const CardHandGrid = ({
 
       {/* Card hand: 2x2 grid of visible cards */}
       {(() => {
-        // Filter out played cards, then rotate view on reroll
+        // Filter out played cards
         const availableCards = combatState.hand
           .map((instance, idx) => ({ instance, idx }))
           .filter(({ idx }) => !localPlayedIndices.includes(idx));
 
-        // Reroll rotates the visible window by VISIBLE_HAND_SIZE
-        const rotated = rerolled
-          ? [
-              ...availableCards.slice(VISIBLE_HAND_SIZE),
-              ...availableCards.slice(0, VISIBLE_HAND_SIZE),
-            ]
-          : availableCards;
-        const visibleCards = rotated.slice(0, VISIBLE_HAND_SIZE);
+        const visibleCards = availableCards.slice(0, VISIBLE_HAND_SIZE);
 
         return (
           <Stack gap={8}>
@@ -278,8 +273,12 @@ const CardHandGrid = ({
         <ActionButton
           label={`Reroll (${rerolled ? 0 : 1})`}
           icon="🔄"
-          onPress={() => setRerolled(true)}
-          disabled={disabled || rerolled || combatState.energy <= 0}
+          onPress={() => {
+            setRerolled(true);
+            setLocalPlayedIndices([]);
+            onReroll();
+          }}
+          disabled={disabled || rerolled}
         />
         <ActionButton
           label="End Turn"

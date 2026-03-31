@@ -413,6 +413,7 @@ const CombatScreen = () => {
           onPlayCard={handlePlayCard}
           onConvergence={handleConvergence}
           onEndTurn={handleEndTurn}
+          onReroll={() => void roomConnection.combatRerollHand()}
           selectedEnemyIdx={selectedEnemyIdx >= 0 ? selectedEnemyIdx : null}
         />
       </BottomSheet>

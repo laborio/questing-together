@@ -306,6 +306,67 @@ $$;
 grant execute on function public.combat_init_turn(uuid, uuid) to authenticated;
 
 -- ----------------------------
+-- RPC: combat_reroll_hand
+-- Shuffle hand back into draw pile and draw a fresh hand
+-- ----------------------------
+create or replace function public.combat_reroll_hand(
+  p_room_id uuid
+)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_user_id uuid := auth.uid();
+  v_player_id text;
+  v_screen_id uuid;
+  v_pcs record;
+  v_draw_result jsonb;
+begin
+  -- Find player
+  select rp.player_id into v_player_id
+  from public.room_players rp
+  where rp.room_id = p_room_id and rp.user_id = v_user_id
+  limit 1;
+  if v_player_id is null then
+    raise exception 'Player not in room';
+  end if;
+
+  -- Get current screen
+  select as2.id into v_screen_id
+  from public.adventure_screens as2
+  join public.rooms r on r.id = as2.room_id
+  where as2.room_id = p_room_id
+    and as2.position = r.current_screen_position
+  limit 1;
+
+  -- Get combat state
+  select * into v_pcs
+  from public.player_combat_state
+  where room_id = p_room_id and screen_id = v_screen_id and player_id = v_player_id;
+  if v_pcs is null then
+    raise exception 'No combat state';
+  end if;
+
+  -- Shuffle hand back into draw pile, then draw fresh hand
+  v_draw_result := public._draw_hand(
+    v_pcs.draw_pile || v_pcs.hand,
+    v_pcs.discard_pile,
+    5
+  );
+
+  update public.player_combat_state
+  set draw_pile = v_draw_result->'drawPile',
+      hand = v_draw_result->'hand',
+      discard_pile = '[]'::jsonb
+  where id = v_pcs.id;
+end;
+$$;
+
+grant execute on function public.combat_reroll_hand(uuid) to authenticated;
+
+-- ----------------------------
 -- RPC: combat_play_card
 -- Play a card from hand, spending energy, applying effects
 -- ----------------------------

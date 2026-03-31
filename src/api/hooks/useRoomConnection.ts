@@ -127,6 +127,7 @@ type UseRoomConnectionResult = {
   ) => Promise<unknown>;
   combatUseConvergence: (targetEnemyIdx?: number | null) => Promise<unknown>;
   combatEndTurn: () => Promise<unknown>;
+  combatRerollHand: () => Promise<unknown>;
   combatInitTurn: () => Promise<unknown>;
   combatEnemyPhase: () => Promise<unknown>;
   combatBotTurn: (botPlayerId: PlayerId) => Promise<unknown>;
@@ -889,6 +890,18 @@ export function useRoomConnection(): UseRoomConnectionResult {
     onError: (error) => setRoomError(getErrorMessage(error, 'End turn failed')),
   });
 
+  const combatRerollHandMutation = useMutation({
+    mutationFn: async () => {
+      if (!room?.id) throw new Error('No room');
+      const { error } = await supabase.rpc('combat_reroll_hand', { p_room_id: room.id });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      if (room?.id) void qc.invalidateQueries({ queryKey: roomKeys.roomState(room.id) });
+    },
+    onError: (error) => setRoomError(getErrorMessage(error, 'Reroll failed')),
+  });
+
   const combatInitTurnMutation = useMutation({
     mutationFn: async () => {
       if (!room?.id) throw new Error('No room');
@@ -1133,6 +1146,11 @@ export function useRoomConnection(): UseRoomConnectionResult {
     return combatEndTurnMutation.mutateAsync();
   }, [combatEndTurnMutation]);
 
+  const combatRerollHand = useCallback(async () => {
+    setRoomError(null);
+    return combatRerollHandMutation.mutateAsync();
+  }, [combatRerollHandMutation]);
+
   const combatInitTurn = useCallback(async () => {
     setRoomError(null);
     return combatInitTurnMutation.mutateAsync();
@@ -1210,6 +1228,7 @@ export function useRoomConnection(): UseRoomConnectionResult {
       combatPlayCard,
       combatUseConvergence,
       combatEndTurn,
+      combatRerollHand,
       combatInitTurn,
       combatEnemyPhase,
       combatBotTurn,
@@ -1247,6 +1266,7 @@ export function useRoomConnection(): UseRoomConnectionResult {
       combatPlayCard,
       combatUseConvergence,
       combatEndTurn,
+      combatRerollHand,
       combatInitTurn,
       combatEnemyPhase,
       combatBotTurn,

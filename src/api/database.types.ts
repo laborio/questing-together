@@ -752,6 +752,7 @@ export type Database = {
         };
         Returns: Json;
       };
+      combat_reroll_hand: { Args: { p_room_id: string }; Returns: undefined };
       combat_select_reward: {
         Args: { p_reward_id: string; p_reward_type: string; p_room_id: string };
         Returns: Json;

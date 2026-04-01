@@ -1218,6 +1218,7 @@ function applyTrailStyleDefaults(layer) {
       : style === 'streak'
         ? -24
         : 0;
+    layer.alignToMotionDirection = Boolean(layer.alignToMotionDirection);
   }
 
   if (style === 'arc') {
@@ -1225,6 +1226,7 @@ function applyTrailStyleDefaults(layer) {
     layer.thickness = Number.isFinite(Number(layer.thickness)) ? Number(layer.thickness) : 3;
     layer.sweepDeg = Number.isFinite(Number(layer.sweepDeg)) ? Number(layer.sweepDeg) : 130;
     layer.rotationDeg = Number.isFinite(Number(layer.rotationDeg)) ? Number(layer.rotationDeg) : -90;
+    layer.alignToMotionDirection = Boolean(layer.alignToMotionDirection);
   }
 
   if (style === 'starburst') {
@@ -1234,6 +1236,7 @@ function applyTrailStyleDefaults(layer) {
       ? Math.max(3, Math.round(Number(layer.points)))
       : 6;
     layer.rotationDeg = Number.isFinite(Number(layer.rotationDeg)) ? Number(layer.rotationDeg) : -90;
+    layer.alignToMotionDirection = Boolean(layer.alignToMotionDirection);
   }
 
   return layer;
@@ -1405,6 +1408,7 @@ function normalizeAsset(rawAsset) {
       layer.width = Number.isFinite(Number(layer.width)) ? Number(layer.width) : 42;
       layer.height = Number.isFinite(Number(layer.height)) ? Number(layer.height) : 16;
       layer.rotationDeg = Number.isFinite(Number(layer.rotationDeg)) ? Number(layer.rotationDeg) : 0;
+      layer.alignToMotionDirection = Boolean(layer.alignToMotionDirection);
       return layer;
     }
 
@@ -1412,6 +1416,7 @@ function normalizeAsset(rawAsset) {
       layer.thickness = Number.isFinite(Number(layer.thickness)) ? Number(layer.thickness) : 4;
       layer.sweepDeg = Number.isFinite(Number(layer.sweepDeg)) ? Number(layer.sweepDeg) : 120;
       layer.rotationDeg = Number.isFinite(Number(layer.rotationDeg)) ? Number(layer.rotationDeg) : -90;
+      layer.alignToMotionDirection = Boolean(layer.alignToMotionDirection);
       return layer;
     }
 
@@ -1422,6 +1427,7 @@ function normalizeAsset(rawAsset) {
         ? Math.max(3, Math.round(Number(layer.points)))
         : 6;
       layer.rotationDeg = Number.isFinite(Number(layer.rotationDeg)) ? Number(layer.rotationDeg) : -90;
+      layer.alignToMotionDirection = Boolean(layer.alignToMotionDirection);
       return layer;
     }
 
@@ -1857,7 +1863,7 @@ function randomSigned(seed) {
   return random01(seed) * 2 - 1;
 }
 
-function sampleMotionHeadingDeg(asset, instance, progress) {
+function sampleMotionHeadingDeg(asset, instance, progress, fallbackDeg = -90) {
   const current = sampleMotionPosition(asset, instance, progress);
   const next = sampleMotionPosition(asset, instance, Math.min(1, progress + 0.01));
   const dx = next.x - current.x;
@@ -1867,7 +1873,30 @@ function sampleMotionHeadingDeg(asset, instance, progress) {
     return (Math.atan2(dy, dx) * 180) / Math.PI;
   }
 
-  return -90;
+  return fallbackDeg;
+}
+
+function sampleResolvedLayerRotationDeg(
+  asset,
+  instance,
+  layer,
+  progress,
+  fallbackRotationDeg = 0,
+  alignToMotionOffsetDeg = 0,
+) {
+  const baseRotationDeg = Number.isFinite(Number(layer.rotationDeg))
+    ? Number(layer.rotationDeg)
+    : fallbackRotationDeg;
+
+  if (!layer.alignToMotionDirection) {
+    return baseRotationDeg;
+  }
+
+  return (
+    baseRotationDeg +
+    sampleMotionHeadingDeg(asset, instance, progress, 0) +
+    alignToMotionOffsetDeg
+  );
 }
 
 function resolveParticleBirthProgress(layer, effectDurationMs, index) {
@@ -2257,7 +2286,7 @@ function renderStreak(asset, instance, layer, progress) {
       ry="${height / 2}"
       fill="${escapeHtml(layer.color)}"
       opacity="${Math.max(0, alpha)}"
-      transform="rotate(${layer.rotationDeg ?? 0} ${x} ${y})"
+      transform="rotate(${sampleResolvedLayerRotationDeg(asset, instance, layer, progress, 0)} ${x} ${y})"
     ></rect>
   `;
 }
@@ -2270,7 +2299,7 @@ function renderDiamond(asset, instance, layer, progress) {
   const alpha = sampleLayerTrack(asset, layer, 'alpha', progress, 1);
   const halfWidth = Math.max(1, (layer.width * scale) / 2);
   const halfHeight = Math.max(1, (layer.height * scale) / 2);
-  const angle = ((layer.rotationDeg ?? 0) * Math.PI) / 180;
+  const angle = (sampleResolvedLayerRotationDeg(asset, instance, layer, progress, 0, 90) * Math.PI) / 180;
   const rotatePoint = (x, y) => ({
     x: x * Math.cos(angle) - y * Math.sin(angle),
     y: x * Math.sin(angle) + y * Math.cos(angle),
@@ -2300,7 +2329,8 @@ function renderArc(asset, instance, layer, progress) {
   const scale = sampleLayerTrack(asset, layer, 'scale', progress, 1);
   const alpha = sampleLayerTrack(asset, layer, 'alpha', progress, 1);
   const radius = Math.max(1, layer.radius * scale);
-  const startAngle = (layer.rotationDeg ?? -90) - layer.sweepDeg / 2;
+  const startAngle =
+    sampleResolvedLayerRotationDeg(asset, instance, layer, progress, -90, 90) - layer.sweepDeg / 2;
   const endAngle = startAngle + layer.sweepDeg;
   const toPoint = (angleDeg) => {
     const angle = (angleDeg * Math.PI) / 180;
@@ -2360,7 +2390,8 @@ function renderStarburst(asset, instance, layer, progress) {
   const innerRadius = Math.max(0.5, layer.innerRadius * scale);
   const outerRadius = Math.max(innerRadius + 0.5, layer.outerRadius * scale);
   const pointCount = Math.max(3, Math.round(layer.points));
-  const rotation = ((layer.rotationDeg ?? -90) * Math.PI) / 180;
+  const rotation =
+    (sampleResolvedLayerRotationDeg(asset, instance, layer, progress, -90, 90) * Math.PI) / 180;
   const points = Array.from({ length: pointCount * 2 }, (_, index) => {
     const radius = index % 2 === 0 ? outerRadius : innerRadius;
     const angle = rotation + (Math.PI * index) / pointCount;
@@ -2513,7 +2544,7 @@ function renderTrail(asset, instance, layer, progress) {
           ry="${height / 2}"
           fill="${escapeHtml(layer.color)}"
           opacity="${opacity}"
-          transform="rotate(${layer.rotationDeg ?? -24} ${x} ${y})"
+          transform="rotate(${sampleResolvedLayerRotationDeg(asset, instance, layer, segmentProgress, -24)} ${x} ${y})"
         ></rect>
       `;
       continue;
@@ -2522,7 +2553,10 @@ function renderTrail(asset, instance, layer, progress) {
     if (trailStyle === 'diamond') {
       const halfWidth = Math.max(1, ((layer.width ?? 24) * scale * sizeFactor) / 2);
       const halfHeight = Math.max(1, ((layer.height ?? 28) * scale * sizeFactor) / 2);
-      const angle = ((layer.rotationDeg ?? 0) * Math.PI) / 180;
+      const angle =
+        (sampleResolvedLayerRotationDeg(asset, instance, layer, segmentProgress, 0, 90) *
+          Math.PI) /
+        180;
       const rotatePoint = (offsetX, offsetY) => ({
         x: offsetX * Math.cos(angle) - offsetY * Math.sin(angle),
         y: offsetX * Math.sin(angle) + offsetY * Math.cos(angle),
@@ -2548,7 +2582,9 @@ function renderTrail(asset, instance, layer, progress) {
     if (trailStyle === 'arc') {
       const arcRadius = Math.max(1, (layer.radius ?? 12) * scale * sizeFactor);
       const sweepDeg = layer.sweepDeg ?? 130;
-      const startAngle = (layer.rotationDeg ?? -90) - sweepDeg / 2;
+      const startAngle =
+        sampleResolvedLayerRotationDeg(asset, instance, layer, segmentProgress, -90, 90) -
+        sweepDeg / 2;
       const endAngle = startAngle + sweepDeg;
       const toPoint = (angleDeg) => {
         const angle = (angleDeg * Math.PI) / 180;
@@ -2576,7 +2612,10 @@ function renderTrail(asset, instance, layer, progress) {
       const innerRadius = Math.max(0.5, (layer.innerRadius ?? 6) * scale * sizeFactor);
       const outerRadius = Math.max(innerRadius + 0.5, (layer.outerRadius ?? 14) * scale * sizeFactor);
       const pointCount = Math.max(3, Math.round(layer.points ?? 6));
-      const rotation = ((layer.rotationDeg ?? -90) * Math.PI) / 180;
+      const rotation =
+        (sampleResolvedLayerRotationDeg(asset, instance, layer, segmentProgress, -90, 90) *
+          Math.PI) /
+        180;
       const points = Array.from({ length: pointCount * 2 }, (_, pointIndex) => {
         const pointRadius = pointIndex % 2 === 0 ? outerRadius : innerRadius;
         const angle = rotation + (Math.PI * pointIndex) / pointCount;

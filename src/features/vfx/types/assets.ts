@@ -12,6 +12,7 @@ export type ShaderUniformValue = number | number[];
 type EffectLayerBase = {
   id: string;
   layerLifetimeMs?: number;
+  alignToMotionDirection?: boolean;
   tracks?: EffectTrackMap;
 };
 

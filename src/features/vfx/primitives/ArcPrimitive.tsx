@@ -1,6 +1,10 @@
 import Animated, { type SharedValue, useAnimatedProps } from 'react-native-reanimated';
 import { Path } from 'react-native-svg';
-import { sampleLayerTrack, sampleMotionPosition } from '@/features/vfx/runtime/sampleTrack';
+import {
+  sampleLayerTrack,
+  sampleMotionPosition,
+  sampleResolvedLayerRotationDeg,
+} from '@/features/vfx/runtime/sampleTrack';
 import type { ArcLayer, EffectAsset } from '@/features/vfx/types/assets';
 import type { EffectInstance } from '@/features/vfx/types/runtime';
 
@@ -30,7 +34,9 @@ const ArcPrimitive = ({ asset, instance, layer, progress }: ArcPrimitiveProps) =
     const scale = sampleLayerTrack(layer, 'scale', progress.value, 1);
     const alpha = sampleLayerTrack(layer, 'alpha', progress.value, 1);
     const radius = Math.max(1, layer.radius * scale);
-    const startAngle = (layer.rotationDeg ?? -90) - layer.sweepDeg / 2;
+    const startAngle =
+      sampleResolvedLayerRotationDeg(asset, instance, layer, progress.value, -90, 90) -
+      layer.sweepDeg / 2;
     const endAngle = startAngle + layer.sweepDeg;
     const start = polarToCartesian(cx, cy, radius, startAngle);
     const end = polarToCartesian(cx, cy, radius, endAngle);

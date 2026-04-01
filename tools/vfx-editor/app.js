@@ -822,6 +822,7 @@ function applyTrailStyleDefaults(layer) {
     ? layer.style
     : 'fill';
   layer.style = style;
+  layer.alignToMotionDirection = Boolean(layer.alignToMotionDirection);
   layer.radius = Number.isFinite(Number(layer.radius)) ? Number(layer.radius) : 12;
   layer.segments = Number.isFinite(Number(layer.segments)) ? Math.max(1, Math.round(Number(layer.segments))) : 6;
   layer.spacing = Number.isFinite(Number(layer.spacing)) ? Number(layer.spacing) : 0.06;
@@ -946,6 +947,15 @@ function renderTintField({ value, field = 'tintColor', datasetName = 'layer-fiel
         />
       </div>
       <span class="section-note">Optional. Uses the sprite alpha as a mask and fills it with this color.</span>
+    </label>
+  `;
+}
+
+function renderAlignToDirectionField(layer) {
+  return `
+    <label class="field-checkbox">
+      <input type="checkbox" ${layer.alignToMotionDirection ? 'checked' : ''} data-layer-field="alignToMotionDirection" />
+      <span class="field-label">Align to Direction</span>
     </label>
   `;
 }
@@ -1776,6 +1786,7 @@ function normalizeAsset(rawAsset) {
     }
 
     if (nextLayer.type === 'shaderLayer') {
+      nextLayer.alignToMotionDirection = Boolean(nextLayer.alignToMotionDirection);
       nextLayer.shaderId =
         typeof nextLayer.shaderId === 'string' && nextLayer.shaderId.trim()
           ? nextLayer.shaderId
@@ -1797,6 +1808,7 @@ function normalizeAsset(rawAsset) {
     }
 
     if (nextLayer.type === 'sprite') {
+      nextLayer.alignToMotionDirection = Boolean(nextLayer.alignToMotionDirection);
       nextLayer.spriteId =
         typeof nextLayer.spriteId === 'string' && hasSpriteDefinition(nextLayer.spriteId)
           ? nextLayer.spriteId
@@ -1810,6 +1822,7 @@ function normalizeAsset(rawAsset) {
 
     nextLayer.radius = Number.isFinite(Number(nextLayer.radius)) ? Number(nextLayer.radius) : 10;
     nextLayer.color = typeof nextLayer.color === 'string' ? nextLayer.color : '#ffffff';
+    nextLayer.alignToMotionDirection = Boolean(nextLayer.alignToMotionDirection);
 
     if (nextLayer.type === 'streak' || nextLayer.type === 'diamond') {
       nextLayer.width = Number.isFinite(Number(nextLayer.width)) ? Number(nextLayer.width) : 42;
@@ -4265,7 +4278,7 @@ function randomSigned(seed) {
   return random01(seed) * 2 - 1;
 }
 
-function sampleMotionHeadingDeg(asset, instance, progress) {
+function sampleMotionHeadingDeg(asset, instance, progress, fallbackDeg = -90) {
   const current = sampleMotionPosition(asset, instance, progress);
   const next = sampleMotionPosition(asset, instance, Math.min(1, progress + 0.01));
   const dx = next.x - current.x;
@@ -4275,7 +4288,28 @@ function sampleMotionHeadingDeg(asset, instance, progress) {
     return (Math.atan2(dy, dx) * 180) / Math.PI;
   }
 
-  return -90;
+  return fallbackDeg;
+}
+
+function sampleResolvedLayerRotationDeg(
+  asset,
+  instance,
+  layer,
+  progress,
+  fallbackRotationDeg = 0,
+  alignToMotionOffsetDeg = 0,
+) {
+  const baseRotationDeg = Number.isFinite(Number(layer.rotationDeg))
+    ? Number(layer.rotationDeg)
+    : fallbackRotationDeg;
+
+  if (!layer.alignToMotionDirection) {
+    return baseRotationDeg;
+  }
+
+  return (
+    baseRotationDeg + sampleMotionHeadingDeg(asset, instance, progress, 0) + alignToMotionOffsetDeg
+  );
 }
 
 function resolveParticleBirthProgress(layer, effectDurationMs, index) {
@@ -4849,6 +4883,7 @@ function renderStreak(asset, instance, layer, progress) {
   const alpha = sampleLayerTrack(asset, layer, 'alpha', progress, 1);
   const width = Math.max(1, layer.width * scale);
   const height = Math.max(1, layer.height * scale);
+  const rotationDeg = sampleResolvedLayerRotationDeg(asset, instance, layer, progress, 0);
 
   return `
     <rect
@@ -4860,7 +4895,7 @@ function renderStreak(asset, instance, layer, progress) {
       ry="${height / 2}"
       fill="${escapeHtml(layer.color)}"
       opacity="${Math.max(0, alpha)}"
-      transform="rotate(${layer.rotationDeg ?? 0} ${x} ${y})"
+      transform="rotate(${rotationDeg} ${x} ${y})"
     ></rect>
   `;
 }
@@ -4873,7 +4908,8 @@ function renderDiamond(asset, instance, layer, progress) {
   const alpha = sampleLayerTrack(asset, layer, 'alpha', progress, 1);
   const halfWidth = Math.max(1, (layer.width * scale) / 2);
   const halfHeight = Math.max(1, (layer.height * scale) / 2);
-  const angle = ((layer.rotationDeg ?? 0) * Math.PI) / 180;
+  const angle =
+    (sampleResolvedLayerRotationDeg(asset, instance, layer, progress, 0, 90) * Math.PI) / 180;
   const rotatePoint = (x, y) => ({
     x: x * Math.cos(angle) - y * Math.sin(angle),
     y: x * Math.sin(angle) + y * Math.cos(angle),
@@ -4903,7 +4939,8 @@ function renderArc(asset, instance, layer, progress) {
   const scale = sampleLayerTrack(asset, layer, 'scale', progress, 1);
   const alpha = sampleLayerTrack(asset, layer, 'alpha', progress, 1);
   const radius = Math.max(1, layer.radius * scale);
-  const startAngle = (layer.rotationDeg ?? -90) - layer.sweepDeg / 2;
+  const startAngle =
+    sampleResolvedLayerRotationDeg(asset, instance, layer, progress, -90, 90) - layer.sweepDeg / 2;
   const endAngle = startAngle + layer.sweepDeg;
   const toPoint = (angleDeg) => {
     const angle = (angleDeg * Math.PI) / 180;
@@ -4938,7 +4975,8 @@ function renderStarburst(asset, instance, layer, progress) {
   const innerRadius = Math.max(0.5, layer.innerRadius * scale);
   const outerRadius = Math.max(innerRadius + 0.5, layer.outerRadius * scale);
   const pointCount = Math.max(3, Math.round(layer.points));
-  const rotation = ((layer.rotationDeg ?? -90) * Math.PI) / 180;
+  const rotation =
+    (sampleResolvedLayerRotationDeg(asset, instance, layer, progress, -90, 90) * Math.PI) / 180;
   const points = Array.from({ length: pointCount * 2 }, (_, index) => {
     const radius = index % 2 === 0 ? outerRadius : innerRadius;
     const angle = rotation + (Math.PI * index) / pointCount;
@@ -5081,6 +5119,7 @@ function renderTrail(asset, instance, layer, progress) {
     if (trailStyle === 'streak') {
       const width = Math.max(1, (layer.width ?? 36) * scale * sizeFactor);
       const height = Math.max(1, (layer.height ?? 10) * scale * sizeFactor);
+      const rotationDeg = sampleResolvedLayerRotationDeg(asset, instance, layer, segmentProgress, -24);
       svg += `
         <rect
           x="${x - width / 2}"
@@ -5091,7 +5130,7 @@ function renderTrail(asset, instance, layer, progress) {
           ry="${height / 2}"
           fill="${escapeHtml(layer.color)}"
           opacity="${opacity}"
-          transform="rotate(${layer.rotationDeg ?? -24} ${x} ${y})"
+          transform="rotate(${rotationDeg} ${x} ${y})"
         ></rect>
       `;
       continue;
@@ -5100,7 +5139,10 @@ function renderTrail(asset, instance, layer, progress) {
     if (trailStyle === 'diamond') {
       const halfWidth = Math.max(1, ((layer.width ?? 24) * scale * sizeFactor) / 2);
       const halfHeight = Math.max(1, ((layer.height ?? 28) * scale * sizeFactor) / 2);
-      const angle = (((layer.rotationDeg ?? 0) * Math.PI) / 180);
+      const angle =
+        (sampleResolvedLayerRotationDeg(asset, instance, layer, segmentProgress, 0, 90) *
+          Math.PI) /
+        180;
       const rotatePoint = (offsetX, offsetY) => ({
         x: offsetX * Math.cos(angle) - offsetY * Math.sin(angle),
         y: offsetX * Math.sin(angle) + offsetY * Math.cos(angle),
@@ -5126,7 +5168,9 @@ function renderTrail(asset, instance, layer, progress) {
     if (trailStyle === 'arc') {
       const arcRadius = Math.max(1, (layer.radius ?? 12) * scale * sizeFactor);
       const sweepDeg = layer.sweepDeg ?? 130;
-      const startAngle = (layer.rotationDeg ?? -90) - sweepDeg / 2;
+      const startAngle =
+        sampleResolvedLayerRotationDeg(asset, instance, layer, segmentProgress, -90, 90) -
+        sweepDeg / 2;
       const endAngle = startAngle + sweepDeg;
       const toPoint = (angleDeg) => {
         const angle = (angleDeg * Math.PI) / 180;
@@ -5154,7 +5198,10 @@ function renderTrail(asset, instance, layer, progress) {
       const innerRadius = Math.max(0.5, (layer.innerRadius ?? 6) * scale * sizeFactor);
       const outerRadius = Math.max(innerRadius + 0.5, (layer.outerRadius ?? 14) * scale * sizeFactor);
       const pointCount = Math.max(3, Math.round(layer.points ?? 6));
-      const rotation = ((layer.rotationDeg ?? -90) * Math.PI) / 180;
+      const rotation =
+        (sampleResolvedLayerRotationDeg(asset, instance, layer, segmentProgress, -90, 90) *
+          Math.PI) /
+        180;
       const points = Array.from({ length: pointCount * 2 }, (_, pointIndex) => {
         const pointRadius = pointIndex % 2 === 0 ? outerRadius : innerRadius;
         const angle = rotation + (Math.PI * pointIndex) / pointCount;
@@ -5867,6 +5914,8 @@ function renderTrailInspectorFields(layer, trailStyle) {
           <span class="field-label">Rotation</span>
           <input class="field-input" type="number" step="1" value="${layer.rotationDeg ?? (trailStyle === 'streak' ? -24 : 0)}" data-layer-field="rotationDeg" />
         </label>
+
+        ${renderAlignToDirectionField(layer)}
       </div>
     `
         : ''
@@ -5895,6 +5944,8 @@ function renderTrailInspectorFields(layer, trailStyle) {
           <span class="field-label">Rotation</span>
           <input class="field-input" type="number" step="1" value="${layer.rotationDeg ?? -90}" data-layer-field="rotationDeg" />
         </label>
+
+        ${renderAlignToDirectionField(layer)}
       </div>
     `
         : ''
@@ -5923,6 +5974,8 @@ function renderTrailInspectorFields(layer, trailStyle) {
           <span class="field-label">Rotation</span>
           <input class="field-input" type="number" step="1" value="${layer.rotationDeg ?? -90}" data-layer-field="rotationDeg" />
         </label>
+
+        ${renderAlignToDirectionField(layer)}
       </div>
     `
         : ''
@@ -6401,6 +6454,8 @@ function renderLayerInspector() {
               <span class="field-label">Rotation</span>
               <input class="field-input" type="number" step="1" value="${layer.rotationDeg ?? 0}" data-layer-field="rotationDeg" />
             </label>
+
+            ${renderAlignToDirectionField(layer)}
           </div>
         `
               : layer.type === 'arc'
@@ -6425,6 +6480,8 @@ function renderLayerInspector() {
               <span class="field-label">Rotation</span>
               <input class="field-input" type="number" step="1" value="${layer.rotationDeg ?? -90}" data-layer-field="rotationDeg" />
             </label>
+
+            ${renderAlignToDirectionField(layer)}
           </div>
         `
                 : layer.type === 'starburst'
@@ -6449,6 +6506,8 @@ function renderLayerInspector() {
               <span class="field-label">Rotation</span>
               <input class="field-input" type="number" step="1" value="${layer.rotationDeg ?? -90}" data-layer-field="rotationDeg" />
             </label>
+
+            ${renderAlignToDirectionField(layer)}
           </div>
         `
                   : layer.type === 'particleEmitter'
@@ -7096,9 +7155,10 @@ function createLayer(type) {
 
 function createConvertedLayer(sourceLayer, nextType) {
   const converted = createLayer(nextType);
-    converted.id = sourceLayer.id;
-    converted.layerLifetimeMs = sourceLayer.layerLifetimeMs ?? converted.layerLifetimeMs;
-    converted.tracks = cloneData(sourceLayer.tracks ?? {});
+  converted.id = sourceLayer.id;
+  converted.layerLifetimeMs = sourceLayer.layerLifetimeMs ?? converted.layerLifetimeMs;
+  converted.alignToMotionDirection = Boolean(sourceLayer.alignToMotionDirection);
+  converted.tracks = cloneData(sourceLayer.tracks ?? {});
 
   if ('color' in converted) {
     converted.color =
@@ -7400,6 +7460,8 @@ function updateSelectedLayerField(field, rawValue, fromColorPicker = false) {
     layer.emitterShape = normalizeParticleEmitterShape(rawValue);
   } else if (field === 'spriteId') {
     layer.spriteId = hasSpriteDefinition(rawValue) ? rawValue : getDefaultSpriteId();
+  } else if (field === 'alignToMotionDirection') {
+    layer.alignToMotionDirection = Boolean(rawValue);
   } else {
     layer[field] = rawValue;
   }
@@ -8635,7 +8697,7 @@ function handleLayerInspectorInput(event) {
     }
     updateSelectedLayerField(
       target.dataset.layerField,
-      target.value,
+      target.type === 'checkbox' ? target.checked : target.value,
       target.dataset.colorPicker === 'true',
     );
     return;

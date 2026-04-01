@@ -5,7 +5,6 @@ import {
   Group,
   Path,
   RadialGradient,
-  RoundedRect,
   type SkImage,
   Image as SkiaImage,
   useImage,
@@ -26,7 +25,9 @@ import { getEffectAsset } from '@/features/vfx/runtime/effectRegistry';
 import { getEffectPlaybackDurationMs } from '@/features/vfx/runtime/getEffectPlaybackDurationMs';
 import {
   sampleLayerTrack,
+  sampleMotionHeadingDeg,
   sampleMotionPosition,
+  sampleResolvedLayerRotationDeg,
   sampleTrack,
 } from '@/features/vfx/runtime/sampleTrack';
 import { getVfxSpriteSource } from '@/features/vfx/runtime/spriteRegistry';
@@ -439,21 +440,6 @@ function sampleEmitterShapeOffset(layer: ParticleEmitterLayer, seed: number) {
   return { x: 0, y: 0 };
 }
 
-function sampleMotionHeadingDeg(asset: EffectAsset, instance: EffectInstance, progress: number) {
-  'worklet';
-
-  const current = sampleMotionPosition(asset, instance, progress);
-  const next = sampleMotionPosition(asset, instance, Math.min(1, progress + 0.01));
-  const dx = next.x - current.x;
-  const dy = next.y - current.y;
-
-  if (Math.abs(dx) > 0.001 || Math.abs(dy) > 0.001) {
-    return (Math.atan2(dy, dx) * 180) / Math.PI;
-  }
-
-  return -90;
-}
-
 function resolveParticleBirthProgress(
   layer: ParticleEmitterLayer,
   effectDurationMs: number,
@@ -835,6 +821,26 @@ function useLayerMetrics(
   return { progress: layerProgress, x, y, scale, alpha };
 }
 
+function useAlignedLayerRotationDeg(
+  asset: EffectAsset,
+  instance: EffectInstance,
+  layer: { rotationDeg?: number; alignToMotionDirection?: boolean },
+  progress: SharedValue<number>,
+  fallbackRotationDeg = 0,
+  alignToMotionOffsetDeg = 0,
+) {
+  return useDerivedValue(() =>
+    sampleResolvedLayerRotationDeg(
+      asset,
+      instance,
+      layer,
+      progress.value,
+      fallbackRotationDeg,
+      alignToMotionOffsetDeg,
+    ),
+  );
+}
+
 function useParticleMetrics(
   asset: EffectAsset,
   instance: EffectInstance,
@@ -962,26 +968,33 @@ const StreakPrimitiveSkia = ({
   layer: StreakLayer;
   progress: SharedValue<number>;
 }) => {
-  const { x, y, scale, alpha } = useLayerMetrics(asset, instance, layer, progress);
-  const width = useDerivedValue(() => Math.max(1, layer.width * scale.value));
-  const height = useDerivedValue(() => Math.max(1, layer.height * scale.value));
-  const rectX = useDerivedValue(() => x.value - width.value / 2);
-  const rectY = useDerivedValue(() => y.value - height.value / 2);
-  const radius = useDerivedValue(() => height.value / 2);
-  const origin = useDerivedValue(() => ({ x: x.value, y: y.value }));
-  const rotationRad = ((layer.rotationDeg ?? 0) * Math.PI) / 180;
+  const {
+    progress: layerProgress,
+    x,
+    y,
+    scale,
+    alpha,
+  } = useLayerMetrics(asset, instance, layer, progress);
+  const rotationDeg = useAlignedLayerRotationDeg(asset, instance, layer, layerProgress, 0);
+  const path = useDerivedValue(() => {
+    const halfLength = Math.max(0.5, (layer.width * scale.value) / 2);
+    const angleRad = (rotationDeg.value * Math.PI) / 180;
+    const dx = Math.cos(angleRad) * halfLength;
+    const dy = Math.sin(angleRad) * halfLength;
+
+    return `M ${x.value - dx} ${y.value - dy} L ${x.value + dx} ${y.value + dy}`;
+  });
+  const strokeWidth = useDerivedValue(() => Math.max(1, layer.height * scale.value));
 
   return (
-    <Group origin={origin} transform={[{ rotate: rotationRad }]} opacity={alpha}>
-      <RoundedRect
-        x={rectX}
-        y={rectY}
-        width={width}
-        height={height}
-        r={radius}
-        color={layer.color}
-      />
-    </Group>
+    <Path
+      path={path}
+      color={layer.color}
+      opacity={alpha}
+      style="stroke"
+      strokeWidth={strokeWidth}
+      strokeCap="round"
+    />
   );
 };
 
@@ -996,11 +1009,18 @@ const DiamondPrimitiveSkia = ({
   layer: DiamondLayer;
   progress: SharedValue<number>;
 }) => {
-  const { x, y, scale, alpha } = useLayerMetrics(asset, instance, layer, progress);
+  const {
+    progress: layerProgress,
+    x,
+    y,
+    scale,
+    alpha,
+  } = useLayerMetrics(asset, instance, layer, progress);
+  const rotationDeg = useAlignedLayerRotationDeg(asset, instance, layer, layerProgress, 0, 90);
   const path = useDerivedValue(() => {
     const halfWidth = Math.max(1, (layer.width * scale.value) / 2);
     const halfHeight = Math.max(1, (layer.height * scale.value) / 2);
-    const angleRad = ((layer.rotationDeg ?? 0) * Math.PI) / 180;
+    const angleRad = (rotationDeg.value * Math.PI) / 180;
     const points = [
       { x: 0, y: -halfHeight },
       { x: halfWidth, y: 0 },
@@ -1027,10 +1047,17 @@ const ArcPrimitiveSkia = ({
   layer: ArcLayer;
   progress: SharedValue<number>;
 }) => {
-  const { x, y, scale, alpha } = useLayerMetrics(asset, instance, layer, progress);
+  const {
+    progress: layerProgress,
+    x,
+    y,
+    scale,
+    alpha,
+  } = useLayerMetrics(asset, instance, layer, progress);
+  const rotationDeg = useAlignedLayerRotationDeg(asset, instance, layer, layerProgress, -90, 90);
   const path = useDerivedValue(() => {
     const radius = Math.max(1, layer.radius * scale.value);
-    const startAngle = (layer.rotationDeg ?? -90) - layer.sweepDeg / 2;
+    const startAngle = rotationDeg.value - layer.sweepDeg / 2;
     const endAngle = startAngle + layer.sweepDeg;
     const start = polarToCartesian(x.value, y.value, radius, startAngle);
     const end = polarToCartesian(x.value, y.value, radius, endAngle);
@@ -1063,12 +1090,19 @@ const StarburstPrimitiveSkia = ({
   layer: StarburstLayer;
   progress: SharedValue<number>;
 }) => {
-  const { x, y, scale, alpha } = useLayerMetrics(asset, instance, layer, progress);
+  const {
+    progress: layerProgress,
+    x,
+    y,
+    scale,
+    alpha,
+  } = useLayerMetrics(asset, instance, layer, progress);
+  const rotationDeg = useAlignedLayerRotationDeg(asset, instance, layer, layerProgress, -90, 90);
   const path = useDerivedValue(() => {
     const innerRadius = Math.max(0.5, layer.innerRadius * scale.value);
     const outerRadius = Math.max(innerRadius + 0.5, layer.outerRadius * scale.value);
     const points = Math.max(3, Math.round(layer.points));
-    const rotationRad = ((layer.rotationDeg ?? -90) * Math.PI) / 180;
+    const rotationRad = (rotationDeg.value * Math.PI) / 180;
     const vertices = Array.from({ length: points * 2 }, (_, index) => {
       const radius = index % 2 === 0 ? outerRadius : innerRadius;
       const angle = rotationRad + (Math.PI * index) / points;
@@ -1652,6 +1686,7 @@ const ParticleEmitterPrimitiveSkia = ({
 };
 
 type TrailSegmentMetrics = {
+  progress: SharedValue<number>;
   x: SharedValue<number>;
   y: SharedValue<number>;
   scale: SharedValue<number>;
@@ -1690,7 +1725,7 @@ function useTrailSegmentMetrics(
     return Math.max(0, layerVisible.value * alpha * (0.65 - index * (falloff * 0.9)));
   });
 
-  return { x, y, scale, sizeFactor, opacity };
+  return { progress: segmentProgress, x, y, scale, sizeFactor, opacity };
 }
 
 const TrailFillSegmentSkia = ({
@@ -1810,29 +1845,36 @@ const TrailStreakSegmentSkia = ({
   progress: SharedValue<number>;
   index: number;
 }) => {
-  const { x, y, scale, sizeFactor, opacity } = useTrailSegmentMetrics(
-    asset,
-    instance,
-    layer,
-    progress,
-    index,
-  );
-  const width = useDerivedValue(() =>
-    Math.max(1, (layer.width ?? 36) * scale.value * sizeFactor.value),
-  );
-  const height = useDerivedValue(() =>
+  const {
+    progress: segmentProgress,
+    x,
+    y,
+    scale,
+    sizeFactor,
+    opacity,
+  } = useTrailSegmentMetrics(asset, instance, layer, progress, index);
+  const rotationDeg = useAlignedLayerRotationDeg(asset, instance, layer, segmentProgress, -24);
+  const path = useDerivedValue(() => {
+    const halfLength = Math.max(0.5, ((layer.width ?? 36) * scale.value * sizeFactor.value) / 2);
+    const angleRad = (rotationDeg.value * Math.PI) / 180;
+    const dx = Math.cos(angleRad) * halfLength;
+    const dy = Math.sin(angleRad) * halfLength;
+
+    return `M ${x.value - dx} ${y.value - dy} L ${x.value + dx} ${y.value + dy}`;
+  });
+  const strokeWidth = useDerivedValue(() =>
     Math.max(1, (layer.height ?? 10) * scale.value * sizeFactor.value),
   );
-  const left = useDerivedValue(() => x.value - width.value / 2);
-  const top = useDerivedValue(() => y.value - height.value / 2);
-  const radius = useDerivedValue(() => height.value / 2);
-  const origin = useDerivedValue(() => ({ x: x.value, y: y.value }));
-  const rotationRad = ((layer.rotationDeg ?? -24) * Math.PI) / 180;
 
   return (
-    <Group origin={origin} transform={[{ rotate: rotationRad }]} opacity={opacity}>
-      <RoundedRect x={left} y={top} width={width} height={height} r={radius} color={layer.color} />
-    </Group>
+    <Path
+      path={path}
+      color={layer.color}
+      opacity={opacity}
+      style="stroke"
+      strokeWidth={strokeWidth}
+      strokeCap="round"
+    />
   );
 };
 
@@ -1849,17 +1891,19 @@ const TrailDiamondSegmentSkia = ({
   progress: SharedValue<number>;
   index: number;
 }) => {
-  const { x, y, scale, sizeFactor, opacity } = useTrailSegmentMetrics(
-    asset,
-    instance,
-    layer,
-    progress,
-    index,
-  );
+  const {
+    progress: segmentProgress,
+    x,
+    y,
+    scale,
+    sizeFactor,
+    opacity,
+  } = useTrailSegmentMetrics(asset, instance, layer, progress, index);
+  const rotationDeg = useAlignedLayerRotationDeg(asset, instance, layer, segmentProgress, 0, 90);
   const path = useDerivedValue(() => {
     const halfWidth = Math.max(1, ((layer.width ?? 24) * scale.value * sizeFactor.value) / 2);
     const halfHeight = Math.max(1, ((layer.height ?? 28) * scale.value * sizeFactor.value) / 2);
-    const angle = ((layer.rotationDeg ?? 0) * Math.PI) / 180;
+    const angle = (rotationDeg.value * Math.PI) / 180;
     const points = [
       rotatePoint(0, -halfHeight, angle),
       rotatePoint(halfWidth, 0, angle),
@@ -1886,17 +1930,19 @@ const TrailArcSegmentSkia = ({
   progress: SharedValue<number>;
   index: number;
 }) => {
-  const { x, y, scale, sizeFactor, opacity } = useTrailSegmentMetrics(
-    asset,
-    instance,
-    layer,
-    progress,
-    index,
-  );
+  const {
+    progress: segmentProgress,
+    x,
+    y,
+    scale,
+    sizeFactor,
+    opacity,
+  } = useTrailSegmentMetrics(asset, instance, layer, progress, index);
+  const rotationDeg = useAlignedLayerRotationDeg(asset, instance, layer, segmentProgress, -90, 90);
   const path = useDerivedValue(() => {
     const radius = Math.max(1, (layer.radius ?? 12) * scale.value * sizeFactor.value);
     const sweepDeg = layer.sweepDeg ?? 130;
-    const startAngle = (layer.rotationDeg ?? -90) - sweepDeg / 2;
+    const startAngle = rotationDeg.value - sweepDeg / 2;
     const endAngle = startAngle + sweepDeg;
     const start = polarToCartesian(x.value, y.value, radius, startAngle);
     const end = polarToCartesian(x.value, y.value, radius, endAngle);
@@ -1932,13 +1978,15 @@ const TrailStarburstSegmentSkia = ({
   progress: SharedValue<number>;
   index: number;
 }) => {
-  const { x, y, scale, sizeFactor, opacity } = useTrailSegmentMetrics(
-    asset,
-    instance,
-    layer,
-    progress,
-    index,
-  );
+  const {
+    progress: segmentProgress,
+    x,
+    y,
+    scale,
+    sizeFactor,
+    opacity,
+  } = useTrailSegmentMetrics(asset, instance, layer, progress, index);
+  const rotationDeg = useAlignedLayerRotationDeg(asset, instance, layer, segmentProgress, -90, 90);
   const path = useDerivedValue(() => {
     const innerRadius = Math.max(0.5, (layer.innerRadius ?? 6) * scale.value * sizeFactor.value);
     const outerRadius = Math.max(
@@ -1946,7 +1994,7 @@ const TrailStarburstSegmentSkia = ({
       (layer.outerRadius ?? 14) * scale.value * sizeFactor.value,
     );
     const pointCount = Math.max(3, Math.round(layer.points ?? 6));
-    const rotation = ((layer.rotationDeg ?? -90) * Math.PI) / 180;
+    const rotation = (rotationDeg.value * Math.PI) / 180;
     const points = Array.from({ length: pointCount * 2 }, (_, pointIndex) => {
       const radius = pointIndex % 2 === 0 ? outerRadius : innerRadius;
       const angle = rotation + (Math.PI * pointIndex) / pointCount;

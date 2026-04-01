@@ -102,3 +102,46 @@ export function sampleMotionPosition(
     y: instance.y,
   };
 }
+
+export function sampleMotionHeadingDeg(
+  asset: EffectAsset,
+  instance: EffectInstance,
+  progress: number,
+  fallbackDeg = -90,
+) {
+  'worklet';
+
+  const current = sampleMotionPosition(asset, instance, progress);
+  const next = sampleMotionPosition(asset, instance, Math.min(1, progress + 0.01));
+  const dx = next.x - current.x;
+  const dy = next.y - current.y;
+
+  if (Math.abs(dx) > 0.001 || Math.abs(dy) > 0.001) {
+    return (Math.atan2(dy, dx) * 180) / Math.PI;
+  }
+
+  return fallbackDeg;
+}
+
+export function sampleResolvedLayerRotationDeg(
+  asset: EffectAsset,
+  instance: EffectInstance,
+  layer: { rotationDeg?: number; alignToMotionDirection?: boolean },
+  progress: number,
+  fallbackRotationDeg = 0,
+  alignToMotionOffsetDeg = 0,
+) {
+  'worklet';
+
+  const baseRotationDeg = Number.isFinite(Number(layer.rotationDeg))
+    ? Number(layer.rotationDeg)
+    : fallbackRotationDeg;
+
+  if (!layer.alignToMotionDirection) {
+    return baseRotationDeg;
+  }
+
+  return (
+    baseRotationDeg + sampleMotionHeadingDeg(asset, instance, progress, 0) + alignToMotionOffsetDeg
+  );
+}

@@ -1,6 +1,10 @@
 import Animated, { type SharedValue, useAnimatedProps } from 'react-native-reanimated';
 import { Path } from 'react-native-svg';
-import { sampleLayerTrack, sampleMotionPosition } from '@/features/vfx/runtime/sampleTrack';
+import {
+  sampleLayerTrack,
+  sampleMotionPosition,
+  sampleResolvedLayerRotationDeg,
+} from '@/features/vfx/runtime/sampleTrack';
 import type { DiamondLayer, EffectAsset } from '@/features/vfx/types/assets';
 import type { EffectInstance } from '@/features/vfx/types/runtime';
 
@@ -30,7 +34,9 @@ const DiamondPrimitive = ({ asset, instance, layer, progress }: DiamondPrimitive
     const alpha = sampleLayerTrack(layer, 'alpha', progress.value, 1);
     const halfWidth = Math.max(1, (layer.width * scale) / 2);
     const halfHeight = Math.max(1, (layer.height * scale) / 2);
-    const angleRad = ((layer.rotationDeg ?? 0) * Math.PI) / 180;
+    const angleRad =
+      (sampleResolvedLayerRotationDeg(asset, instance, layer, progress.value, 0, 90) * Math.PI) /
+      180;
     const points = [
       { x: 0, y: -halfHeight },
       { x: halfWidth, y: 0 },

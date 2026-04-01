@@ -1,32 +1,27 @@
 {
   "sequence": {
-    "id": "Seq_GreenTest",
-    "label": "Seq_GreenTest",
+    "id": "Seq_IceShard",
+    "label": "Seq_IceShard",
     "cues": [
       {
-        "id": "muzzle",
-        "assetId": "GreenTestMuzzle",
+        "id": "Ice Shard Travel-cue-1",
+        "assetId": "IceShardTravel",
         "atMs": 0,
-        "anchor": "caster"
-      },
-      {
-        "id": "fireball-travel-cue-3",
-        "assetId": "GreenTestTravel",
-        "atMs": 0,
-        "anchor": "caster",
+        "anchor": "projectile",
         "targetAnchor": "target"
       },
       {
-        "id": "impact",
-        "assetId": "GreenTestImpact",
-        "atMs": 1300,
-        "anchor": "target"
+        "id": "Ice-impact-cue-2",
+        "assetId": "IceImpact",
+        "atMs": 330,
+        "anchor": "target",
+        "targetAnchor": "target"
       }
     ]
   },
-  "selectedCueId": "muzzle",
+  "selectedCueId": "Ice Shard Travel-cue-1",
   "pendingAssetId": "FireballImpact",
-  "fileName": "Seq_GreenTest.json",
+  "fileName": "Seq_IceShard.json",
   "previewDevice": {
     "preset": "free",
     "showSafeArea": true
@@ -40,7 +35,7 @@
   "instance": {
     "x": 224.02390683680142,
     "y": 346.3204675977654,
-    "targetX": 237.6974269726578,
-    "targetY": 92.10388240223472
+    "targetX": 461.47289033995526,
+    "targetY": 181.8488195530727
   }
 }

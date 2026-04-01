@@ -1,6 +1,10 @@
 import Animated, { type SharedValue, useAnimatedProps } from 'react-native-reanimated';
 import { Path } from 'react-native-svg';
-import { sampleLayerTrack, sampleMotionPosition } from '@/features/vfx/runtime/sampleTrack';
+import {
+  sampleLayerTrack,
+  sampleMotionPosition,
+  sampleResolvedLayerRotationDeg,
+} from '@/features/vfx/runtime/sampleTrack';
 import type { EffectAsset, StarburstLayer } from '@/features/vfx/types/assets';
 import type { EffectInstance } from '@/features/vfx/types/runtime';
 
@@ -23,7 +27,9 @@ const StarburstPrimitive = ({ asset, instance, layer, progress }: StarburstPrimi
     const innerRadius = Math.max(0.5, layer.innerRadius * scale);
     const outerRadius = Math.max(innerRadius + 0.5, layer.outerRadius * scale);
     const points = Math.max(3, Math.round(layer.points));
-    const rotationRad = ((layer.rotationDeg ?? -90) * Math.PI) / 180;
+    const rotationRad =
+      (sampleResolvedLayerRotationDeg(asset, instance, layer, progress.value, -90, 90) * Math.PI) /
+      180;
     const vertices = Array.from({ length: points * 2 }, (_, index) => {
       const radius = index % 2 === 0 ? outerRadius : innerRadius;
       const angle = rotationRad + (Math.PI * index) / points;

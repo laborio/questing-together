@@ -1,6 +1,10 @@
 import Animated, { type SharedValue, useAnimatedProps } from 'react-native-reanimated';
 import { Circle, Defs, Mask, Path, Rect, Image as SvgImage } from 'react-native-svg';
-import { sampleLayerTrack, sampleMotionPosition } from '@/features/vfx/runtime/sampleTrack';
+import {
+  sampleLayerTrack,
+  sampleMotionPosition,
+  sampleResolvedLayerRotationDeg,
+} from '@/features/vfx/runtime/sampleTrack';
 import { getVfxSpriteSource } from '@/features/vfx/runtime/spriteRegistry';
 import type { EffectAsset, TrailLayer } from '@/features/vfx/types/assets';
 import type { EffectInstance } from '@/features/vfx/types/runtime';
@@ -148,6 +152,13 @@ const StreakTrailSegment = ({ asset, instance, layer, progress, index }: TrailSe
     const values = sampleSegmentValues(asset, instance, layer, progress.value, index);
     const width = Math.max(1, (layer.width ?? 36) * values.scale * values.sizeFactor);
     const height = Math.max(1, (layer.height ?? 10) * values.scale * values.sizeFactor);
+    const rotationDeg = sampleResolvedLayerRotationDeg(
+      asset,
+      instance,
+      layer,
+      Math.max(0, progress.value - index * layer.spacing),
+      -24,
+    );
 
     return {
       x: values.x - width / 2,
@@ -157,7 +168,7 @@ const StreakTrailSegment = ({ asset, instance, layer, progress, index }: TrailSe
       rx: height / 2,
       ry: height / 2,
       opacity: values.opacity,
-      transform: `rotate(${layer.rotationDeg ?? -24} ${values.x} ${values.y})`,
+      transform: `rotate(${rotationDeg} ${values.x} ${values.y})`,
     };
   });
 
@@ -169,7 +180,17 @@ const DiamondTrailSegment = ({ asset, instance, layer, progress, index }: TrailS
     const values = sampleSegmentValues(asset, instance, layer, progress.value, index);
     const halfWidth = Math.max(1, ((layer.width ?? 24) * values.scale * values.sizeFactor) / 2);
     const halfHeight = Math.max(1, ((layer.height ?? 28) * values.scale * values.sizeFactor) / 2);
-    const angle = ((layer.rotationDeg ?? 0) * Math.PI) / 180;
+    const angle =
+      (sampleResolvedLayerRotationDeg(
+        asset,
+        instance,
+        layer,
+        Math.max(0, progress.value - index * layer.spacing),
+        0,
+        90,
+      ) *
+        Math.PI) /
+      180;
     const rotatePoint = (offsetX: number, offsetY: number) => ({
       x: offsetX * Math.cos(angle) - offsetY * Math.sin(angle),
       y: offsetX * Math.sin(angle) + offsetY * Math.cos(angle),
@@ -196,7 +217,16 @@ const ArcTrailSegment = ({ asset, instance, layer, progress, index }: TrailSegme
     const values = sampleSegmentValues(asset, instance, layer, progress.value, index);
     const radius = Math.max(1, (layer.radius ?? 12) * values.scale * values.sizeFactor);
     const sweepDeg = layer.sweepDeg ?? 130;
-    const startAngle = (layer.rotationDeg ?? -90) - sweepDeg / 2;
+    const startAngle =
+      sampleResolvedLayerRotationDeg(
+        asset,
+        instance,
+        layer,
+        Math.max(0, progress.value - index * layer.spacing),
+        -90,
+        90,
+      ) -
+      sweepDeg / 2;
     const endAngle = startAngle + sweepDeg;
     const toPoint = (angleDeg: number) => {
       const angle = (angleDeg * Math.PI) / 180;
@@ -234,7 +264,17 @@ const StarburstTrailSegment = ({ asset, instance, layer, progress, index }: Trai
       (layer.outerRadius ?? 14) * values.scale * values.sizeFactor,
     );
     const pointCount = Math.max(3, Math.round(layer.points ?? 6));
-    const rotation = ((layer.rotationDeg ?? -90) * Math.PI) / 180;
+    const rotation =
+      (sampleResolvedLayerRotationDeg(
+        asset,
+        instance,
+        layer,
+        Math.max(0, progress.value - index * layer.spacing),
+        -90,
+        90,
+      ) *
+        Math.PI) /
+      180;
     const points = Array.from({ length: pointCount * 2 }, (_, pointIndex) => {
       const radius = pointIndex % 2 === 0 ? outerRadius : innerRadius;
       const angle = rotation + (Math.PI * pointIndex) / pointCount;

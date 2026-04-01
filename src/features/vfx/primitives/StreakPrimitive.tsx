@@ -1,6 +1,10 @@
 import Animated, { type SharedValue, useAnimatedProps } from 'react-native-reanimated';
 import { Rect } from 'react-native-svg';
-import { sampleLayerTrack, sampleMotionPosition } from '@/features/vfx/runtime/sampleTrack';
+import {
+  sampleLayerTrack,
+  sampleMotionPosition,
+  sampleResolvedLayerRotationDeg,
+} from '@/features/vfx/runtime/sampleTrack';
 import type { EffectAsset, StreakLayer } from '@/features/vfx/types/assets';
 import type { EffectInstance } from '@/features/vfx/types/runtime';
 
@@ -22,6 +26,7 @@ const StreakPrimitive = ({ asset, instance, layer, progress }: StreakPrimitivePr
     const alpha = sampleLayerTrack(layer, 'alpha', progress.value, 1);
     const width = Math.max(1, layer.width * scale);
     const height = Math.max(1, layer.height * scale);
+    const rotationDeg = sampleResolvedLayerRotationDeg(asset, instance, layer, progress.value, 0);
 
     return {
       x: x - width / 2,
@@ -31,7 +36,7 @@ const StreakPrimitive = ({ asset, instance, layer, progress }: StreakPrimitivePr
       rx: height / 2,
       ry: height / 2,
       opacity: Math.max(0, alpha),
-      transform: `rotate(${layer.rotationDeg ?? 0} ${x} ${y})`,
+      transform: `rotate(${rotationDeg} ${x} ${y})`,
     };
   });
 

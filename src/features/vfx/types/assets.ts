@@ -52,6 +52,12 @@ export type RingLayer = EffectLayerBase & {
   thickness: number;
 };
 
+export type RadialGradientLayer = EffectLayerBase & {
+  type: 'radialGradient';
+  radius: number;
+  color: string;
+};
+
 export type StreakLayer = EffectLayerBase & {
   type: 'streak';
   width: number;
@@ -97,6 +103,7 @@ export type SpriteLayer = EffectLayerBase & {
 export type PrimitiveLayerType =
   | 'orb'
   | 'ring'
+  | 'radialGradient'
   | 'streak'
   | 'diamond'
   | 'arc'
@@ -162,6 +169,7 @@ export type EffectLayer =
   | OrbLayer
   | TrailLayer
   | RingLayer
+  | RadialGradientLayer
   | StreakLayer
   | DiamondLayer
   | ArcLayer

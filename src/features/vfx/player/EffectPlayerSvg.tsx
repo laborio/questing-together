@@ -12,6 +12,7 @@ import Svg from 'react-native-svg';
 import ArcPrimitive from '@/features/vfx/primitives/ArcPrimitive';
 import DiamondPrimitive from '@/features/vfx/primitives/DiamondPrimitive';
 import OrbPrimitive from '@/features/vfx/primitives/OrbPrimitive';
+import RadialGradientPrimitive from '@/features/vfx/primitives/RadialGradientPrimitive';
 import RingPrimitive from '@/features/vfx/primitives/RingPrimitive';
 import SpritePrimitive from '@/features/vfx/primitives/SpritePrimitive';
 import StarburstPrimitive from '@/features/vfx/primitives/StarburstPrimitive';
@@ -47,6 +48,16 @@ function renderLayer(layer: EffectLayer, instance: EffectInstance, progress: Sha
     case 'ring':
       return (
         <RingPrimitive
+          key={layer.id}
+          asset={asset}
+          instance={instance}
+          layer={layer}
+          progress={progress}
+        />
+      );
+    case 'radialGradient':
+      return (
+        <RadialGradientPrimitive
           key={layer.id}
           asset={asset}
           instance={instance}

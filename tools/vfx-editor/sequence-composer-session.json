@@ -1,27 +1,27 @@
 {
   "sequence": {
-    "id": "Seq_fireball_test",
-    "label": "Seq_fireball_test",
+    "id": "Seq_IceShard",
+    "label": "Seq_IceShard",
     "cues": [
       {
-        "id": "Stars Travel-cue-1",
-        "assetId": "Stars Travel",
+        "id": "Ice Shard Travel-cue-1",
+        "assetId": "Ice Shard Travel",
         "atMs": 0,
         "anchor": "projectile",
         "targetAnchor": "target"
       },
       {
-        "id": "stars-impact-cue-2",
-        "assetId": "stars-impact",
-        "atMs": 720,
+        "id": "Ice-impact-cue-2",
+        "assetId": "Ice-impact",
+        "atMs": 330,
         "anchor": "target",
         "targetAnchor": "target"
       }
     ]
   },
-  "selectedCueId": "stars-impact-cue-2",
-  "pendingAssetId": "fireball-impact",
-  "fileName": "fireball-cast_02.json",
+  "selectedCueId": "Ice-impact-cue-2",
+  "pendingAssetId": "Ice-impact",
+  "fileName": "Seq_IceShard.json",
   "previewDevice": {
     "preset": "free",
     "showSafeArea": true
@@ -33,9 +33,9 @@
   },
   "viewerHeight": 396,
   "instance": {
-    "x": 137.1161450752062,
-    "y": 329.2019465782123,
-    "targetX": 360.91756768105176,
-    "targetY": 129.60838659217885
+    "x": 224.02390683680142,
+    "y": 346.3204675977654,
+    "targetX": 237.6974269726578,
+    "targetY": 92.10388240223472
   }
 }

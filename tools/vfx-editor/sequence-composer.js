@@ -39,6 +39,7 @@ const TRAIL_STYLE_OPTIONS = [
 const PARTICLE_RENDER_OPTIONS = [
   { value: 'orb', label: 'Orb' },
   { value: 'ring', label: 'Ring' },
+  { value: 'radialGradient', label: 'Radial Gradient' },
   { value: 'streak', label: 'Streak' },
   { value: 'diamond', label: 'Diamond' },
   { value: 'arc', label: 'Arc' },
@@ -420,6 +421,16 @@ async function writeTextFile(directoryHandle, filename, contents) {
   await writable.close();
 }
 
+async function validateRepoRootHandle(rootHandle) {
+  try {
+    await getDirectoryHandle(rootHandle, REPO_EDITOR_SEGMENTS);
+    await getDirectoryHandle(rootHandle, ['src', 'features', 'vfx']);
+    return true;
+  } catch (error) {
+    return false;
+  }
+}
+
 async function discoverRepoSequenceEntries(rootHandle) {
   const sequencesDirHandle = await getDirectoryHandle(rootHandle, REPO_SEQUENCES_SEGMENTS);
   const entries = [];
@@ -511,6 +522,20 @@ async function readStoredHandle(key) {
     request.onsuccess = () => resolve(request.result ?? null);
     request.onerror = () =>
       reject(request.error ?? new Error(`Could not read the handle "${key}".`));
+  });
+}
+
+async function writeStoredHandle(key, handle) {
+  const database = await openHandleDatabase();
+  if (!database) return false;
+
+  return new Promise((resolve, reject) => {
+    const transaction = database.transaction(HANDLE_STORE_NAME, 'readwrite');
+    const store = transaction.objectStore(HANDLE_STORE_NAME);
+    const request = store.put(handle, key);
+    request.onsuccess = () => resolve(true);
+    request.onerror = () =>
+      reject(request.error ?? new Error(`Could not persist the handle "${key}".`));
   });
 }
 
@@ -1057,6 +1082,15 @@ function getDefaultParticleRotationDeg(renderer) {
   return renderer === 'arc' || renderer === 'starburst' ? -90 : 0;
 }
 
+function toTransparentColor(color) {
+  const parsed = parseColorToRgba(color);
+  if (!parsed) {
+    return 'rgba(255, 255, 255, 0)';
+  }
+
+  return `rgba(${Math.round(parsed.red)}, ${Math.round(parsed.green)}, ${Math.round(parsed.blue)}, 0)`;
+}
+
 function hasDynamicTrack(trackMap, name) {
   return Array.isArray(trackMap?.[name]) && trackMap[name].length > 0;
 }
@@ -1230,6 +1264,7 @@ function normalizeAsset(rawAsset) {
     layer.type = [
       'orb',
       'ring',
+      'radialGradient',
       'trail',
       'streak',
       'diamond',
@@ -2291,6 +2326,31 @@ function renderArc(asset, instance, layer, progress) {
   `;
 }
 
+function renderRadialGradient(asset, instance, layer, progress) {
+  const base = sampleMotionPosition(asset, instance, progress);
+  const x = base.x + sampleLayerTrack(asset, layer, 'x', progress, 0);
+  const y = base.y + sampleLayerTrack(asset, layer, 'y', progress, 0);
+  const scale = sampleLayerTrack(asset, layer, 'scale', progress, 1);
+  const alpha = sampleLayerTrack(asset, layer, 'alpha', progress, 1);
+  const gradientId = `radial-gradient-${escapeHtml(layer.id)}-${Math.round(progress * 1000)}`;
+
+  return `
+    <defs>
+      <radialGradient id="${gradientId}" cx="50%" cy="50%" r="50%">
+        <stop offset="0%" stop-color="${escapeHtml(layer.color)}" stop-opacity="1"></stop>
+        <stop offset="100%" stop-color="${escapeHtml(toTransparentColor(layer.color))}" stop-opacity="0"></stop>
+      </radialGradient>
+    </defs>
+    <circle
+      cx="${x}"
+      cy="${y}"
+      r="${Math.max(1, layer.radius * scale)}"
+      fill="url(#${gradientId})"
+      opacity="${Math.max(0, alpha)}"
+    ></circle>
+  `;
+}
+
 function renderStarburst(asset, instance, layer, progress) {
   const base = sampleMotionPosition(asset, instance, progress);
   const cx = base.x + sampleLayerTrack(asset, layer, 'x', progress, 0);
@@ -2580,6 +2640,25 @@ function renderParticlePrimitive(layer, particle, index) {
     `;
   }
 
+  if (renderer === 'radialGradient') {
+    const gradientId = `particle-radial-gradient-${escapeHtml(layer.id)}-${index}`;
+    return `
+      <defs>
+        <radialGradient id="${gradientId}" cx="50%" cy="50%" r="50%">
+          <stop offset="0%" stop-color="${escapeHtml(particleColor)}" stop-opacity="1"></stop>
+          <stop offset="100%" stop-color="${escapeHtml(toTransparentColor(particleColor))}" stop-opacity="0"></stop>
+        </radialGradient>
+      </defs>
+      <circle
+        cx="${particle.x}"
+        cy="${particle.y}"
+        r="${Math.max(0.5, size / 2)}"
+        fill="url(#${gradientId})"
+        opacity="${particle.alpha}"
+      ></circle>
+    `;
+  }
+
   if (renderer === 'streak') {
     const width = size;
     const height = Math.max(1, size * 0.28);
@@ -2709,6 +2788,8 @@ function renderEffectShapes(asset, instance, progress) {
 
       if (layer.type === 'orb') return renderOrb(asset, instance, layer, layerProgress);
       if (layer.type === 'ring') return renderRing(asset, instance, layer, layerProgress);
+      if (layer.type === 'radialGradient')
+        return renderRadialGradient(asset, instance, layer, layerProgress);
       if (layer.type === 'streak') return renderStreak(asset, instance, layer, layerProgress);
       if (layer.type === 'diamond') return renderDiamond(asset, instance, layer, layerProgress);
       if (layer.type === 'arc') return renderArc(asset, instance, layer, layerProgress);
@@ -3099,6 +3180,40 @@ async function saveSequenceAs() {
   }
 }
 
+async function linkRepoRoot() {
+  try {
+    if (!('showDirectoryPicker' in window)) {
+      setStatus('Link Repo Root requires Chrome, Arc, or Edge with File System Access support.', 'error');
+      return;
+    }
+
+    const rootHandle = await window.showDirectoryPicker({ mode: 'readwrite' });
+    const isValidRoot = await validateRepoRootHandle(rootHandle);
+    if (!isValidRoot) {
+      setStatus(
+        'Choose the repo root folder: /Users/xavierlaborie/Documents/questing-together',
+        'error',
+      );
+      return;
+    }
+
+    const hasPermission = await ensureHandlePermission(rootHandle, true);
+    if (!hasPermission) {
+      setStatus('Permission was not granted for the linked repo root.', 'error');
+      return;
+    }
+
+    state.repoRootHandle = rootHandle;
+    await writeStoredHandle(REPO_ROOT_HANDLE_KEY, rootHandle);
+    await loadSpriteManifest();
+    await refreshEffectAssets();
+    setStatus('Linked the repo root and refreshed the effect list.', 'success');
+  } catch (error) {
+    if (error?.name === 'AbortError') return;
+    setStatus(`Could not link repo root: ${error.message}`, 'error');
+  }
+}
+
 function exportSequence() {
   const blob = new Blob([stringifySequence()], { type: 'application/json' });
   const url = URL.createObjectURL(blob);
@@ -3411,6 +3526,8 @@ function wireEvents() {
       void saveSequenceAs();
     } else if (action === 'export-sequence') {
       exportSequence();
+    } else if (action === 'link-repo-root') {
+      void linkRepoRoot();
     } else if (action === 'select-cue' && cueId) {
       state.selectedCueId = cueId;
       render();

@@ -4,10 +4,12 @@ import {
   Circle,
   Group,
   Path,
+  RadialGradient,
   RoundedRect,
   type SkImage,
   Image as SkiaImage,
   useImage,
+  vec,
 } from '@shopify/react-native-skia';
 import { type ReactNode, useEffect, useMemo, useState } from 'react';
 import { Platform, Image as RNImage, StyleSheet } from 'react-native';
@@ -35,6 +37,7 @@ import type {
   EffectLayer,
   OrbLayer,
   ParticleEmitterLayer,
+  RadialGradientLayer,
   RingLayer,
   SpriteLayer,
   StarburstLayer,
@@ -352,6 +355,22 @@ function mixColors(colorA: string, colorB: string, amount: number) {
   }
 
   return amount < 0.5 ? colorA : colorB;
+}
+
+function transparentizeColor(color: string) {
+  'worklet';
+
+  const parsed = parseColorToRgba(color);
+  if (!parsed) {
+    return 'rgba(255, 255, 255, 0)';
+  }
+
+  return rgbaToCssColor({
+    red: parsed.red,
+    green: parsed.green,
+    blue: parsed.blue,
+    alpha: 0,
+  });
 }
 
 function normalizeParticleEmitterShape(shape: ParticleEmitterLayer['emitterShape']) {
@@ -909,6 +928,29 @@ const RingPrimitiveSkia = ({
   );
 };
 
+const RadialGradientPrimitiveSkia = ({
+  asset,
+  instance,
+  layer,
+  progress,
+}: {
+  asset: EffectAsset;
+  instance: EffectInstance;
+  layer: RadialGradientLayer;
+  progress: SharedValue<number>;
+}) => {
+  const { x, y, scale, alpha } = useLayerMetrics(asset, instance, layer, progress);
+  const radius = useDerivedValue(() => Math.max(1, layer.radius * scale.value));
+  const edgeColor = useMemo(() => transparentizeColor(layer.color), [layer.color]);
+  const center = useDerivedValue(() => vec(x.value, y.value));
+
+  return (
+    <Circle cx={x} cy={y} r={radius} opacity={alpha}>
+      <RadialGradient c={center} r={radius} colors={[layer.color, edgeColor]} />
+    </Circle>
+  );
+};
+
 const StreakPrimitiveSkia = ({
   asset,
   instance,
@@ -1150,6 +1192,40 @@ const ParticleOrbNodeSkia = ({
   const radius = useDerivedValue(() => Math.max(0.5, size.value / 2));
 
   return <Circle cx={x} cy={y} r={radius} color={color} opacity={alpha} />;
+};
+
+const ParticleRadialGradientNodeSkia = ({
+  asset,
+  instance,
+  layer,
+  elapsedMs,
+  emitterAlpha,
+  index,
+}: {
+  asset: EffectAsset;
+  instance: EffectInstance;
+  layer: ParticleEmitterLayer;
+  elapsedMs: SharedValue<number>;
+  emitterAlpha: SharedValue<number>;
+  index: number;
+}) => {
+  const { x, y, size, alpha, color } = useParticleMetrics(
+    asset,
+    instance,
+    layer,
+    elapsedMs,
+    emitterAlpha,
+    index,
+  );
+  const radius = useDerivedValue(() => Math.max(0.5, size.value / 2));
+  const colors = useDerivedValue(() => [color.value, transparentizeColor(color.value)]);
+  const center = useDerivedValue(() => vec(x.value, y.value));
+
+  return (
+    <Circle cx={x} cy={y} r={radius} opacity={alpha}>
+      <RadialGradient c={center} r={radius} colors={colors} />
+    </Circle>
+  );
 };
 
 const ParticleRingNodeSkia = ({
@@ -1451,6 +1527,17 @@ const ParticleNodeSkia = ({
     case 'ring':
       return (
         <ParticleRingNodeSkia
+          asset={asset}
+          instance={instance}
+          layer={layer}
+          elapsedMs={elapsedMs}
+          emitterAlpha={emitterAlpha}
+          index={index}
+        />
+      );
+    case 'radialGradient':
+      return (
+        <ParticleRadialGradientNodeSkia
           asset={asset}
           instance={instance}
           layer={layer}
@@ -2026,6 +2113,15 @@ function renderLayer(
     case 'ring':
       return wrapCoreLayer(
         <RingPrimitiveSkia asset={asset} instance={instance} layer={layer} progress={progress} />,
+      );
+    case 'radialGradient':
+      return wrapCoreLayer(
+        <RadialGradientPrimitiveSkia
+          asset={asset}
+          instance={instance}
+          layer={layer}
+          progress={progress}
+        />,
       );
     case 'streak':
       return wrapCoreLayer(

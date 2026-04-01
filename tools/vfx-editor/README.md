@@ -25,7 +25,7 @@ Important:
 
 1. Click `Quick Load` to inspect an existing effect, or `Open Effect JSON` to load one from disk.
 2. Click `Link Repo Root` once and choose `/Users/xavierlaborie/Documents/questing-together` if you want the editor to autosave its own session file.
-3. Click `Import Sprite` to add a new PNG/WebP/JPG into the VFX sprite folder and regenerate the runtime sprite registry.
+3. Click `Import Sprite` to add a new PNG/WebP/JPG/SVG into the VFX sprite folder and regenerate the runtime sprite registry.
 4. Drag the `Spawn` and `Target` anchors in the preview stage.
 5. Edit layer properties and `over lifetime` values from the right panel.
 6. Toggle between `Keyframe List` and `Bezier Curve` mode for each track.
@@ -39,3 +39,4 @@ Important:
 - The output format matches the current runtime JSON shape used by the VFX module.
 - If the repo root is linked, the editor autosaves its own workspace state to `tools/vfx-editor/editor-session.json` and reloads it on refresh. This file is git-ignored.
 - `Import Sprite` requires a Chromium-based browser and will ask you to pick the repo root so it can write the new image, update `manifest.json`, and regenerate `src/features/vfx/runtime/spriteRegistry.ts`.
+- Imported SVG files are rasterized to PNG on import so they keep working through the existing app/runtime sprite pipeline.

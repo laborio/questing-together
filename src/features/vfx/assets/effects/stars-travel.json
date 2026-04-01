@@ -93,7 +93,7 @@
       "type": "particleEmitter",
       "renderer": "sprite",
       "color": "#fff1c9",
-      "maxParticles": 8,
+      "maxParticles": 12,
       "particleLifetimeMs": 1200,
       "tracks": {
         "alpha": [
@@ -141,7 +141,7 @@
       },
       "tintColor": "#000000",
       "speed": 60,
-      "emissionRate": 8,
+      "emissionRate": 12,
       "startSize": 20,
       "emitterShape": "point",
       "emitterRadius": 24,
@@ -190,11 +190,10 @@
       "type": "particleEmitter",
       "renderer": "sprite",
       "color": "#ff3300",
-      "maxParticles": 32,
-      "emissionRate": 32,
+      "maxParticles": 24,
+      "emissionRate": 24,
       "particleLifetimeMs": 720,
       "speed": 16,
-      "spreadDeg": 180,
       "tracks": {},
       "spriteId": "t-vfx-particle-default",
       "burstCount": 0,
@@ -232,7 +231,8 @@
       "emitterTracks": {},
       "color2": "#fab700",
       "tintColor2": "#ff5900",
-      "startSize": 28
+      "startSize": 28,
+      "spreadDeg": 180
     }
   ],
   "loop": false

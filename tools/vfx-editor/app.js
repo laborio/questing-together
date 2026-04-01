@@ -31,6 +31,7 @@ const TRACK_LABELS = {
 const TRACKS_BY_LAYER_TYPE = {
   orb: ['scale', 'alpha', 'glow', 'x', 'y'],
   ring: ['scale', 'alpha', 'x', 'y'],
+  radialGradient: ['scale', 'alpha', 'x', 'y'],
   trail: ['scale', 'alpha', 'x', 'y'],
   streak: ['scale', 'alpha', 'x', 'y'],
   diamond: ['scale', 'alpha', 'x', 'y'],
@@ -44,6 +45,7 @@ const TRACKS_BY_LAYER_TYPE = {
 const LAYER_TYPE_OPTIONS = [
   { value: 'orb', label: 'Orb' },
   { value: 'ring', label: 'Ring' },
+  { value: 'radialGradient', label: 'Radial Gradient' },
   { value: 'trail', label: 'Trail' },
   { value: 'streak', label: 'Streak' },
   { value: 'diamond', label: 'Diamond' },
@@ -67,6 +69,7 @@ const TRAIL_STYLE_OPTIONS = [
 const PARTICLE_RENDER_OPTIONS = [
   { value: 'orb', label: 'Orb' },
   { value: 'ring', label: 'Ring' },
+  { value: 'radialGradient', label: 'Radial Gradient' },
   { value: 'streak', label: 'Streak' },
   { value: 'diamond', label: 'Diamond' },
   { value: 'arc', label: 'Arc' },
@@ -374,6 +377,106 @@ function getRegistryImportName(prefix, value, suffix = 'Data', usedNames = new S
   return candidate;
 }
 
+function parseSvgLength(value) {
+  if (typeof value !== 'string') return null;
+  const match = value.trim().match(/^([+-]?\d*\.?\d+)/);
+  if (!match) return null;
+  const parsed = Number(match[1]);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
+}
+
+function resolveSvgRasterSize(svgText) {
+  const document = new DOMParser().parseFromString(svgText, 'image/svg+xml');
+  const svg = document.documentElement;
+  if (!svg || svg.nodeName.toLowerCase() !== 'svg') {
+    throw new Error('The selected SVG file is invalid.');
+  }
+
+  const width = parseSvgLength(svg.getAttribute('width'));
+  const height = parseSvgLength(svg.getAttribute('height'));
+  if (width && height) {
+    return { width: Math.max(1, Math.round(width)), height: Math.max(1, Math.round(height)) };
+  }
+
+  const viewBox = svg.getAttribute('viewBox');
+  if (viewBox) {
+    const parts = viewBox
+      .trim()
+      .split(/[\s,]+/g)
+      .map((part) => Number(part));
+    if (parts.length === 4 && parts.every((part) => Number.isFinite(part))) {
+      const [, , viewBoxWidth, viewBoxHeight] = parts;
+      if (viewBoxWidth > 0 && viewBoxHeight > 0) {
+        return {
+          width: Math.max(1, Math.round(viewBoxWidth)),
+          height: Math.max(1, Math.round(viewBoxHeight)),
+        };
+      }
+    }
+  }
+
+  if (width) {
+    return { width: Math.max(1, Math.round(width)), height: Math.max(1, Math.round(width)) };
+  }
+
+  if (height) {
+    return { width: Math.max(1, Math.round(height)), height: Math.max(1, Math.round(height)) };
+  }
+
+  return { width: 512, height: 512 };
+}
+
+async function loadImageElement(src) {
+  const image = new Image();
+  image.decoding = 'async';
+
+  await new Promise((resolve, reject) => {
+    image.onload = () => resolve();
+    image.onerror = () => reject(new Error('Could not decode the selected image.'));
+    image.src = src;
+  });
+
+  return image;
+}
+
+async function rasterizeSvgSpriteFile(svgFile) {
+  const svgText = await svgFile.text();
+  const { width, height } = resolveSvgRasterSize(svgText);
+  const svgBlob = new Blob([svgText], { type: 'image/svg+xml' });
+  const objectUrl = URL.createObjectURL(svgBlob);
+
+  try {
+    const image = await loadImageElement(objectUrl);
+    const canvas = document.createElement('canvas');
+    canvas.width = width;
+    canvas.height = height;
+
+    const context = canvas.getContext('2d');
+    if (!context) {
+      throw new Error('Could not create a canvas for SVG rasterization.');
+    }
+
+    context.clearRect(0, 0, width, height);
+    context.drawImage(image, 0, 0, width, height);
+
+    const pngBlob = await new Promise((resolve) => {
+      canvas.toBlob(resolve, 'image/png');
+    });
+
+    if (!pngBlob) {
+      throw new Error('Could not convert the SVG into a PNG sprite.');
+    }
+
+    return {
+      buffer: await pngBlob.arrayBuffer(),
+      extension: '.png',
+      rasterized: true,
+    };
+  } finally {
+    URL.revokeObjectURL(objectUrl);
+  }
+}
+
 function parseColorToRgba(color) {
   if (typeof color !== 'string') return null;
 
@@ -619,6 +722,15 @@ function getDefaultParticleRotationDeg(renderer) {
   return renderer === 'arc' || renderer === 'starburst' ? -90 : 0;
 }
 
+function toTransparentColor(color) {
+  const parsed = parseColorToRgba(color);
+  if (!parsed) {
+    return 'rgba(255, 255, 255, 0)';
+  }
+
+  return `rgba(${Math.round(parsed.red)}, ${Math.round(parsed.green)}, ${Math.round(parsed.blue)}, 0)`;
+}
+
 function hasDynamicTrack(trackMap, name) {
   return Array.isArray(trackMap?.[name]) && trackMap[name].length > 0;
 }
@@ -687,6 +799,7 @@ function getParticleRendererForLayer(layer) {
     return {
       fill: 'orb',
       ring: 'ring',
+      radialGradient: 'radialGradient',
       streak: 'streak',
       diamond: 'diamond',
       arc: 'arc',
@@ -695,7 +808,9 @@ function getParticleRendererForLayer(layer) {
     }[layer.style ?? 'fill'] ?? 'orb';
   }
 
-  return ['orb', 'ring', 'streak', 'diamond', 'arc', 'starburst'].includes(layer.type)
+  return ['orb', 'ring', 'radialGradient', 'streak', 'diamond', 'arc', 'starburst'].includes(
+    layer.type,
+  )
     ? layer.type
     : 'orb';
 }
@@ -1218,6 +1333,7 @@ async function importSprite() {
             'image/png': ['.png'],
             'image/webp': ['.webp'],
             'image/jpeg': ['.jpg', '.jpeg'],
+            'image/svg+xml': ['.svg'],
           },
         },
       ],
@@ -1235,13 +1351,23 @@ async function importSprite() {
     }
     state.repoRootHandle = repoRootHandle;
 
-    const extensionMatch = imageFile.name.match(/\.([a-z0-9]+)$/i);
-    const extension = extensionMatch ? `.${extensionMatch[1].toLowerCase()}` : '.png';
+    const originalExtensionMatch = imageFile.name.match(/\.([a-z0-9]+)$/i);
+    const originalExtension = originalExtensionMatch
+      ? `.${originalExtensionMatch[1].toLowerCase()}`
+      : '.png';
+    const importedSprite =
+      originalExtension === '.svg'
+        ? await rasterizeSvgSpriteFile(imageFile)
+        : {
+            buffer: await imageFile.arrayBuffer(),
+            extension: originalExtension,
+            rasterized: false,
+          };
     const suggestedId = slugify(imageFile.name.replace(/\.[^.]+$/, ''));
     const spriteId = slugify(window.prompt('Sprite ID', suggestedId) ?? suggestedId);
     if (!spriteId) return;
     const spriteLabel = (window.prompt('Sprite label', titleCaseFromId(spriteId)) ?? '').trim() || titleCaseFromId(spriteId);
-    const filename = `${spriteId}${extension}`;
+    const filename = `${spriteId}${importedSprite.extension}`;
 
     const spritesDirHandle = await getDirectoryHandle(repoRootHandle, REPO_SPRITES_SEGMENTS);
     const runtimeDirHandle = await getDirectoryHandle(repoRootHandle, REPO_RUNTIME_SEGMENTS);
@@ -1250,9 +1376,7 @@ async function importSprite() {
     const manifestText = await manifestFile.text();
     const manifest = manifestText.trim() ? JSON.parse(manifestText) : { sprites: [] };
     const spriteEntries = Array.isArray(manifest.sprites) ? manifest.sprites.slice() : [];
-    const fileBuffer = await imageFile.arrayBuffer();
-
-    await writeBinaryFile(spritesDirHandle, filename, fileBuffer);
+    await writeBinaryFile(spritesDirHandle, filename, importedSprite.buffer);
 
     const existingIndex = spriteEntries.findIndex((entry) => entry.id === spriteId);
     const nextEntry = { id: spriteId, label: spriteLabel, filename };
@@ -1274,7 +1398,12 @@ async function importSprite() {
     void preloadSpritePreviewSrc(spriteLibrary[spriteId]?.src ?? '');
     renderPanels();
     renderPreview();
-    setSaveStatus(`Imported sprite "${spriteId}" and regenerated the runtime sprite registry. Reload the app if Metro does not pick it up immediately.`, 'success');
+    setSaveStatus(
+      importedSprite.rasterized
+        ? `Imported SVG "${spriteId}" as a PNG sprite and regenerated the runtime sprite registry. Reload the app if Metro does not pick it up immediately.`
+        : `Imported sprite "${spriteId}" and regenerated the runtime sprite registry. Reload the app if Metro does not pick it up immediately.`,
+      'success',
+    );
   } catch (error) {
     if (error?.name === 'AbortError') return;
     setSaveStatus(`Could not import sprite: ${error.message}`, 'error');
@@ -1441,6 +1570,7 @@ function normalizeAsset(rawAsset) {
     nextLayer.type = [
       'orb',
       'ring',
+      'radialGradient',
       'trail',
       'streak',
       'diamond',
@@ -2716,6 +2846,94 @@ async function restoreLinkedRepoRootHandle() {
   }
 }
 
+async function resolveRepoRootHandleForRegistryRefresh() {
+  const clearRepoRootHandle = async (dropStoredHandle) => {
+    state.repoRootHandle = null;
+    if (dropStoredHandle) {
+      try {
+        await deleteStoredHandle(REPO_ROOT_HANDLE_KEY);
+      } catch (error) {
+        console.warn('Could not clear the stored repo root handle.', error);
+      }
+    }
+    renderToolbarMenus();
+  };
+
+  if (state.repoRootHandle) {
+    const hasPermission = await ensureHandlePermission(state.repoRootHandle, true);
+    if (hasPermission) {
+      const isValidRoot = await validateRepoRootHandle(state.repoRootHandle);
+      if (isValidRoot) {
+        return state.repoRootHandle;
+      }
+
+      await clearRepoRootHandle(true);
+    } else {
+      await clearRepoRootHandle(false);
+    }
+  }
+
+  const restored = await restoreLinkedRepoRootHandle();
+  if (restored && state.repoRootHandle) {
+    renderToolbarMenus();
+    return state.repoRootHandle;
+  }
+
+  return null;
+}
+
+async function refreshEffectRegistryAfterSave(assetId) {
+  const repoRootHandle = await resolveRepoRootHandleForRegistryRefresh();
+  if (!repoRootHandle) {
+    return {
+      registryUpdated: null,
+      registryError: null,
+      registryNeedsRepoLink: true,
+    };
+  }
+
+  try {
+    const entries = await regenerateEffectRegistry(repoRootHandle);
+    return {
+      registryUpdated: entries.some((entry) => entry.id === assetId),
+      registryError: null,
+      registryNeedsRepoLink: false,
+    };
+  } catch (error) {
+    return {
+      registryUpdated: null,
+      registryError: error.message,
+      registryNeedsRepoLink: false,
+    };
+  }
+}
+
+async function refreshSequenceRegistryAfterSave(sequenceId) {
+  const repoRootHandle = await resolveRepoRootHandleForRegistryRefresh();
+  if (!repoRootHandle) {
+    return {
+      registryUpdated: null,
+      registryError: null,
+      registryNeedsRepoLink: true,
+    };
+  }
+
+  try {
+    const entries = await regenerateSequenceRegistry(repoRootHandle);
+    return {
+      registryUpdated: entries.some((entry) => entry.id === sequenceId),
+      registryError: null,
+      registryNeedsRepoLink: false,
+    };
+  } catch (error) {
+    return {
+      registryUpdated: null,
+      registryError: error.message,
+      registryNeedsRepoLink: false,
+    };
+  }
+}
+
 async function linkRepoRoot() {
   try {
     if (!('showDirectoryPicker' in window)) {
@@ -3844,6 +4062,25 @@ function renderParticlePrimitive(layer, particle, index) {
     `;
   }
 
+  if (renderer === 'radialGradient') {
+    const gradientId = `particle-radial-gradient-${escapeHtml(layer.id)}-${index}`;
+    return `
+      <defs>
+        <radialGradient id="${gradientId}" cx="50%" cy="50%" r="50%">
+          <stop offset="0%" stop-color="${escapeHtml(particleColor)}" stop-opacity="1"></stop>
+          <stop offset="100%" stop-color="${escapeHtml(toTransparentColor(particleColor))}" stop-opacity="0"></stop>
+        </radialGradient>
+      </defs>
+      <circle
+        cx="${particle.x}"
+        cy="${particle.y}"
+        r="${Math.max(0.5, size / 2)}"
+        fill="url(#${gradientId})"
+        opacity="${particle.alpha}"
+      ></circle>
+    `;
+  }
+
   if (renderer === 'streak') {
     const width = size;
     const height = Math.max(1, size * 0.28);
@@ -4035,6 +4272,31 @@ function renderRing(asset, instance, layer, progress) {
       fill="transparent"
       stroke="${escapeHtml(layer.color)}"
       stroke-width="${Math.max(1, layer.thickness * scale)}"
+      opacity="${Math.max(0, alpha)}"
+    ></circle>
+  `;
+}
+
+function renderRadialGradient(asset, instance, layer, progress) {
+  const base = sampleMotionPosition(asset, instance, progress);
+  const x = base.x + sampleLayerTrack(asset, layer, 'x', progress, 0);
+  const y = base.y + sampleLayerTrack(asset, layer, 'y', progress, 0);
+  const scale = sampleLayerTrack(asset, layer, 'scale', progress, 1);
+  const alpha = sampleLayerTrack(asset, layer, 'alpha', progress, 1);
+  const gradientId = `radial-gradient-${escapeHtml(layer.id)}-${Math.round(progress * 1000)}`;
+
+  return `
+    <defs>
+      <radialGradient id="${gradientId}" cx="50%" cy="50%" r="50%">
+        <stop offset="0%" stop-color="${escapeHtml(layer.color)}" stop-opacity="1"></stop>
+        <stop offset="100%" stop-color="${escapeHtml(toTransparentColor(layer.color))}" stop-opacity="0"></stop>
+      </radialGradient>
+    </defs>
+    <circle
+      cx="${x}"
+      cy="${y}"
+      r="${Math.max(1, layer.radius * scale)}"
+      fill="url(#${gradientId})"
       opacity="${Math.max(0, alpha)}"
     ></circle>
   `;
@@ -4397,6 +4659,8 @@ function renderEffectShapes(asset, instance, progress) {
 
       if (layer.type === 'orb') return renderOrb(asset, instance, layer, layerProgress);
       if (layer.type === 'ring') return renderRing(asset, instance, layer, layerProgress);
+      if (layer.type === 'radialGradient')
+        return renderRadialGradient(asset, instance, layer, layerProgress);
       if (layer.type === 'streak') return renderStreak(asset, instance, layer, layerProgress);
       if (layer.type === 'diamond') return renderDiamond(asset, instance, layer, layerProgress);
       if (layer.type === 'arc') return renderArc(asset, instance, layer, layerProgress);
@@ -5676,6 +5940,10 @@ function renderLayerInspector() {
                 <input class="field-input" type="number" step="0.1" value="${layer.glowScale ?? 2.3}" data-layer-field="glowScale" />
               </label>
             `
+                  : layer.type === 'radialGradient'
+                    ? `
+              <div></div>
+            `
                   : `
               <label class="field">
                 <span class="field-label">Segments</span>
@@ -6127,6 +6395,19 @@ function createLayer(type) {
     };
   }
 
+  if (type === 'radialGradient') {
+    return {
+      id,
+      type: 'radialGradient',
+      radius: 16,
+      color: '#ffffff',
+      tracks: {
+        scale: [{ at: 0, value: 1 }],
+        alpha: [{ at: 0, value: 1 }],
+      },
+    };
+  }
+
   if (type === 'streak') {
     return {
       id,
@@ -6294,6 +6575,11 @@ function createConvertedLayer(sourceLayer, nextType) {
   if (nextType === 'ring') {
     converted.radius = sourceLayer.radius ?? sourceLayer.outerRadius ?? converted.radius;
     converted.thickness = sourceLayer.thickness ?? converted.thickness;
+    return converted;
+  }
+
+  if (nextType === 'radialGradient') {
+    converted.radius = sourceLayer.radius ?? sourceLayer.outerRadius ?? converted.radius;
     return converted;
   }
 
@@ -7175,25 +7461,7 @@ async function writeEffectToHandle(handle, suggestedFileName = '') {
   renderPanels();
   await rememberRecentFile(handle, state.fileName);
 
-  if (state.repoRootHandle) {
-    try {
-      const entries = await regenerateEffectRegistry(state.repoRootHandle);
-      return {
-        registryUpdated: entries.some((entry) => entry.id === state.asset.id),
-        registryError: null,
-      };
-    } catch (error) {
-      return {
-        registryUpdated: null,
-        registryError: error.message,
-      };
-    }
-  }
-
-  return {
-    registryUpdated: null,
-    registryError: null,
-  };
+  return refreshEffectRegistryAfterSave(state.asset.id);
 }
 
 async function saveToAttachedFile() {
@@ -7203,12 +7471,16 @@ async function saveToAttachedFile() {
       setSaveStatus(
         result.registryError
           ? `Saved ${state.fileName}, but could not refresh effectRegistry.ts: ${result.registryError}`
+          : result.registryNeedsRepoLink
+          ? `Saved ${state.fileName}, but effectRegistry.ts was not refreshed because the repo root is not linked. Use Editor > Link Repo Root for Autosave once, then save again.`
           : result.registryUpdated === false
           ? `Saved ${state.fileName}, but it is not inside src/features/vfx/assets/effects so effectRegistry.ts was not updated.`
           : result.registryUpdated
             ? `Saved ${state.fileName} and refreshed effectRegistry.ts.`
             : `Saved directly to ${state.fileName}.`,
-        result.registryError || result.registryUpdated === false ? 'info' : 'success',
+        result.registryError || result.registryNeedsRepoLink || result.registryUpdated === false
+          ? 'info'
+          : 'success',
       );
       return;
     }
@@ -7237,12 +7509,16 @@ async function saveAsFile() {
       setSaveStatus(
         result.registryError
           ? `Saved ${state.fileName}, but could not refresh effectRegistry.ts: ${result.registryError}`
+          : result.registryNeedsRepoLink
+          ? `Saved ${state.fileName}, but effectRegistry.ts was not refreshed because the repo root is not linked. Use Editor > Link Repo Root for Autosave once, then save again.`
           : result.registryUpdated === false
           ? `Saved ${state.fileName}, but it is not inside src/features/vfx/assets/effects so effectRegistry.ts was not updated.`
           : result.registryUpdated
             ? `Saved ${state.fileName} and refreshed effectRegistry.ts.`
             : `Saved directly to ${state.fileName}.`,
-        result.registryError || result.registryUpdated === false ? 'info' : 'success',
+        result.registryError || result.registryNeedsRepoLink || result.registryUpdated === false
+          ? 'info'
+          : 'success',
       );
       return;
     }
@@ -7325,25 +7601,7 @@ async function writeSequenceToHandle(handle, suggestedFileName = '') {
   renderPreview();
   schedulePersistEditorSession();
 
-  if (state.repoRootHandle) {
-    try {
-      const entries = await regenerateSequenceRegistry(state.repoRootHandle);
-      return {
-        registryUpdated: entries.some((entry) => entry.id === normalizedSequence.id),
-        registryError: null,
-      };
-    } catch (error) {
-      return {
-        registryUpdated: null,
-        registryError: error.message,
-      };
-    }
-  }
-
-  return {
-    registryUpdated: null,
-    registryError: null,
-  };
+  return refreshSequenceRegistryAfterSave(normalizedSequence.id);
 }
 
 async function saveSequenceToAttachedFile() {
@@ -7353,12 +7611,16 @@ async function saveSequenceToAttachedFile() {
       setSaveStatus(
         result.registryError
           ? `Saved sequence ${state.sequenceFileName}, but could not refresh sequenceRegistry.ts: ${result.registryError}`
+          : result.registryNeedsRepoLink
+          ? `Saved sequence ${state.sequenceFileName}, but sequenceRegistry.ts was not refreshed because the repo root is not linked. Use Editor > Link Repo Root for Autosave once, then save again.`
           : result.registryUpdated === false
           ? `Saved sequence ${state.sequenceFileName}, but it is not inside src/features/vfx/assets/sequences so sequenceRegistry.ts was not updated.`
           : result.registryUpdated
             ? `Saved sequence ${state.sequenceFileName} and refreshed sequenceRegistry.ts.`
             : `Saved sequence to ${state.sequenceFileName}.`,
-        result.registryError || result.registryUpdated === false ? 'info' : 'success',
+        result.registryError || result.registryNeedsRepoLink || result.registryUpdated === false
+          ? 'info'
+          : 'success',
       );
       return;
     }
@@ -7391,15 +7653,19 @@ async function saveSequenceAsFile() {
 
     const result = await writeSequenceToHandle(handle, suggestedName);
     setSaveStatus(
-      result.registryError
-        ? `Saved sequence ${state.sequenceFileName}, but could not refresh sequenceRegistry.ts: ${result.registryError}`
-        : result.registryUpdated === false
-        ? `Saved sequence ${state.sequenceFileName}, but it is not inside src/features/vfx/assets/sequences so sequenceRegistry.ts was not updated.`
-        : result.registryUpdated
-          ? `Saved sequence ${state.sequenceFileName} and refreshed sequenceRegistry.ts.`
-          : `Saved sequence to ${state.sequenceFileName}.`,
-      result.registryError || result.registryUpdated === false ? 'info' : 'success',
-    );
+        result.registryError
+          ? `Saved sequence ${state.sequenceFileName}, but could not refresh sequenceRegistry.ts: ${result.registryError}`
+          : result.registryNeedsRepoLink
+          ? `Saved sequence ${state.sequenceFileName}, but sequenceRegistry.ts was not refreshed because the repo root is not linked. Use Editor > Link Repo Root for Autosave once, then save again.`
+          : result.registryUpdated === false
+          ? `Saved sequence ${state.sequenceFileName}, but it is not inside src/features/vfx/assets/sequences so sequenceRegistry.ts was not updated.`
+          : result.registryUpdated
+            ? `Saved sequence ${state.sequenceFileName} and refreshed sequenceRegistry.ts.`
+            : `Saved sequence to ${state.sequenceFileName}.`,
+        result.registryError || result.registryNeedsRepoLink || result.registryUpdated === false
+          ? 'info'
+          : 'success',
+      );
   } catch (error) {
     if (error?.name === 'AbortError') return;
     setSaveStatus(`Could not save sequence: ${error.message}`, 'error');

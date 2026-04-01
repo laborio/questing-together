@@ -1,5 +1,5 @@
 {
-  "savedAt": 1775080602541,
+  "savedAt": 1775081134998,
   "asset": {
     "id": "IceShardTravel",
     "label": "IceShardTravel",
@@ -127,8 +127,8 @@
   "instance": {
     "x": 337.97307081942074,
     "y": 254.5592246505982,
-    "targetX": 338.1473236982838,
-    "targetY": 97.76929237878389
+    "targetX": 443.9839947411625,
+    "targetY": 249.80014398024102
   },
   "recentFiles": [
     {
@@ -165,9 +165,9 @@
   },
   "previewAnchorsVisible": false,
   "previewViewport": {
-    "zoom": 2.2106814074060814,
-    "centerX": 362.09966800704694,
-    "centerY": 192.66004466601376
+    "zoom": 2.542072313619325,
+    "centerX": 353.4584447010734,
+    "centerY": 211.94223567632437
   },
   "previewPlaybackMode": "single",
   "previewSequenceId": "fireball-travel-sequence",

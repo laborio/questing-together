@@ -2,10 +2,12 @@ import { type SkImage, useImage } from '@shopify/react-native-skia';
 import { useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { type LayoutChangeEvent, PanResponder, StyleSheet, View } from 'react-native';
+import skeletor from '@/assets/images/skeletor.png';
 import {
   Button,
   Card,
   ContentContainer,
+  Portrait,
   ScreenContainer,
   Select,
   Stack,
@@ -13,6 +15,7 @@ import {
   Typography,
 } from '@/components';
 import { colors } from '@/constants/colors';
+import FloatingDamage from '@/features/combat/components/FloatingDamage';
 import EffectPlayer from '@/features/vfx/player/EffectPlayer';
 import { createEffectInstance } from '@/features/vfx/runtime/createEffectInstance';
 import { getEffectAsset, listEffectAssets } from '@/features/vfx/runtime/effectRegistry';
@@ -26,13 +29,21 @@ import { getVfxSpriteSource } from '@/features/vfx/runtime/spriteRegistry';
 import type { EffectAsset } from '@/features/vfx/types/assets';
 import type { EffectInstance } from '@/features/vfx/types/runtime';
 import type { EffectSequence } from '@/features/vfx/types/sequences';
+import { portraitByRole } from '@/utils/portraitByRole';
 
 type AnchorKey = 'caster' | 'target';
 type Point = { x: number; y: number };
 type PreviewMode = 'sequence' | 'effect';
 type PreviewInstanceSlot = { slotId: number; active: boolean; instance: EffectInstance };
+type PreviewCombatFloat = {
+  id: number;
+  anchor: AnchorKey;
+  text: string;
+  color: string;
+};
 
 const INSTANCE_OFFSET_STEP = 18;
+const PORTRAIT_SIZE = 74;
 
 type VfxPreviewScreenProps = {
   sequenceId?: string;
@@ -207,6 +218,7 @@ const VfxPreviewScreen = ({
   const [selectionReady, setSelectionReady] = useState(true);
   const [instanceSlots, setInstanceSlots] = useState<PreviewInstanceSlot[]>([]);
   const [stageReady, setStageReady] = useState(false);
+  const [combatFloats, setCombatFloats] = useState<PreviewCombatFloat[]>([]);
   const [anchors, setAnchors] = useState<{ caster: Point; target: Point }>({
     caster: { x: 0, y: 0 },
     target: { x: 0, y: 0 },
@@ -237,6 +249,7 @@ const VfxPreviewScreen = ({
   const resetPreviewPlayback = useCallback(() => {
     clearActivationFrames();
     clearTimers();
+    setCombatFloats([]);
     setInstanceSlots((current) =>
       current.some((slot) => slot.active)
         ? current.map((slot) => (slot.active ? { ...slot, active: false } : slot))
@@ -409,6 +422,36 @@ const VfxPreviewScreen = ({
     timeoutIdsRef.current.push(timeoutId);
   }, []);
 
+  const spawnCombatFloat = useCallback(
+    (anchor: AnchorKey, text: string, color: string, delayMs = 0) => {
+      queueLocalTimeout(() => {
+        const id = Date.now() + Math.round(Math.random() * 10000);
+        setCombatFloats((current) => [...current, { id, anchor, text, color }]);
+        queueLocalTimeout(() => {
+          setCombatFloats((current) => current.filter((entry) => entry.id !== id));
+        }, 850);
+      }, delayMs);
+    },
+    [queueLocalTimeout],
+  );
+
+  const triggerPreviewCombatFeedback = useCallback(
+    (impactDelayMs: number) => {
+      spawnCombatFloat('caster', 'CAST', colors.intentConfirmedBorder, 0);
+      spawnCombatFloat('target', '-18', colors.combatDamage, impactDelayMs);
+    },
+    [spawnCombatFloat],
+  );
+
+  const selectedEffect = useMemo(
+    () => (selectedEffectId ? getEffectAsset(selectedEffectId) : null),
+    [selectedEffectId],
+  );
+  const selectedSequence = useMemo(
+    () => listEffectSequences().find((sequence) => sequence.id === selectedSequenceId) ?? null,
+    [selectedSequenceId],
+  );
+
   const handlePlaySequence = useCallback(() => {
     if (!selectedSequenceId) {
       return;
@@ -416,6 +459,15 @@ const VfxPreviewScreen = ({
 
     const totalInstances = parseInstanceCount(instanceCount);
     resetPreviewPlayback();
+    const impactDelayMs = selectedSequence
+      ? selectedSequence.cues.reduce((maxDelay, cue) => {
+          if (cue.anchor === 'target' || cue.anchor === 'projectile') {
+            return Math.max(maxDelay, cue.atMs);
+          }
+          return maxDelay;
+        }, 120)
+      : 120;
+    triggerPreviewCombatFeedback(impactDelayMs);
     for (let index = 0; index < totalInstances; index += 1) {
       const offset = getInstanceOffset(index, totalInstances);
       playEffectSequence({
@@ -439,7 +491,9 @@ const VfxPreviewScreen = ({
     playLocalEffect,
     queueLocalTimeout,
     resetPreviewPlayback,
+    selectedSequence,
     selectedSequenceId,
+    triggerPreviewCombatFeedback,
   ]);
 
   const handlePlayEffect = useCallback(() => {
@@ -449,6 +503,9 @@ const VfxPreviewScreen = ({
 
     const totalInstances = parseInstanceCount(instanceCount);
     resetPreviewPlayback();
+    triggerPreviewCombatFeedback(
+      selectedEffect ? Math.min(240, Math.round(selectedEffect.durationMs * 0.45)) : 120,
+    );
     for (let index = 0; index < totalInstances; index += 1) {
       const offset = getInstanceOffset(index, totalInstances);
       playLocalEffect(selectedEffectId, {
@@ -468,6 +525,8 @@ const VfxPreviewScreen = ({
     playLocalEffect,
     resetPreviewPlayback,
     selectedEffectId,
+    selectedEffect,
+    triggerPreviewCombatFeedback,
   ]);
 
   const casterPanResponder = useMemo(
@@ -506,14 +565,6 @@ const VfxPreviewScreen = ({
     [refreshStageBounds, resetPreviewPlaybackIfActive, updateAnchorFromPage],
   );
 
-  const selectedEffect = useMemo(
-    () => (selectedEffectId ? getEffectAsset(selectedEffectId) : null),
-    [selectedEffectId],
-  );
-  const selectedSequence = useMemo(
-    () => listEffectSequences().find((sequence) => sequence.id === selectedSequenceId) ?? null,
-    [selectedSequenceId],
-  );
   const warmupSlotCounts = useMemo(() => {
     const totalInstances = parseInstanceCount(instanceCount);
 
@@ -717,6 +768,89 @@ const VfxPreviewScreen = ({
           <Card backgroundColor={colors.backgroundOverlayPanel} borderColor={colors.borderOverlay}>
             <Stack gap={12}>
               <View ref={stageRef} onLayout={handleStageLayout} style={styles.stage}>
+                <View pointerEvents="none" style={styles.stageBackdrop} />
+
+                <View pointerEvents="none" style={styles.stagePortraits}>
+                  <View
+                    style={[
+                      styles.portraitPlate,
+                      styles.casterPlate,
+                      {
+                        left: anchors.caster.x - PORTRAIT_SIZE / 2,
+                        top: anchors.caster.y - PORTRAIT_SIZE / 2,
+                      },
+                    ]}
+                  >
+                    <Portrait
+                      source={portraitByRole('sage')}
+                      size={PORTRAIT_SIZE}
+                      highlighted
+                      highlightColor={colors.intentConfirmedBorder}
+                      hideName
+                    />
+                    {combatFloats
+                      .filter((entry) => entry.anchor === 'caster')
+                      .map((entry) => (
+                        <FloatingDamage key={entry.id} text={entry.text} color={entry.color} />
+                      ))}
+                  </View>
+
+                  <View
+                    style={[
+                      styles.portraitPlate,
+                      styles.targetPlate,
+                      {
+                        left: anchors.target.x - PORTRAIT_SIZE / 2,
+                        top: anchors.target.y - PORTRAIT_SIZE / 2,
+                      },
+                    ]}
+                  >
+                    <Portrait
+                      source={skeletor}
+                      size={PORTRAIT_SIZE}
+                      highlighted
+                      highlightColor={colors.combatDamage}
+                      hideName
+                    />
+                    {combatFloats
+                      .filter((entry) => entry.anchor === 'target')
+                      .map((entry) => (
+                        <FloatingDamage key={entry.id} text={entry.text} color={entry.color} />
+                      ))}
+                  </View>
+                </View>
+
+                {stageReady ? (
+                  <View
+                    pointerEvents="none"
+                    style={[
+                      styles.motionGuide,
+                      {
+                        left:
+                          (anchors.caster.x + anchors.target.x) / 2 -
+                          Math.hypot(
+                            anchors.target.x - anchors.caster.x,
+                            anchors.target.y - anchors.caster.y,
+                          ) /
+                            2,
+                        top: (anchors.caster.y + anchors.target.y) / 2,
+                        width: Math.hypot(
+                          anchors.target.x - anchors.caster.x,
+                          anchors.target.y - anchors.caster.y,
+                        ),
+                        transform: [
+                          {
+                            rotate: `${Math.atan2(
+                              anchors.target.y - anchors.caster.y,
+                              anchors.target.x - anchors.caster.x,
+                            )}rad`,
+                          },
+                        ],
+                      },
+                    ]}
+                  />
+                ) : null}
+
                 <View pointerEvents="none" style={styles.stageEffects}>
                   {instanceSlots.map((slot) => (
                     <EffectPlayer
@@ -738,63 +872,26 @@ const VfxPreviewScreen = ({
                 {stageReady ? (
                   <>
                     <View
-                      pointerEvents="none"
                       style={[
-                        styles.motionGuide,
+                        styles.anchorShell,
                         {
-                          left:
-                            (anchors.caster.x + anchors.target.x) / 2 -
-                            Math.hypot(
-                              anchors.target.x - anchors.caster.x,
-                              anchors.target.y - anchors.caster.y,
-                            ) /
-                              2,
-                          top: (anchors.caster.y + anchors.target.y) / 2,
-                          width: Math.hypot(
-                            anchors.target.x - anchors.caster.x,
-                            anchors.target.y - anchors.caster.y,
-                          ),
-                          transform: [
-                            {
-                              rotate: `${Math.atan2(
-                                anchors.target.y - anchors.caster.y,
-                                anchors.target.x - anchors.caster.x,
-                              )}rad`,
-                            },
-                          ],
+                          left: anchors.caster.x - 52,
+                          top: anchors.caster.y - 52,
                         },
                       ]}
+                      {...casterPanResponder.panHandlers}
                     />
 
                     <View
                       style={[
                         styles.anchorShell,
                         {
-                          left: anchors.caster.x - 24,
-                          top: anchors.caster.y - 24,
-                        },
-                      ]}
-                      {...casterPanResponder.panHandlers}
-                    >
-                      <View style={styles.casterAnchorOuter}>
-                        <View style={styles.casterAnchorInner} />
-                      </View>
-                    </View>
-
-                    <View
-                      style={[
-                        styles.anchorShell,
-                        {
-                          left: anchors.target.x - 28,
-                          top: anchors.target.y - 28,
+                          left: anchors.target.x - 52,
+                          top: anchors.target.y - 52,
                         },
                       ]}
                       {...targetPanResponder.panHandlers}
-                    >
-                      <View style={styles.targetAnchorOuter}>
-                        <View style={styles.targetAnchorInner} />
-                      </View>
-                    </View>
+                    />
                   </>
                 ) : null}
               </View>
@@ -853,8 +950,28 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(10, 14, 24, 0.94)',
     position: 'relative',
   },
+  stageBackdrop: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: '#10141c',
+  },
+  stagePortraits: {
+    ...StyleSheet.absoluteFillObject,
+    zIndex: 1,
+  },
+  portraitPlate: {
+    position: 'absolute',
+    alignItems: 'center',
+    width: PORTRAIT_SIZE,
+  },
+  casterPlate: {
+    zIndex: 2,
+  },
+  targetPlate: {
+    zIndex: 2,
+  },
   stageEffects: {
     ...StyleSheet.absoluteFillObject,
+    zIndex: 3,
   },
   fpsPill: {
     position: 'absolute',
@@ -866,6 +983,7 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(8, 12, 20, 0.72)',
     borderWidth: 1,
     borderColor: 'rgba(255, 255, 255, 0.08)',
+    zIndex: 5,
   },
   fpsText: {
     color: colors.textPrimary,
@@ -873,47 +991,15 @@ const styles = StyleSheet.create({
   motionGuide: {
     position: 'absolute',
     height: 2,
-    backgroundColor: 'rgba(248, 198, 127, 0.35)',
+    backgroundColor: 'rgba(248, 198, 127, 0.18)',
     transformOrigin: 'center',
+    zIndex: 2,
   },
   anchorShell: {
     position: 'absolute',
-    width: 56,
-    height: 56,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  casterAnchorOuter: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    borderWidth: 2,
-    borderColor: colors.intentConfirmedBorder,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: 'rgba(102, 196, 255, 0.08)',
-  },
-  casterAnchorInner: {
-    width: 18,
-    height: 18,
-    borderRadius: 9,
-    backgroundColor: colors.intentConfirmedBorder,
-  },
-  targetAnchorOuter: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    borderWidth: 2,
-    borderColor: colors.combatDamage,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: 'rgba(255, 110, 82, 0.08)',
-  },
-  targetAnchorInner: {
-    width: 20,
-    height: 20,
-    borderRadius: 10,
-    backgroundColor: colors.combatDamage,
+    width: 104,
+    height: 104,
+    zIndex: 4,
   },
 });
 

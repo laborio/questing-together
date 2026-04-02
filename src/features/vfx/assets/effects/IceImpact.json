@@ -1,0 +1,99 @@
+{
+  "id": "IceImpact",
+  "label": "IceImpact",
+  "durationMs": 1600,
+  "motion": {
+    "mode": "fixed",
+    "tracks": {}
+  },
+  "layers": [
+    {
+      "id": "Sparks",
+      "type": "particleEmitter",
+      "renderer": "diamond",
+      "color": "#a3e3ff",
+      "color2": "#2ecbff",
+      "maxParticles": 24,
+      "emissionRate": 0,
+      "particleLifetimeMs": 120,
+      "emitterShape": "point",
+      "emitterRadius": 32,
+      "emitterWidth": 120,
+      "emitterHeight": 120,
+      "tracks": {},
+      "particleTracks": {
+        "scale": [
+          {
+            "at": 0,
+            "value": 1
+          },
+          {
+            "at": 1,
+            "value": 0
+          }
+        ],
+        "alpha": [
+          {
+            "at": 0,
+            "value": 1
+          }
+        ]
+      },
+      "spriteId": "t-vfx-particle-default",
+      "speedMax": 300,
+      "particleLifetimeMaxMs": 320,
+      "startSize": 1,
+      "burstCount": 24,
+      "speed": 100,
+      "tintColor": "#b8f1ff",
+      "tintColor2": "#65cefb",
+      "spreadDeg": 45,
+      "emitterTracks": {},
+      "startSizeMax": 16,
+      "rotationDeg": 0,
+      "rotationOverLifetimeDeg": 90
+    },
+    {
+      "id": "Core",
+      "type": "sprite",
+      "spriteId": "t-vfx-particle-default",
+      "width": 64,
+      "height": 64,
+      "tintColor": "#00bbfa",
+      "tracks": {
+        "scale": [
+          {
+            "at": 0,
+            "value": 1
+          },
+          {
+            "at": 1,
+            "value": 0
+          }
+        ],
+        "alpha": [
+          {
+            "at": 0,
+            "value": 1
+          },
+          {
+            "at": 1,
+            "value": 1
+          }
+        ],
+        "glow": [
+          {
+            "at": 0,
+            "value": 0
+          },
+          {
+            "at": 1,
+            "value": 1
+          }
+        ]
+      },
+      "layerLifetimeMs": 320
+    }
+  ],
+  "loop": false
+}

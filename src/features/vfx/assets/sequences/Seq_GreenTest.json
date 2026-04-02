@@ -1,0 +1,25 @@
+{
+  "id": "Seq_GreenTest",
+  "label": "Seq_GreenTest",
+  "cues": [
+    {
+      "id": "muzzle",
+      "assetId": "GreenTestMuzzle",
+      "atMs": 0,
+      "anchor": "caster"
+    },
+    {
+      "id": "fireball-travel-cue-3",
+      "assetId": "GreenTestTravel",
+      "atMs": 0,
+      "anchor": "caster",
+      "targetAnchor": "target"
+    },
+    {
+      "id": "impact",
+      "assetId": "GreenTestImpact",
+      "atMs": 1300,
+      "anchor": "target"
+    }
+  ]
+}

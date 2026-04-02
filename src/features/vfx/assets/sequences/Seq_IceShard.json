@@ -1,0 +1,20 @@
+{
+  "id": "Seq_IceShard",
+  "label": "Seq_IceShard",
+  "cues": [
+    {
+      "id": "Ice Shard Travel-cue-1",
+      "assetId": "IceShardTravel",
+      "atMs": 0,
+      "anchor": "projectile",
+      "targetAnchor": "target"
+    },
+    {
+      "id": "Ice-impact-cue-2",
+      "assetId": "IceImpact",
+      "atMs": 330,
+      "anchor": "target",
+      "targetAnchor": "target"
+    }
+  ]
+}

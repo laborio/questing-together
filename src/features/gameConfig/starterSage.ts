@@ -17,6 +17,8 @@ const SAGE_STARTER: Card[] = [
     baseBurn: 3,
     upgradedBurn: 5,
     starterRole: 'sage',
+    vfxSequenceId: 'Seq_fireball',
+    vfxTarget: 'self_to_target',
   },
   {
     id: 's-kindle',
@@ -31,6 +33,8 @@ const SAGE_STARTER: Card[] = [
     baseDamage: 3,
     upgradedDamage: 5,
     starterRole: 'sage',
+    vfxSequenceId: 'Seq_fireball',
+    vfxTarget: 'self_to_target',
   },
   {
     id: 's-flame-wave',
@@ -61,6 +65,8 @@ const SAGE_STARTER: Card[] = [
     baseDamage: 6,
     upgradedDamage: 9,
     starterRole: 'sage',
+    vfxSequenceId: 'Seq_IceShard',
+    vfxTarget: 'self_to_target',
   },
   {
     id: 's-frost-shield',

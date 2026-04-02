@@ -11,6 +11,11 @@
       "filename": "demo-sigil.png"
     },
     {
+      "id": "t-shield",
+      "label": "T Shield",
+      "filename": "t-shield.png"
+    },
+    {
       "id": "t-vfx-firerock",
       "label": "T Vfx Firerock",
       "filename": "t-vfx-firerock.png"

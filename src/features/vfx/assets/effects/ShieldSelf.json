@@ -1,0 +1,54 @@
+{
+  "id": "ShieldSelf",
+  "label": "ShieldSelf",
+  "durationMs": 1000,
+  "motion": {
+    "mode": "fixed",
+    "tracks": {
+      "travel": [
+        {
+          "at": 0,
+          "value": 0
+        },
+        {
+          "at": 1,
+          "value": 1
+        }
+      ]
+    }
+  },
+  "layers": [
+    {
+      "id": "Main",
+      "type": "sprite",
+      "spriteId": "t-shield",
+      "width": 48,
+      "height": 48,
+      "tintColor": "",
+      "tracks": {
+        "scale": [
+          {
+            "at": 0,
+            "value": 1
+          },
+          {
+            "at": 1,
+            "value": 2
+          }
+        ],
+        "alpha": [
+          {
+            "at": 0,
+            "value": 1
+          },
+          {
+            "at": 1,
+            "value": 0
+          }
+        ]
+      },
+      "alignToMotionDirection": false
+    }
+  ],
+  "loop": false
+}

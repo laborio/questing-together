@@ -58,6 +58,8 @@ const WARRIOR_STARTER: Card[] = [
     baseBlock: 7,
     upgradedBlock: 10,
     starterRole: 'warrior',
+    vfxEffectId: 'ShieldSelf',
+    vfxTarget: 'self',
   },
   {
     id: 'w-brace',
@@ -72,6 +74,8 @@ const WARRIOR_STARTER: Card[] = [
     baseBlock: 3,
     upgradedBlock: 5,
     starterRole: 'warrior',
+    vfxEffectId: 'ShieldSelf',
+    vfxTarget: 'self',
   },
   {
     id: 'w-fortify',
@@ -86,6 +90,8 @@ const WARRIOR_STARTER: Card[] = [
     baseBlock: 12,
     upgradedBlock: 16,
     starterRole: 'warrior',
+    vfxEffectId: 'ShieldSelf',
+    vfxTarget: 'self',
   },
   // ── Blood (3 starters) ─────────────────────────────────────────
   {
@@ -103,6 +109,8 @@ const WARRIOR_STARTER: Card[] = [
     baseHeal: 3,
     upgradedHeal: 5,
     starterRole: 'warrior',
+    vfxSequenceId: 'Seq_GreenTest',
+    vfxTarget: 'self_to_target',
   },
   {
     id: 'w-blood-pact',
@@ -117,6 +125,8 @@ const WARRIOR_STARTER: Card[] = [
     baseHeal: 2,
     upgradedHeal: 4,
     starterRole: 'warrior',
+    vfxSequenceId: 'Seq_GreenTest',
+    vfxTarget: 'self',
   },
   {
     id: 'w-siphon',
@@ -133,6 +143,8 @@ const WARRIOR_STARTER: Card[] = [
     baseHeal: 6,
     upgradedHeal: 8,
     starterRole: 'warrior',
+    vfxSequenceId: 'Seq_GreenTest',
+    vfxTarget: 'self_to_target',
   },
   // ── Thunder (3 starters) ───────────────────────────────────────
   {
@@ -148,6 +160,8 @@ const WARRIOR_STARTER: Card[] = [
     baseDamage: 6,
     upgradedDamage: 9,
     starterRole: 'warrior',
+    vfxSequenceId: 'Seq_IceShard',
+    vfxTarget: 'self_to_target',
   },
   {
     id: 'w-spark',
@@ -162,6 +176,8 @@ const WARRIOR_STARTER: Card[] = [
     baseDamage: 2,
     upgradedDamage: 4,
     starterRole: 'warrior',
+    vfxSequenceId: 'Seq_IceShard',
+    vfxTarget: 'self_to_target',
   },
   {
     id: 'w-lightning-strike',

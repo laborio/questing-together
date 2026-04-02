@@ -36,7 +36,13 @@ export { BIOMES } from '@/features/gameConfig/biomes';
 // ─── Bonuses ────────────────────────────────────────────────────
 export type { Bonus } from '@/features/gameConfig/bonuses';
 export { BONUS_BY_ID, BONUSES } from '@/features/gameConfig/bonuses';
-export type { Card, ConvergenceEffect, Trait, TraitMeta } from '@/features/gameConfig/cardTypes';
+export type {
+  Card,
+  CardVfxTarget,
+  ConvergenceEffect,
+  Trait,
+  TraitMeta,
+} from '@/features/gameConfig/cardTypes';
 // ─── Encounters & enemy templates ───────────────────────────────
 export type { Encounter, EncounterEnemy, EnemyTemplate } from '@/features/gameConfig/encounters';
 export {

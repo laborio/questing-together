@@ -26,6 +26,8 @@ type TraitMeta = {
   color: string;
 };
 
+type CardVfxTarget = 'self' | 'self_to_target' | 'target';
+
 type Card = {
   id: string;
   name: string;
@@ -49,6 +51,8 @@ type Card = {
   isSignature?: boolean;
   starterRole?: RoleId;
   vfxSequenceId?: string;
+  vfxEffectId?: string;
+  vfxTarget?: CardVfxTarget;
 };
 
 type ConvergenceEffect = {
@@ -66,4 +70,4 @@ type ConvergenceEffect = {
   scalePerUpgradeRank: number;
 };
 
-export type { Card, ConvergenceEffect, Trait, TraitMeta };
+export type { Card, CardVfxTarget, ConvergenceEffect, Trait, TraitMeta };

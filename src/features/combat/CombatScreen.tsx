@@ -16,8 +16,8 @@ import useCombatBroadcast from '@/features/combat/hooks/useCombatBroadcast';
 import useCombatTurnPhase from '@/features/combat/hooks/useCombatTurnPhase';
 import { buildCombatPlayers } from '@/features/combat/utils/buildCombatPlayers';
 import { getEffectiveEnemyId } from '@/features/combat/utils/getEffectiveEnemyId';
-import { getCardById } from '@/features/gameConfig';
-import { getEffectSequence, playEffectSequence, useVfx } from '@/features/vfx';
+import { type CardVfxTarget, getCardById } from '@/features/gameConfig';
+import { getEffectAsset, getEffectSequence, playEffectSequence, useVfx } from '@/features/vfx';
 import type { PlayerId } from '@/types/player';
 
 const getEffectType = (damage: number, block: number, heal: number, isAoe?: boolean): string => {
@@ -28,6 +28,16 @@ const getEffectType = (damage: number, block: number, heal: number, isAoe?: bool
 };
 
 type Position = { x: number; y: number };
+type CombatVfxPayload = {
+  effectId?: string;
+  playerId: PlayerId | null;
+  sequenceId?: string;
+  targetEnemyId?: string | null;
+  targetMode: CardVfxTarget;
+};
+
+const resolveCardVfxTarget = (target: CardVfxTarget | undefined): CardVfxTarget =>
+  target ?? 'self_to_target';
 
 const getSequenceImpactDelayMs = (sequenceId: string) => {
   const sequence = getEffectSequence(sequenceId);
@@ -40,6 +50,13 @@ const getSequenceImpactDelayMs = (sequenceId: string) => {
 
     return maxDelay;
   }, 0);
+};
+
+const getEffectImpactDelayMs = (effectId: string, targetMode: CardVfxTarget) => {
+  if (targetMode !== 'self_to_target') return 0;
+
+  const effect = getEffectAsset(effectId);
+  return effect?.durationMs ?? 0;
 };
 
 const computeDirection = (from: Position, to: Position): { x: number; y: number } => {
@@ -139,32 +156,71 @@ const CombatScreen = () => {
   }, []);
 
   const playCardVfx = useCallback(
-    async (sequenceId: string, playerId: PlayerId | null, enemyId: string | null) => {
-      if (!playerId || !enemyId) {
+    async ({ effectId, playerId, sequenceId, targetEnemyId, targetMode }: CombatVfxPayload) => {
+      if (!playerId || (!sequenceId && !effectId)) {
         return { impactDelayMs: 0, played: false };
       }
 
       const sourcePortrait = playerPortraitRefs.current[playerId] ?? null;
+      const needsTargetPortrait = targetMode !== 'self';
+      const targetPortrait = targetEnemyId
+        ? (enemyPortraitRefs.current[targetEnemyId] ?? null)
+        : null;
 
       const [caster, target] = await Promise.all([
         measureViewCenterInWindow(sourcePortrait),
-        measureViewCenterInWindow(enemyPortraitRefs.current[enemyId] ?? null),
+        needsTargetPortrait
+          ? measureViewCenterInWindow(targetPortrait)
+          : Promise.resolve<Position | null>(null),
       ]);
 
-      if (!caster || !target) {
+      if (!caster) {
         return { impactDelayMs: 0, played: false };
       }
 
-      playEffectSequence({
-        sequenceId,
-        caster,
-        target,
-        playEffect,
-        onTimeout: queueVfxTimeout,
-      });
+      if (needsTargetPortrait && !target) {
+        return { impactDelayMs: 0, played: false };
+      }
+
+      const resolvedOrigin = targetMode === 'target' ? (target ?? caster) : caster;
+      const resolvedDestination = targetMode === 'self' ? caster : (target ?? caster);
+
+      if (sequenceId) {
+        playEffectSequence({
+          sequenceId,
+          caster: resolvedOrigin,
+          target: resolvedDestination,
+          playEffect,
+          onTimeout: queueVfxTimeout,
+        });
+
+        return {
+          impactDelayMs: getSequenceImpactDelayMs(sequenceId),
+          played: true,
+        };
+      }
+
+      if (!effectId) {
+        return { impactDelayMs: 0, played: false };
+      }
+
+      playEffect(
+        effectId,
+        targetMode === 'self_to_target'
+          ? {
+              x: resolvedOrigin.x,
+              y: resolvedOrigin.y,
+              targetX: resolvedDestination.x,
+              targetY: resolvedDestination.y,
+            }
+          : {
+              x: resolvedOrigin.x,
+              y: resolvedOrigin.y,
+            },
+      );
 
       return {
-        impactDelayMs: getSequenceImpactDelayMs(sequenceId),
+        impactDelayMs: getEffectImpactDelayMs(effectId, targetMode),
         played: true,
       };
     },
@@ -261,9 +317,16 @@ const CombatScreen = () => {
     onAllyAction: useCallback(
       async (event) => {
         const allyCard = event.spellId ? getCardById(event.spellId) : undefined;
+        const allyTargetMode = resolveCardVfxTarget(allyCard?.vfxTarget);
         const vfxResult =
-          allyCard?.vfxSequenceId && event.actionType === 'spell' && event.targetEnemyId
-            ? await playCardVfx(allyCard.vfxSequenceId, event.playerId, event.targetEnemyId)
+          allyCard && event.actionType === 'spell'
+            ? await playCardVfx({
+                effectId: allyCard.vfxEffectId,
+                playerId: event.playerId,
+                sequenceId: allyCard.vfxSequenceId,
+                targetEnemyId: event.targetEnemyId,
+                targetMode: allyTargetMode,
+              })
             : { impactDelayMs: 0, played: false };
 
         anim.playBotAction(event.playerId, event.actionType, event.damage, event.spellName, {
@@ -289,9 +352,16 @@ const CombatScreen = () => {
       const botPlayer = roomConnection.players.find((p) => p.player_id === botId);
       const botName = botPlayer?.display_name ?? 'Bot';
       const botCard = action.spellId ? getCardById(action.spellId) : undefined;
+      const botTargetMode = resolveCardVfxTarget(botCard?.vfxTarget);
       const vfxResult =
-        botCard?.vfxSequenceId && action.action === 'spell' && action.targetId
-          ? await playCardVfx(botCard.vfxSequenceId, botId, action.targetId)
+        botCard && action.action === 'spell'
+          ? await playCardVfx({
+              effectId: botCard.vfxEffectId,
+              playerId: botId,
+              sequenceId: botCard.vfxSequenceId,
+              targetEnemyId: action.targetId,
+              targetMode: botTargetMode,
+            })
           : { impactDelayMs: 0, played: false };
       anim.playBotAction(botId, action.action, action.damage ?? 0, action.spellName, {
         impactDelayMs: vfxResult.impactDelayMs,
@@ -346,12 +416,20 @@ const CombatScreen = () => {
         };
 
         const effectType = getEffectType(r.damage, r.block, r.heal, card.isAoe);
-        const shouldPlayTargetedVfx = Boolean(
-          card.vfxSequenceId && targetEnemyId && !card.isAoe && r.damage > 0,
-        );
-        const targetedVfxSequenceId = shouldPlayTargetedVfx ? card.vfxSequenceId : null;
-        const vfxResult = targetedVfxSequenceId
-          ? await playCardVfx(targetedVfxSequenceId, localPlayerId, targetEnemyId)
+        const cardTargetMode = resolveCardVfxTarget(card.vfxTarget);
+        const needsTargetEnemy = cardTargetMode !== 'self';
+        const shouldPlayCombatVfx =
+          Boolean(card.vfxSequenceId || card.vfxEffectId) &&
+          !card.isAoe &&
+          (!needsTargetEnemy || Boolean(targetEnemyId));
+        const vfxResult = shouldPlayCombatVfx
+          ? await playCardVfx({
+              effectId: card.vfxEffectId,
+              playerId: localPlayerId,
+              sequenceId: card.vfxSequenceId,
+              targetEnemyId,
+              targetMode: cardTargetMode,
+            })
           : { impactDelayMs: 0, played: false };
 
         anim.playCastSpell(r.damage, r.cardName, effectType, direction, 0, 'normal', r.heal, {

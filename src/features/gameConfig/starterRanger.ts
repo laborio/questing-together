@@ -29,6 +29,8 @@ const RANGER_STARTER: Card[] = [
     baseDamage: 2,
     upgradedDamage: 4,
     starterRole: 'ranger',
+    vfxSequenceId: 'Seq_IceShard',
+    vfxTarget: 'self_to_target',
   },
   {
     id: 'r-ambush',
@@ -58,6 +60,8 @@ const RANGER_STARTER: Card[] = [
     baseHeal: 3,
     upgradedHeal: 5,
     starterRole: 'ranger',
+    vfxSequenceId: 'Seq_GreenTest',
+    vfxTarget: 'self',
   },
   {
     id: 'r-vine-lash',
@@ -74,6 +78,8 @@ const RANGER_STARTER: Card[] = [
     baseHeal: 4,
     upgradedHeal: 6,
     starterRole: 'ranger',
+    vfxSequenceId: 'Seq_GreenTest',
+    vfxTarget: 'self_to_target',
   },
   {
     id: 'r-regrowth',
@@ -88,6 +94,8 @@ const RANGER_STARTER: Card[] = [
     baseHeal: 8,
     upgradedHeal: 12,
     starterRole: 'ranger',
+    vfxSequenceId: 'Seq_GreenTest',
+    vfxTarget: 'self',
   },
   // ── Precision (3 starters) ─────────────────────────────────────
   {

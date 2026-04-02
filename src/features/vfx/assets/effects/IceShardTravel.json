@@ -1,0 +1,124 @@
+{
+  "id": "IceShardTravel",
+  "label": "IceShardTravel",
+  "durationMs": 360,
+  "motion": {
+    "mode": "line",
+    "tracks": {}
+  },
+  "layers": [
+    {
+      "id": "Trail",
+      "type": "particleEmitter",
+      "renderer": "radialGradient",
+      "color": "#b8f7ff",
+      "color2": "#3ddfff",
+      "maxParticles": 64,
+      "emissionRate": 64,
+      "particleLifetimeMs": 360,
+      "speed": 8,
+      "spreadDeg": 45,
+      "startSize": 1,
+      "emitterShape": "point",
+      "emitterRadius": 24,
+      "emitterWidth": 48,
+      "emitterHeight": 48,
+      "rotationOverLifetimeDeg": 0,
+      "tracks": {
+        "alpha": [
+          {
+            "at": 0,
+            "value": 1
+          }
+        ],
+        "x": [
+          {
+            "at": 0,
+            "value": 0
+          }
+        ],
+        "y": [
+          {
+            "at": 0,
+            "value": 0
+          }
+        ]
+      },
+      "particleTracks": {
+        "scale": [
+          {
+            "at": 0,
+            "value": 1
+          },
+          {
+            "at": 1,
+            "value": 0
+          }
+        ],
+        "alpha": [
+          {
+            "at": 0,
+            "value": 1
+          },
+          {
+            "at": 1,
+            "value": 0
+          }
+        ]
+      },
+      "spriteId": "demo-core",
+      "emitterTracks": {},
+      "speedMax": 80,
+      "startSizeMax": 16
+    },
+    {
+      "id": "Head-big",
+      "type": "diamond",
+      "width": 12,
+      "height": 28,
+      "color": "#8bd6ee",
+      "tracks": {
+        "scale": [
+          {
+            "at": 0,
+            "value": 1
+          }
+        ],
+        "alpha": [
+          {
+            "at": 0,
+            "value": 1
+          }
+        ]
+      },
+      "radius": 10,
+      "alignToMotionDirection": true,
+      "rotationDeg": 0
+    },
+    {
+      "id": "Head-small",
+      "type": "diamond",
+      "width": 6,
+      "height": 14,
+      "color": "#ffffff",
+      "tracks": {
+        "scale": [
+          {
+            "at": 0,
+            "value": 1
+          }
+        ],
+        "alpha": [
+          {
+            "at": 0,
+            "value": 1
+          }
+        ]
+      },
+      "radius": 10,
+      "alignToMotionDirection": true,
+      "rotationDeg": 0
+    }
+  ],
+  "loop": false
+}

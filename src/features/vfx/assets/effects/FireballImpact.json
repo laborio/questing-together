@@ -1,0 +1,142 @@
+{
+  "id": "FireballImpact",
+  "label": "FireballImpact",
+  "durationMs": 1600,
+  "motion": {
+    "mode": "fixed",
+    "tracks": {}
+  },
+  "layers": [
+    {
+      "id": "Sparks",
+      "type": "particleEmitter",
+      "renderer": "sprite",
+      "color": "#292929",
+      "color2": "#ff4000",
+      "maxParticles": 36,
+      "emissionRate": 0,
+      "particleLifetimeMs": 120,
+      "emitterShape": "point",
+      "emitterRadius": 32,
+      "emitterWidth": 120,
+      "emitterHeight": 120,
+      "tracks": {},
+      "particleTracks": {
+        "scale": [
+          {
+            "at": 0,
+            "value": 1
+          },
+          {
+            "at": 1,
+            "value": 0
+          }
+        ],
+        "alpha": [
+          {
+            "at": 0,
+            "value": 1
+          }
+        ]
+      },
+      "spriteId": "t-vfx-particle-default",
+      "speedMax": 300,
+      "particleLifetimeMaxMs": 320,
+      "startSize": 12,
+      "burstCount": 24,
+      "speed": 3,
+      "tintColor": "#ff8800",
+      "tintColor2": "#ff5900",
+      "spreadDeg": 45,
+      "emitterTracks": {},
+      "startSizeMax": 28
+    },
+    {
+      "id": "Smoke",
+      "type": "particleEmitter",
+      "renderer": "sprite",
+      "color": "#292929",
+      "color2": "#ff4000",
+      "maxParticles": 36,
+      "emissionRate": 0,
+      "particleLifetimeMs": 400,
+      "emitterShape": "point",
+      "emitterRadius": 32,
+      "emitterWidth": 120,
+      "emitterHeight": 120,
+      "tracks": {},
+      "particleTracks": {
+        "scale": [
+          {
+            "at": 0,
+            "value": 1
+          },
+          {
+            "at": 1,
+            "value": 0
+          }
+        ],
+        "alpha": [
+          {
+            "at": 0,
+            "value": 1
+          }
+        ]
+      },
+      "spriteId": "t-vfx-particle-default",
+      "speedMax": 160,
+      "particleLifetimeMaxMs": 1200,
+      "startSize": 48,
+      "startSizeMax": 64,
+      "burstCount": 16,
+      "speed": 80,
+      "tintColor": "#2b2b2b",
+      "tintColor2": "#4d4d4d",
+      "spreadDeg": 90,
+      "directionDeg": -90,
+      "emitterTracks": {}
+    },
+    {
+      "id": "Core",
+      "type": "sprite",
+      "spriteId": "t-vfx-particle-default",
+      "width": 64,
+      "height": 64,
+      "tintColor": "#fa3e00",
+      "tracks": {
+        "scale": [
+          {
+            "at": 0,
+            "value": 1
+          },
+          {
+            "at": 1,
+            "value": 0
+          }
+        ],
+        "alpha": [
+          {
+            "at": 0,
+            "value": 1
+          },
+          {
+            "at": 1,
+            "value": 1
+          }
+        ],
+        "glow": [
+          {
+            "at": 0,
+            "value": 0
+          },
+          {
+            "at": 1,
+            "value": 1
+          }
+        ]
+      },
+      "layerLifetimeMs": 320
+    }
+  ],
+  "loop": false
+}

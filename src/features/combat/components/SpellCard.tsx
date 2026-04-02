@@ -18,7 +18,7 @@ import type { Card } from '@/features/gameConfig';
 import { getCardById, TRAIT_MAP } from '@/features/gameConfig';
 import type { DeckCardInstance } from '@/types/spellCombat';
 
-const CARD_HEIGHT = 125;
+const CARD_HEIGHT = 135;
 const COST_SIZE = 28;
 
 type CardViewProps = {
@@ -114,7 +114,7 @@ const CardView = ({
   const displayName = instance.upgraded ? card.upgradeName : card.name;
 
   return (
-    <Pressable disabled={isDisabled} onPress={handlePress} style={{ flex: 1 }}>
+    <Pressable disabled={isDisabled} onPress={handlePress} style={{ width: 80 }}>
       <Animated.View style={[animatedStyle, { position: 'relative' }]}>
         {/* Amplified glow */}
         {isAmplified ? <Animated.View style={glowStyle} pointerEvents="none" /> : null}
@@ -148,52 +148,51 @@ const CardView = ({
             }}
           />
 
-          {/* Card content */}
+          {/* Card content — fixed top and bottom zones */}
           <Stack
             align="center"
-            justify="center"
-            gap={2}
-            style={{ flex: 1, paddingTop: 24, paddingBottom: 10, paddingHorizontal: 4 }}
+            justify="space-between"
+            style={{ flex: 1, paddingTop: 22, paddingBottom: 8, paddingHorizontal: 4 }}
           >
-            {/* Card icon */}
-            <Image
-              source={cardIconImg}
-              style={{ width: 30, height: 30, opacity: 0.85, marginTop: 2, marginBottom: 4 }}
-              resizeMode="contain"
-            />
+            {/* Top: icon + text */}
+            <Stack align="center" gap={2}>
+              <Image
+                source={cardIconImg}
+                style={{ width: 30, height: 30, opacity: 0.85, marginBottom: 4 }}
+                resizeMode="contain"
+              />
 
-            {/* Card name */}
-            <Typography
-              variant="micro"
-              style={{
-                color: colors.textPrimary,
-                fontWeight: '700',
-                fontSize: 9,
-                textAlign: 'center',
-                letterSpacing: 0.3,
-              }}
-              numberOfLines={2}
-            >
-              {displayName}
-            </Typography>
+              <Typography
+                variant="micro"
+                style={{
+                  color: colors.textPrimary,
+                  fontWeight: '700',
+                  fontSize: 9,
+                  textAlign: 'center',
+                  letterSpacing: 0.3,
+                }}
+                numberOfLines={2}
+              >
+                {displayName}
+              </Typography>
 
-            {/* Stats */}
-            <Typography
-              variant="micro"
-              style={{
-                color: isAmplified ? traitColor : colors.textSubAction,
-                fontWeight: '600',
-                fontSize: 7,
-                textAlign: 'center',
-                textTransform: 'uppercase',
-              }}
-              numberOfLines={1}
-            >
-              {getSubtitle(card, instance.upgraded)}
-            </Typography>
+              <Typography
+                variant="micro"
+                style={{
+                  color: isAmplified ? traitColor : colors.textSubAction,
+                  fontWeight: '600',
+                  fontSize: 7,
+                  textAlign: 'center',
+                  textTransform: 'uppercase',
+                }}
+                numberOfLines={1}
+              >
+                {getSubtitle(card, instance.upgraded)}
+              </Typography>
+            </Stack>
 
-            {/* Trait icon */}
-            <Typography variant="micro" style={{ fontSize: 12, marginTop: 2 }}>
+            {/* Bottom: trait icon — always pinned to bottom */}
+            <Typography variant="micro" style={{ fontSize: 12 }}>
               {traitMeta?.icon ?? ''}
             </Typography>
           </Stack>

@@ -155,7 +155,7 @@ const SchoolChargeBar = ({
         align="center"
         style={{
           paddingHorizontal: 8,
-          paddingVertical: 13,
+          paddingVertical: 4,
           borderRadius: 6,
           backgroundColor: `${colors.intentConfirmedBorder}15`,
           borderWidth: 1,

@@ -30,8 +30,8 @@ const en = {
   playTest: {
     title: 'Play Test',
     subtitle: 'Launch a specific screen directly',
-    combatBloc: 'Combat Bloc %{bloc}',
-    bossBloc: 'Boss Bloc %{bloc}',
+    combatBloc: 'Combat',
+    bossBloc: 'Boss',
     bossFinal: 'Final Boss',
     narrativeChoice: 'Narrative Choice',
     shop: 'Shop',

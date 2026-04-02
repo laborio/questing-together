@@ -32,8 +32,8 @@ const fr: typeof en = {
   playTest: {
     title: 'Test',
     subtitle: 'Lancer un écran directement',
-    combatBloc: 'Combat Bloc %{bloc}',
-    bossBloc: 'Boss Bloc %{bloc}',
+    combatBloc: 'Combat',
+    bossBloc: 'Boss',
     bossFinal: 'Boss Final',
     narrativeChoice: 'Choix narratif',
     shop: 'Boutique',

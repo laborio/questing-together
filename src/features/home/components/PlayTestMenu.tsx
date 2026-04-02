@@ -27,11 +27,7 @@ type TestEntry = {
 
 const TESTS: TestEntry[] = [
   { labelKey: 'combatBloc', icon: '⚔️', screenType: 'combat', bloc: 1 },
-  { labelKey: 'combatBloc', icon: '⚔️', screenType: 'combat', bloc: 2 },
-  { labelKey: 'combatBloc', icon: '⚔️', screenType: 'combat', bloc: 3 },
   { labelKey: 'bossBloc', icon: '🐉', screenType: 'boss_fight', bloc: 1 },
-  { labelKey: 'bossFinal', icon: '💀', screenType: 'boss_fight', bloc: 3 },
-  { labelKey: 'narrativeChoice', icon: '📜', screenType: 'narrative_choice', bloc: 1 },
   { labelKey: 'shop', icon: '🛒', screenType: 'shop', bloc: 1 },
   { labelKey: 'rest', icon: '🏕️', screenType: 'rest', bloc: 1 },
   { labelKey: 'puzzle', icon: '🧩', screenType: 'puzzle', bloc: 1 },
@@ -67,7 +63,6 @@ const PlayTestMenu = ({ isBusy, onSelect, onBack }: PlayTestMenuProps) => {
               key={`${test.screenType}-${test.bloc}`}
               label={t(`playTest.${test.labelKey}`, { bloc: test.bloc })}
               icon={test.icon}
-              subtitle={t('playTest.bloc', { bloc: test.bloc })}
               disabled={isBusy}
               onPress={() => onSelect(test.screenType, test.bloc)}
             />

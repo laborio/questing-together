@@ -1,16 +1,16 @@
 export const ADVENTURE = {
   blocs: {
     first: {
-      early: { min: 1, max: 2 },
-      core: { min: 5, max: 6 },
-      resolve: 3,
+      early: { min: 1, max: 1 },
+      core: { min: 2, max: 3 },
+      resolve: 2,
     },
     middle: {
-      core: { min: 5, max: 6 },
-      resolve: 3,
+      core: { min: 2, max: 3 },
+      resolve: 2,
     },
     final: {
-      core: { min: 5, max: 6 },
+      core: { min: 2, max: 3 },
       resolve: 1,
     },
   },

@@ -1,5 +1,5 @@
 /**
- * Player identities — each defines a dominant trait, Attune behavior,
+ * Player identities — each defines a dominant trait
  * and convergence action name/description.
  */
 
@@ -20,7 +20,7 @@ const IDENTITIES: Identity[] = [
     name: 'Ashbound',
     dominantTrait: 'fire',
     passiveDescription:
-      'Start each fight with 1 Attune charge. Consuming an empowered Fire card gives +1 Attune, up to 2. Spend one to retag your next off-trait card as Fire.',
+      'Fire specialist. Empowering Fire cards fuels devastating Convergence effects.',
     convergenceActionName: 'Detonate',
     convergenceDescription:
       'If 2 or more traits are empowered, Detonate appears above Fire. It cashes out every empowered trait at once into one combined free action.',
@@ -30,7 +30,7 @@ const IDENTITIES: Identity[] = [
     name: 'Bulwark',
     dominantTrait: 'guard',
     passiveDescription:
-      'Start each fight with 1 Attune charge. Consuming an empowered Guard card gives +1 Attune, up to 2. Spend one to retag your next off-trait card as Guard.',
+      'Guard specialist. Empowering Guard cards fuels powerful Convergence defenses.',
     convergenceActionName: 'Last Bastion',
     convergenceDescription:
       'If 2 or more traits are empowered, Last Bastion appears above Guard. It cashes out every empowered trait at once into one combined free action.',
@@ -40,7 +40,7 @@ const IDENTITIES: Identity[] = [
     name: 'Nightglass',
     dominantTrait: 'shadow',
     passiveDescription:
-      'Start each fight with 1 Attune charge. Consuming an empowered Shadow card gives +1 Attune, up to 2. Spend one to retag your next off-trait card as Shadow.',
+      'Shadow specialist. Empowering Shadow cards fuels deadly Convergence strikes.',
     convergenceActionName: 'Execution Window',
     convergenceDescription:
       'If 2 or more traits are empowered, Execution Window appears above Shadow. It cashes out every empowered trait at once into one combined free action.',
@@ -50,7 +50,7 @@ const IDENTITIES: Identity[] = [
     name: 'Tempest Core',
     dominantTrait: 'storm',
     passiveDescription:
-      'Start each fight with 1 Attune charge. Consuming an empowered Storm card gives +1 Attune, up to 2. Spend one to retag your next off-trait card as Storm.',
+      'Storm specialist. Empowering Storm cards fuels explosive Convergence bursts.',
     convergenceActionName: 'Overdrive',
     convergenceDescription:
       'If 2 or more traits are empowered, Overdrive appears above Storm. It cashes out every empowered trait at once into one combined free action.',
@@ -60,7 +60,7 @@ const IDENTITIES: Identity[] = [
     name: 'Worldroot',
     dominantTrait: 'nature',
     passiveDescription:
-      'Start each fight with 1 Attune charge. Consuming an empowered Nature card gives +1 Attune, up to 2. Spend one to retag your next off-trait card as Nature.',
+      'Nature specialist. Empowering Nature cards fuels restorative Convergence effects.',
     convergenceActionName: 'World Bloom',
     convergenceDescription:
       'If 2 or more traits are empowered, World Bloom appears above Nature. It cashes out every empowered trait at once into one combined free action.',

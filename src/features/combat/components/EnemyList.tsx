@@ -5,7 +5,6 @@ import Animated, { useAnimatedStyle, useSharedValue, withTiming } from 'react-na
 import skeletor from '@/assets/images/skeletor.png';
 import { CircularHealthBar, Portrait, Stack, Typography } from '@/components';
 import { colors } from '@/constants/colors';
-import { useGame } from '@/contexts/GameContext';
 import { useTranslation } from '@/contexts/I18nContext';
 import FloatingDamage from '@/features/combat/components/FloatingDamage';
 import useDyingEnemies from '@/features/combat/hooks/useDyingEnemies';
@@ -46,7 +45,7 @@ const INTENT_DISPLAY: Record<number, { icon: string; label: string; color: strin
 };
 
 type EnemyListProps = {
-  enemies?: EnemyData[];
+  enemies: EnemyData[];
   selectedEnemyId: string | null;
   onSelectEnemy: (id: string) => void;
   enemyShake: SharedValue<number>;
@@ -106,12 +105,8 @@ const EnemyList = ({
   onEnemyLayout,
   floatingTexts,
 }: EnemyListProps) => {
-  const { roomConnection } = useGame();
   const { t } = useTranslation();
-
-  const allEnemies = enemiesProp ?? roomConnection.enemies;
-  const { dyingEnemies, aliveEnemies } = useDyingEnemies(allEnemies);
-  const killCount = allEnemies.filter((e) => e.isDead).length;
+  const { dyingEnemies, aliveEnemies } = useDyingEnemies(enemiesProp);
 
   const frontEnemies = aliveEnemies.slice(0, VISIBLE_COUNT);
   const backEnemies = aliveEnemies.slice(VISIBLE_COUNT);
@@ -121,10 +116,8 @@ const EnemyList = ({
 
   const enemyFloats = floatingTexts.filter((ft) => ft.target === 'enemy');
 
-  // New enemies use display names directly; old ones use translation keys
   const translateName = (nameKey: string) => {
     const translated = t(`enemies.${nameKey}` as 'enemies.goule');
-    // If translation returned the key path (not found), use the name as-is
     return translated.startsWith('enemies.') ? nameKey : translated || nameKey;
   };
 
@@ -142,31 +135,30 @@ const EnemyList = ({
 
   return (
     <Stack gap={8}>
-      <Stack direction="row" justify="space-between" align="center">
-        <Typography variant="sectionTitle" style={{ color: colors.combatTitle, fontWeight: '700' }}>
-          {t('combat.title')}
-        </Typography>
-        <Typography variant="caption" style={{ color: colors.combatRound, fontWeight: '700' }}>
-          {t('combat.enemiesKilled', { count: killCount })}
-        </Typography>
-      </Stack>
-
       {/* Back row — queued enemies */}
       {backEnemies.length > 0 ? (
-        <Stack direction="row" justify="center" gap={-8} style={{ opacity: 0.35 }}>
+        <Stack direction="row" justify="center" gap={-8} style={{ opacity: 0.3 }}>
           {backEnemies.map((enemy) => (
             <View key={enemy.id} style={{ alignItems: 'center' }}>
-              <Portrait source={skeletor} size={48} hideName />
+              <Portrait source={skeletor} size={44} hideName />
             </View>
           ))}
         </Stack>
       ) : null}
 
       {/* Front row — active enemies */}
-      <Stack direction="row" justify="space-evenly" style={{ paddingVertical: 4 }}>
+      <Stack
+        direction="row"
+        justify="space-evenly"
+        style={{
+          paddingVertical: 8,
+          paddingHorizontal: 4,
+        }}
+      >
         {frontEnemies.map((enemy) => {
           const isSelected = enemy.id === effectiveSelected;
           const isAttacking = enemy.id === attackingEnemyId;
+          const hpPercent = enemy.hpMax > 0 ? enemy.hp / enemy.hpMax : 0;
 
           return (
             <Pressable
@@ -177,7 +169,18 @@ const EnemyList = ({
                 onEnemyLayout(enemy.id, x + width / 2, y);
               }}
             >
-              <Stack align="center" gap={2} style={{ position: 'relative' }}>
+              <Stack align="center" gap={3} style={{ position: 'relative' }}>
+                {/* HP above portrait */}
+                <Typography
+                  variant="micro"
+                  style={{
+                    color: hpPercent <= 0.25 ? colors.combatDamage : colors.combatHealthValue,
+                    fontWeight: '700',
+                  }}
+                >
+                  {enemy.hp}/{enemy.hpMax}
+                </Typography>
+
                 <Animated.View
                   style={isAttacking ? lungeStyle : isSelected ? shakeStyle : undefined}
                 >
@@ -214,6 +217,8 @@ const EnemyList = ({
                     ) : null}
                   </View>
                 </Animated.View>
+
+                {/* Enemy name */}
                 <Typography
                   variant="fine"
                   style={{
@@ -223,9 +228,8 @@ const EnemyList = ({
                 >
                   {translateName(enemy.name)}
                 </Typography>
-                <Typography variant="micro" style={{ color: colors.combatHealthValue }}>
-                  {enemy.hp}/{enemy.hpMax}
-                </Typography>
+
+                {/* Intent display */}
                 {(() => {
                   const template = enemy.templateId
                     ? getEnemyTemplate(enemy.templateId)
@@ -236,11 +240,49 @@ const EnemyList = ({
                       : undefined;
                   const intent = intentCode !== undefined ? INTENT_DISPLAY[intentCode] : undefined;
                   return intent ? (
-                    <Typography variant="micro" style={{ color: intent.color, fontWeight: '700' }}>
-                      {intent.icon} {intent.label}
-                    </Typography>
+                    <Stack
+                      direction="row"
+                      gap={3}
+                      align="center"
+                      style={{
+                        paddingHorizontal: 6,
+                        paddingVertical: 1,
+                        borderRadius: 8,
+                        backgroundColor: `${intent.color}15`,
+                        borderWidth: 1,
+                        borderColor: `${intent.color}22`,
+                      }}
+                    >
+                      <Typography variant="micro" style={{ fontSize: 10 }}>
+                        {intent.icon}
+                      </Typography>
+                      <Typography
+                        variant="micro"
+                        style={{ color: intent.color, fontWeight: '700', fontSize: 8 }}
+                      >
+                        {intent.label}
+                      </Typography>
+                    </Stack>
                   ) : null;
                 })()}
+
+                {/* Selected indicator */}
+                {isSelected ? (
+                  <View
+                    style={{
+                      width: 6,
+                      height: 6,
+                      borderRadius: 3,
+                      backgroundColor: colors.combatDamage,
+                      marginTop: 2,
+                      shadowColor: colors.combatDamage,
+                      shadowOffset: { width: 0, height: 0 },
+                      shadowOpacity: 0.8,
+                      shadowRadius: 4,
+                    }}
+                  />
+                ) : null}
+
                 {isSelected
                   ? enemyFloats.map((f) => (
                       <FloatingDamage key={f.id} text={f.text} color={f.color} />

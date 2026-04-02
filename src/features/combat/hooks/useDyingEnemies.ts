@@ -1,11 +1,12 @@
 import { useEffect, useRef, useState } from 'react';
-import type { Enemy } from '@/api/models/enemy';
 
 const DEATH_ANIM_MS = 600;
 
 type DyingEnemy = { id: string; nameKey: string };
 
-const useDyingEnemies = (allEnemies: Enemy[]) => {
+type MinimalEnemy = { id: string; isDead: boolean; name: string };
+
+const useDyingEnemies = <T extends MinimalEnemy>(allEnemies: T[]) => {
   const prevAliveIdsRef = useRef<Set<string>>(new Set());
   const [dyingEnemies, setDyingEnemies] = useState<DyingEnemy[]>([]);
 

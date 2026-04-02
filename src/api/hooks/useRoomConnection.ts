@@ -119,12 +119,7 @@ type UseRoomConnectionResult = {
   applyScreenEffect: (hpDelta: number, goldDelta: number, expDelta: number) => Promise<unknown>;
   shopPurchase: (cost: number, hpDelta: number, expDelta: number) => Promise<unknown>;
   restHeal: (restorePercent: number) => Promise<unknown>;
-  combatPlayCard: (
-    handIndex: number,
-    targetEnemyIdx?: number | null,
-    useAttune?: boolean,
-    attuneTrait?: string | null,
-  ) => Promise<unknown>;
+  combatPlayCard: (handIndex: number, targetEnemyIdx?: number | null) => Promise<unknown>;
   combatUseConvergence: (targetEnemyIdx?: number | null) => Promise<unknown>;
   combatEndTurn: () => Promise<unknown>;
   combatRerollHand: () => Promise<unknown>;
@@ -836,21 +831,15 @@ export function useRoomConnection(): UseRoomConnectionResult {
     mutationFn: async ({
       handIndex,
       targetEnemyIdx,
-      useAttune,
-      attuneTrait,
     }: {
       handIndex: number;
       targetEnemyIdx?: number | null;
-      useAttune?: boolean;
-      attuneTrait?: string | null;
     }) => {
       if (!room?.id) throw new Error('No room');
       const { data, error } = await supabase.rpc('combat_play_card', {
         p_room_id: room.id,
         p_hand_index: handIndex,
         p_target_enemy_idx: targetEnemyIdx ?? null,
-        p_use_attune: useAttune ?? false,
-        p_attune_trait: attuneTrait ?? null,
       });
       if (error) throw error;
       return data as Record<string, unknown>;
@@ -1116,18 +1105,11 @@ export function useRoomConnection(): UseRoomConnectionResult {
   );
 
   const combatPlayCard = useCallback(
-    async (
-      handIndex: number,
-      targetEnemyIdx?: number | null,
-      useAttune?: boolean,
-      attuneTrait?: string | null,
-    ) => {
+    async (handIndex: number, targetEnemyIdx?: number | null) => {
       setRoomError(null);
       return combatPlayCardMutation.mutateAsync({
         handIndex,
         targetEnemyIdx,
-        useAttune,
-        attuneTrait,
       });
     },
     [combatPlayCardMutation],

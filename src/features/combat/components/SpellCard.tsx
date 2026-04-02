@@ -1,5 +1,5 @@
 import { useCallback, useEffect } from 'react';
-import { Pressable } from 'react-native';
+import { Image, Pressable, View } from 'react-native';
 import Animated, {
   useAnimatedStyle,
   useSharedValue,
@@ -7,6 +7,9 @@ import Animated, {
   withSequence,
   withTiming,
 } from 'react-native-reanimated';
+import cardContainerImg from '@/assets/images/cards/card-container.png';
+import cardIconImg from '@/assets/images/cards/card-icon.png';
+import cardTopCircleImg from '@/assets/images/cards/card-top-circle.png';
 import Typography from '@/components/display/Typography';
 import Stack from '@/components/layout/Stack';
 import { colors } from '@/constants/colors';
@@ -14,6 +17,9 @@ import { COMBAT } from '@/constants/combatSettings';
 import type { Card } from '@/features/gameConfig';
 import { getCardById, TRAIT_MAP } from '@/features/gameConfig';
 import type { DeckCardInstance } from '@/types/spellCombat';
+
+const CARD_HEIGHT = 125;
+const COST_SIZE = 28;
 
 type CardViewProps = {
   instance: DeckCardInstance;
@@ -35,7 +41,7 @@ const getSubtitle = (card: Card, upgraded: boolean): string => {
   if (heal && heal > 0) parts.push(`${heal} HEAL`);
   if (burn && burn > 0) parts.push(`${burn} BURN`);
 
-  return parts.join(' + ') || card.description;
+  return parts.join(' · ') || card.description;
 };
 
 const CardView = ({
@@ -79,25 +85,26 @@ const CardView = ({
     left: -2,
     right: -2,
     bottom: -2,
-    borderRadius: 10,
+    borderRadius: 12,
     borderWidth: 2,
     borderColor: traitColor,
-    opacity: glowPulse.value * 0.8,
+    opacity: glowPulse.value * 0.9,
     shadowColor: traitColor,
     shadowOffset: { width: 0, height: 0 },
     shadowOpacity: glowPulse.value,
-    shadowRadius: 8 + glowPulse.value * 4,
+    shadowRadius: 10 + glowPulse.value * 6,
   }));
 
   const handlePress = useCallback(() => {
     if (isDisabled) return;
     scale.value = withSequence(
-      withTiming(0.92, { duration: 60 }),
-      withTiming(1, { duration: 120 }),
+      withTiming(0.9, { duration: 60 }),
+      withTiming(1.05, { duration: 100 }),
+      withTiming(1, { duration: 80 }),
     );
     brightness.value = withSequence(
       withTiming(1, { duration: 60 }),
-      withTiming(0, { duration: 200 }),
+      withTiming(0, { duration: 250 }),
     );
     onPress();
   }, [onPress, isDisabled, scale, brightness]);
@@ -109,84 +116,169 @@ const CardView = ({
   return (
     <Pressable disabled={isDisabled} onPress={handlePress} style={{ flex: 1 }}>
       <Animated.View style={[animatedStyle, { position: 'relative' }]}>
+        {/* Amplified glow */}
         {isAmplified ? <Animated.View style={glowStyle} pointerEvents="none" /> : null}
-        <Stack
-          direction="row"
-          gap={6}
-          align="center"
+
+        <View
           style={{
-            height: 52,
-            paddingHorizontal: 8,
-            borderRadius: 8,
+            height: CARD_HEIGHT,
+            borderRadius: 10,
+            overflow: 'hidden',
             borderWidth: 1,
-            borderColor: isAmplified ? traitColor : colors.tabBorder,
-            borderLeftWidth: 3,
-            borderLeftColor: traitColor,
-            backgroundColor: colors.backgroundCombatCard,
+            borderColor: isAmplified ? traitColor : `${colors.tabBorder}88`,
           }}
         >
-          {/* Energy cost */}
+          {/* Card background image */}
+          <Image
+            source={cardContainerImg}
+            style={{ position: 'absolute', width: '100%', height: '100%' }}
+            resizeMode="stretch"
+          />
+
+          {/* Trait accent strip at bottom */}
+          <View
+            style={{
+              position: 'absolute',
+              bottom: 0,
+              left: 0,
+              right: 0,
+              height: 3,
+              backgroundColor: traitColor,
+              opacity: 0.8,
+            }}
+          />
+
+          {/* Card content */}
           <Stack
             align="center"
             justify="center"
-            style={{
-              width: 20,
-              height: 20,
-              borderRadius: 10,
-              backgroundColor: canAfford ? traitColor : `${traitColor}44`,
-            }}
+            gap={2}
+            style={{ flex: 1, paddingTop: 24, paddingBottom: 10, paddingHorizontal: 4 }}
           >
+            {/* Card icon */}
+            <Image
+              source={cardIconImg}
+              style={{ width: 30, height: 30, opacity: 0.85, marginTop: 2, marginBottom: 4 }}
+              resizeMode="contain"
+            />
+
+            {/* Card name */}
             <Typography
               variant="micro"
-              style={{ color: colors.textPrimary, fontWeight: '800', fontSize: 10 }}
+              style={{
+                color: colors.textPrimary,
+                fontWeight: '700',
+                fontSize: 9,
+                textAlign: 'center',
+                letterSpacing: 0.3,
+              }}
+              numberOfLines={2}
             >
-              {card.cost}
+              {displayName}
             </Typography>
-          </Stack>
 
-          <Stack flex={1} gap={0}>
-            <Stack direction="row" gap={4} align="center">
-              <Typography
-                variant="captionSm"
-                style={{ color: colors.textPrimary, fontWeight: '600', fontSize: 10 }}
-                numberOfLines={1}
-              >
-                {displayName}
-              </Typography>
-              {isAmplified ? (
-                <Typography
-                  variant="micro"
-                  style={{ color: traitColor, fontWeight: '800', fontSize: 7 }}
-                >
-                  AMP
-                </Typography>
-              ) : null}
-              {instance.upgraded ? (
-                <Typography
-                  variant="micro"
-                  style={{ color: colors.combatHeal, fontWeight: '800', fontSize: 7 }}
-                >
-                  +
-                </Typography>
-              ) : null}
-            </Stack>
+            {/* Stats */}
             <Typography
-              variant="fine"
+              variant="micro"
               style={{
                 color: isAmplified ? traitColor : colors.textSubAction,
-                fontWeight: '700',
-                fontSize: 8,
+                fontWeight: '600',
+                fontSize: 7,
+                textAlign: 'center',
                 textTransform: 'uppercase',
               }}
               numberOfLines={1}
             >
               {getSubtitle(card, instance.upgraded)}
             </Typography>
-          </Stack>
 
-          {/* Trait icon */}
-          <Typography variant="micro">{traitMeta?.icon ?? ''}</Typography>
-        </Stack>
+            {/* Trait icon */}
+            <Typography variant="micro" style={{ fontSize: 12, marginTop: 2 }}>
+              {traitMeta?.icon ?? ''}
+            </Typography>
+          </Stack>
+        </View>
+
+        {/* Cost circle at top center */}
+        <View
+          style={{
+            position: 'absolute',
+            top: -4,
+            alignSelf: 'center',
+            width: COST_SIZE,
+            height: COST_SIZE,
+          }}
+        >
+          <Image
+            source={cardTopCircleImg}
+            style={{ width: COST_SIZE, height: COST_SIZE }}
+            resizeMode="contain"
+          />
+          <View
+            style={{
+              position: 'absolute',
+              width: COST_SIZE,
+              height: COST_SIZE,
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}
+          >
+            <Typography
+              variant="micro"
+              style={{
+                color: canAfford ? colors.textPrimary : `${colors.textPrimary}55`,
+                fontWeight: '800',
+                fontSize: 12,
+              }}
+            >
+              {card.cost}
+            </Typography>
+          </View>
+        </View>
+
+        {/* Upgraded badge */}
+        {instance.upgraded ? (
+          <View
+            style={{
+              position: 'absolute',
+              top: 4,
+              right: 6,
+              backgroundColor: `${colors.combatHeal}33`,
+              borderRadius: 4,
+              paddingHorizontal: 3,
+              paddingVertical: 1,
+            }}
+          >
+            <Typography
+              variant="micro"
+              style={{ color: colors.combatHeal, fontWeight: '800', fontSize: 7 }}
+            >
+              +
+            </Typography>
+          </View>
+        ) : null}
+
+        {/* AMP badge */}
+        {isAmplified ? (
+          <View
+            style={{
+              position: 'absolute',
+              top: 4,
+              left: 6,
+              backgroundColor: `${traitColor}33`,
+              borderRadius: 4,
+              paddingHorizontal: 3,
+              paddingVertical: 1,
+            }}
+          >
+            <Typography
+              variant="micro"
+              style={{ color: traitColor, fontWeight: '800', fontSize: 7 }}
+            >
+              AMP
+            </Typography>
+          </View>
+        ) : null}
       </Animated.View>
     </Pressable>
   );

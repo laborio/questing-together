@@ -4,14 +4,12 @@ export const COMBAT = {
   baseEnergy: 3,
 
   // Deck
-  openingHandSize: 5,
+  openingHandSize: 4,
   combatPoolTargetSize: 20,
 
-  // Empowerment & Attune
+  // Empowerment
   empowerThreshold: 3,
   convergenceRequiredTraits: 2,
-  initialAttuneCharges: 1,
-  maxAttuneCharges: 2,
 
   // Card upgrades
   upgradeEnergyThreshold: 10,

@@ -744,11 +744,9 @@ export type Database = {
       };
       combat_play_card: {
         Args: {
-          p_attune_trait?: string;
           p_hand_index: number;
           p_room_id: string;
           p_target_enemy_idx?: number;
-          p_use_attune?: boolean;
         };
         Returns: Json;
       };

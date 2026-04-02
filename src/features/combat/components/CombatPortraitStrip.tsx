@@ -38,6 +38,9 @@ type CombatPortraitStripProps = {
 const RING_SIZE = 80;
 const PORTRAIT_SIZE = 72;
 
+const ALLY_COLOR = colors.combatHeal;
+const LOCAL_COLOR = colors.intentConfirmedBorder;
+
 const CombatPortraitStrip = ({
   players,
   localPlayerId,
@@ -65,105 +68,138 @@ const CombatPortraitStrip = ({
   }));
 
   return (
-    <Stack direction="row" justify="space-evenly" style={{ paddingTop: 48, paddingBottom: 8 }}>
-      {players.map((player) => {
-        const isLocal = player.playerId === localPlayerId;
-        const character = roomConnection.characters.find((c) => c.playerId === player.playerId);
-        const serverHp = character?.hp ?? 0;
-        const hpMax = character?.hpMax ?? 100;
-        const hp = isLocal && localHpOverride !== null ? Math.max(0, localHpOverride) : serverHp;
-        const isDead = hp <= 0;
+    <Stack gap={8}>
+      {/* Player portraits row — adapts from 1 to 3 */}
+      <Stack
+        direction="row"
+        justify={players.length === 1 ? 'center' : 'space-evenly'}
+        style={{ paddingVertical: 8 }}
+      >
+        {players.map((player) => {
+          const isLocal = player.playerId === localPlayerId;
+          const character = roomConnection.characters.find((c) => c.playerId === player.playerId);
+          const serverHp = character?.hp ?? 0;
+          const hpMax = character?.hpMax ?? 100;
+          const hp = isLocal && localHpOverride !== null ? Math.max(0, localHpOverride) : serverHp;
+          const isDead = hp <= 0;
+          const hpPercent = hpMax > 0 ? hp / hpMax : 0;
+          const accentColor = isLocal ? LOCAL_COLOR : ALLY_COLOR;
 
-        return (
-          <Stack
-            key={player.playerId}
-            align="center"
-            gap={2}
-            style={{ position: 'relative' }}
-            onLayout={
-              isLocal
-                ? (e) => {
-                    const { x, y, width } = e.nativeEvent.layout;
-                    onPlayerLayout(x + width / 2, y);
-                  }
-                : undefined
-            }
-          >
-            <Animated.View
-              style={
+          return (
+            <Stack
+              key={player.playerId}
+              align="center"
+              gap={3}
+              style={{ position: 'relative' }}
+              onLayout={
                 isLocal
-                  ? lungeStyle
-                  : player.playerId === botLungePlayerId
-                    ? botLungeStyle
-                    : undefined
+                  ? (e) => {
+                      const { x, y, width } = e.nativeEvent.layout;
+                      onPlayerLayout(x + width / 2, y);
+                    }
+                  : undefined
               }
             >
-              <View
+              {/* HP above portrait */}
+              <Typography
+                variant="micro"
                 style={{
-                  width: RING_SIZE,
-                  height: RING_SIZE,
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  opacity: isDead ? 0.4 : 1,
+                  color: isDead
+                    ? colors.combatDamage
+                    : hpPercent <= 0.25
+                      ? colors.combatDamage
+                      : ALLY_COLOR,
+                  fontWeight: '700',
                 }}
               >
-                <CircularHealthBar hp={hp} hpMax={hpMax} size={RING_SIZE} />
-                <Portrait
-                  source={portraitByRole(player.roleId)}
-                  size={PORTRAIT_SIZE}
-                  highlighted={isLocal}
-                  highlightColor={isLocal ? colors.intentConfirmedBorder : colors.tabBorder}
-                  hideName
-                />
-                {/* Red flash overlay on portrait */}
-                {isLocal ? (
-                  <Animated.View
-                    style={[
-                      {
-                        position: 'absolute',
-                        width: PORTRAIT_SIZE,
-                        height: PORTRAIT_SIZE,
-                        borderRadius: PORTRAIT_SIZE / 2,
-                        backgroundColor: colors.combatDamage,
-                      },
-                      flashStyle,
-                    ]}
-                    pointerEvents="none"
+                {isDead ? 'DEAD' : `${hp}/${hpMax}`}
+              </Typography>
+
+              <Animated.View
+                style={
+                  isLocal
+                    ? lungeStyle
+                    : player.playerId === botLungePlayerId
+                      ? botLungeStyle
+                      : undefined
+                }
+              >
+                <View
+                  style={{
+                    width: RING_SIZE,
+                    height: RING_SIZE,
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    opacity: isDead ? 0.35 : 1,
+                  }}
+                >
+                  <CircularHealthBar hp={hp} hpMax={hpMax} size={RING_SIZE} />
+                  <Portrait
+                    source={portraitByRole(player.roleId)}
+                    size={PORTRAIT_SIZE}
+                    highlighted={isLocal}
+                    highlightColor={accentColor}
+                    hideName
                   />
-                ) : null}
-              </View>
-            </Animated.View>
-            <Typography
-              variant="fine"
-              style={{
-                color: isLocal ? colors.intentConfirmedBorder : colors.combatWaiting,
-                fontWeight: isLocal ? '700' : '400',
-              }}
-            >
-              {player.displayName}
-            </Typography>
-            <Typography
-              variant="micro"
-              style={{
-                color: isDead ? colors.combatDamage : colors.combatHeal,
-                fontWeight: '700',
-              }}
-            >
-              {isDead ? 'DEAD' : `${hp}/${hpMax}`}
-            </Typography>
-            {floatingTexts
-              .filter((f) => {
-                if (f.target !== 'player') return false;
-                // Floats with playerId go to that specific player, others go to local
-                if (f.playerId) return f.playerId === player.playerId;
-                return isLocal;
-              })
-              .map((f) => (
-                <FloatingDamage key={f.id} text={f.text} color={f.color} />
-              ))}
-          </Stack>
-        );
-      })}
+                  {/* Damage flash overlay */}
+                  {isLocal ? (
+                    <Animated.View
+                      style={[
+                        {
+                          position: 'absolute',
+                          width: PORTRAIT_SIZE,
+                          height: PORTRAIT_SIZE,
+                          borderRadius: PORTRAIT_SIZE / 2,
+                          backgroundColor: colors.combatDamage,
+                        },
+                        flashStyle,
+                      ]}
+                      pointerEvents="none"
+                    />
+                  ) : null}
+                </View>
+              </Animated.View>
+
+              {/* Player name */}
+              <Typography
+                variant="fine"
+                style={{
+                  color: isLocal ? LOCAL_COLOR : ALLY_COLOR,
+                  fontWeight: isLocal ? '700' : '500',
+                }}
+              >
+                {player.displayName}
+              </Typography>
+
+              {/* Local player indicator */}
+              {isLocal ? (
+                <View
+                  style={{
+                    width: 6,
+                    height: 6,
+                    borderRadius: 3,
+                    backgroundColor: LOCAL_COLOR,
+                    shadowColor: LOCAL_COLOR,
+                    shadowOffset: { width: 0, height: 0 },
+                    shadowOpacity: 0.8,
+                    shadowRadius: 4,
+                  }}
+                />
+              ) : null}
+
+              {floatingTexts
+                .filter((f) => {
+                  if (f.target !== 'player') return false;
+                  if (f.playerId) return f.playerId === player.playerId;
+                  return isLocal;
+                })
+                .map((f) => (
+                  <FloatingDamage key={f.id} text={f.text} color={f.color} />
+                ))}
+            </Stack>
+          );
+        })}
+      </Stack>
     </Stack>
   );
 };

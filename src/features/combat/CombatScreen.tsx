@@ -1,18 +1,15 @@
 import { StatusBar } from 'expo-status-bar';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ScrollView, StyleSheet } from 'react-native';
-import type { SharedValue } from 'react-native-reanimated';
-import Animated, { useAnimatedStyle } from 'react-native-reanimated';
+import { ScrollView } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { BottomSheet, Button, ModalBackdrop, Stack, StatusBadge, Typography } from '@/components';
+import { Button, ModalBackdrop, Stack, StatusBadge, Typography } from '@/components';
 import { colors } from '@/constants/colors';
 import { useGame } from '@/contexts/GameContext';
-import { useTranslation } from '@/contexts/I18nContext';
-import CombatHeader from '@/features/combat/components/CombatHeader';
+import CombatBottomPanel from '@/features/combat/components/CombatBottomPanel';
 import CombatPortraitStrip from '@/features/combat/components/CombatPortraitStrip';
+import CombatTurnBanner from '@/features/combat/components/CombatTurnBanner';
 import EnemyList from '@/features/combat/components/EnemyList';
-import RewardScreen from '@/features/combat/components/RewardScreen';
-import CardHandGrid from '@/features/combat/components/SpellHandGrid';
+import ScreenFlashOverlay from '@/features/combat/components/ScreenFlashOverlay';
 import useBotAI from '@/features/combat/hooks/useBotAI';
 import useCombatAnimations from '@/features/combat/hooks/useCombatAnimations';
 import useCombatBroadcast from '@/features/combat/hooks/useCombatBroadcast';
@@ -42,10 +39,8 @@ const CombatScreen = () => {
   const insets = useSafeAreaInsets();
   const anim = useCombatAnimations();
   const { roomConnection, localPlayerId, playerDisplayNameById, isHost } = useGame();
-  const { t } = useTranslation();
 
   const [selectedEnemyId, setSelectedEnemyId] = useState<string | null>(null);
-  const [showRewards, setShowRewards] = useState(false);
   const [botActionToast, setBotActionToast] = useState<string | null>(null);
   const botToastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -63,7 +58,6 @@ const CombatScreen = () => {
   const localCharacter =
     roomConnection.characters.find((c) => c.playerId === localPlayerId) ?? null;
 
-  // Map enemy_combat_state to EnemyList-compatible format
   const mappedEnemies = useMemo(
     () =>
       roomConnection.enemyCombatStates.map((ecs) => ({
@@ -108,7 +102,6 @@ const CombatScreen = () => {
     }
   }, [localCombatState, combatTurn, roomConnection.combatInitTurn]);
 
-  // Find selected enemy index (position-based for deckbuilder)
   const aliveEnemies = mappedEnemies.filter((e) => !e.isDead);
   const selectedEnemyIdx = effectiveEnemyId
     ? aliveEnemies.findIndex((e) => e.id === effectiveEnemyId)
@@ -167,7 +160,6 @@ const CombatScreen = () => {
       const botName = botPlayer?.display_name ?? 'Bot';
       anim.playBotAction(botId, action.action, action.damage ?? 0, action.spellName);
 
-      // Show visible toast
       const dmg = action.damage ?? 0;
       const label = action.spellName ?? action.action;
       const detail = dmg > 0 ? `${label} → ${dmg} dmg` : label;
@@ -188,12 +180,7 @@ const CombatScreen = () => {
   });
 
   const handlePlayCard = useCallback(
-    (
-      handIndex: number,
-      targetEnemyIdx?: number | null,
-      useAttune?: boolean,
-      attuneTrait?: string | null,
-    ) => {
+    (handIndex: number, targetEnemyIdx?: number | null) => {
       if (isDead || anim.isAnimating || hasEndedTurn) return;
       if (!localCombatState) return;
       const instance = localCombatState.hand[handIndex];
@@ -203,42 +190,32 @@ const CombatScreen = () => {
 
       const direction = getLungeToEnemy();
 
-      void roomConnection
-        .combatPlayCard(handIndex, targetEnemyIdx, useAttune, attuneTrait)
-        .then((result) => {
-          if (!result) return;
-          const r = result as {
-            cardName: string;
-            damage: number;
-            block: number;
-            heal: number;
-            burn: number;
-            wasAmplified: boolean;
-            trait: string;
-          };
+      void roomConnection.combatPlayCard(handIndex, targetEnemyIdx).then((result) => {
+        if (!result) return;
+        const r = result as {
+          cardName: string;
+          damage: number;
+          block: number;
+          heal: number;
+          burn: number;
+          wasAmplified: boolean;
+          trait: string;
+        };
 
-          const effectType = getEffectType(r.damage, r.block, r.heal, card.isAoe);
+        const effectType = getEffectType(r.damage, r.block, r.heal, card.isAoe);
 
-          anim.playCastSpell(
-            r.damage,
-            r.cardName,
-            effectType,
-            direction,
-            0, // no D20 roll in deckbuilder
-            'normal',
-            r.heal,
-          );
+        anim.playCastSpell(r.damage, r.cardName, effectType, direction, 0, 'normal', r.heal);
 
-          if (localPlayerId) {
-            broadcastAction({
-              playerId: localPlayerId,
-              playerName: localPlayerName,
-              actionType: 'spell',
-              damage: r.damage,
-              spellName: r.cardName,
-            });
-          }
-        });
+        if (localPlayerId) {
+          broadcastAction({
+            playerId: localPlayerId,
+            playerName: localPlayerName,
+            actionType: 'spell',
+            damage: r.damage,
+            spellName: r.cardName,
+          });
+        }
+      });
     },
     [
       isDead,
@@ -290,137 +267,23 @@ const CombatScreen = () => {
     broadcastAction,
   ]);
 
-  const handleEndTurn = () => {
+  const handleEndTurn = useCallback(() => {
     void roomConnection.combatEndTurn();
-  };
+  }, [roomConnection]);
 
-  const renderTurnBanner = () => {
-    if (turnPhase === 'enemy') {
-      return (
-        <Stack align="center" style={{ paddingVertical: 4 }}>
-          <Typography variant="caption" bold style={{ color: colors.combatDamage }}>
-            Enemy Phase
-          </Typography>
-        </Stack>
-      );
-    }
-
-    const endedCount = roomConnection.playerTurnStates.filter((pts) => pts.hasEndedTurn).length;
-    const totalPlayers = roomConnection.playerTurnStates.length;
-
-    return (
-      <Stack
-        direction="row"
-        justify="space-between"
-        align="center"
-        style={{ paddingHorizontal: 12, paddingVertical: 4 }}
-      >
-        <Typography variant="caption" bold style={{ color: colors.intentConfirmedBorder }}>
-          Turn {turnNumber}
-        </Typography>
-        <Typography variant="caption" style={{ color: colors.combatWaiting }}>
-          {endedCount}/{totalPlayers} ready
-        </Typography>
-      </Stack>
-    );
-  };
-
-  const renderBottomContent = () => {
-    if (allEnemiesDead) {
-      if (showRewards) {
-        return (
-          <RewardScreen
-            onDone={() => {
-              setShowRewards(false);
-              void roomConnection.advanceScreen();
-            }}
-          />
-        );
-      }
-      return (
-        <BottomSheet
-          size="sm"
-          style={{ backgroundColor: colors.backgroundDark, borderColor: colors.tabBorder }}
-        >
-          <Stack gap={12} align="center" style={{ paddingVertical: 8 }}>
-            <StatusBadge icon="⚔️" title="Victory!" titleColor={colors.combatOutcome} />
-            {isHost ? (
-              <Button
-                size="md"
-                onPress={() => setShowRewards(true)}
-                label={t('combat.claimRewards')}
-                disabled={roomConnection.isBusy}
-              />
-            ) : (
-              <Typography variant="caption" style={{ color: colors.combatWaiting }}>
-                {t('combat.waitingHost')}
-              </Typography>
-            )}
-          </Stack>
-        </BottomSheet>
-      );
-    }
-
-    if (isDead) return null;
-
-    if (turnPhase === 'enemy') {
-      return null;
-    }
-
-    if (hasEndedTurn) {
-      return (
-        <BottomSheet
-          size="sm"
-          style={{ backgroundColor: colors.backgroundDark, borderColor: colors.tabBorder }}
-        >
-          <Stack align="center" style={{ paddingVertical: 16 }}>
-            <Typography variant="caption" style={{ color: colors.combatWaiting }}>
-              {t('combat.waitingPlayers')}
-            </Typography>
-          </Stack>
-        </BottomSheet>
-      );
-    }
-
-    if (!localCombatState) {
-      return (
-        <BottomSheet
-          size="sm"
-          style={{ backgroundColor: colors.backgroundDark, borderColor: colors.tabBorder }}
-        >
-          <Stack align="center" style={{ paddingVertical: 16 }}>
-            <Typography variant="caption" style={{ color: colors.combatWaiting }}>
-              {t('combat.loadingCards')}
-            </Typography>
-          </Stack>
-        </BottomSheet>
-      );
-    }
-
-    return (
-      <BottomSheet
-        size="lg"
-        style={{ backgroundColor: colors.backgroundDark, borderColor: colors.tabBorder }}
-      >
-        <CardHandGrid
-          combatState={localCombatState}
-          disabled={anim.isAnimating}
-          onPlayCard={handlePlayCard}
-          onConvergence={handleConvergence}
-          onEndTurn={handleEndTurn}
-          onReroll={() => void roomConnection.combatRerollHand()}
-          selectedEnemyIdx={selectedEnemyIdx >= 0 ? selectedEnemyIdx : null}
-        />
-      </BottomSheet>
-    );
-  };
+  const handleReroll = useCallback(() => {
+    void roomConnection.combatRerollHand();
+  }, [roomConnection]);
 
   return (
-    <Stack flex={1} style={{ backgroundColor: colors.backgroundDark }}>
+    <Stack flex={1} style={{ backgroundColor: colors.backgroundCombat }}>
       <StatusBar hidden />
       <Stack style={{ paddingTop: insets.top }}>
-        <CombatHeader character={localCharacter} onFlee={() => roomConnection.leaveRoom()} />
-        {renderTurnBanner()}
+        <CombatTurnBanner
+          turnPhase={turnPhase}
+          turnNumber={turnNumber}
+          playerTurnStates={roomConnection.playerTurnStates}
+        />
         {botActionToast ? (
           <Stack
             align="center"
@@ -446,12 +309,28 @@ const CombatScreen = () => {
 
       <ScrollView
         contentContainerStyle={{
-          paddingHorizontal: 12,
-          paddingBottom: 260 + insets.bottom,
-          gap: 10,
-          paddingTop: 8,
+          paddingHorizontal: 14,
+          paddingBottom: 320 + insets.bottom,
+          gap: 12,
+          paddingTop: 10,
         }}
       >
+        {turnPhase === 'player' && !hasEndedTurn && !isDead && aliveEnemies.length > 1 ? (
+          <Stack align="center" style={{ paddingVertical: 2 }}>
+            <Typography
+              variant="micro"
+              style={{
+                color: colors.combatDamage,
+                fontWeight: '600',
+                letterSpacing: 1,
+                opacity: 0.7,
+              }}
+            >
+              TAP AN ENEMY TO SELECT TARGET
+            </Typography>
+          </Stack>
+        ) : null}
+
         <EnemyList
           enemies={mappedEnemies}
           selectedEnemyId={effectiveEnemyId}
@@ -483,7 +362,22 @@ const CombatScreen = () => {
         />
       </ScrollView>
 
-      {renderBottomContent()}
+      <CombatBottomPanel
+        allEnemiesDead={allEnemiesDead}
+        isDead={isDead}
+        turnPhase={turnPhase}
+        hasEndedTurn={hasEndedTurn}
+        isHost={isHost}
+        isBusy={roomConnection.isBusy}
+        isAnimating={anim.isAnimating}
+        localCombatState={localCombatState}
+        selectedEnemyIdx={selectedEnemyIdx >= 0 ? selectedEnemyIdx : null}
+        onPlayCard={handlePlayCard}
+        onConvergence={handleConvergence}
+        onEndTurn={handleEndTurn}
+        onReroll={handleReroll}
+        onAdvanceScreen={roomConnection.advanceScreen}
+      />
 
       {isDead && !allEnemiesDead ? (
         <ModalBackdrop>
@@ -501,19 +395,6 @@ const CombatScreen = () => {
 
       <ScreenFlashOverlay flash={anim.screenFlash} color={anim.screenFlashColor} />
     </Stack>
-  );
-};
-
-const ScreenFlashOverlay = ({ flash, color }: { flash: SharedValue<number>; color: string }) => {
-  const style = useAnimatedStyle(() => ({
-    opacity: flash.value,
-  }));
-
-  return (
-    <Animated.View
-      style={[StyleSheet.absoluteFill, { backgroundColor: color, zIndex: 200 }, style]}
-      pointerEvents="none"
-    />
   );
 };
 

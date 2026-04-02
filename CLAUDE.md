@@ -22,7 +22,7 @@ BLOC 3: CORE → FINAL BOSS
 
 ### Identities (replaces classes)
 - No fixed classes — all players share the same universal card pool
-- Player picks an **Identity** that defines a dominant trait and Attune behavior
+- Player picks an **Identity** that defines a dominant trait
 - **Ashbound** (Fire), **Bulwark** (Guard), **Nightglass** (Shadow), **Tempest Core** (Storm), **Worldroot** (Nature)
 - Identity definitions: `src/content/identities.ts`
 
@@ -35,6 +35,7 @@ Slay the Spire-inspired deckbuilder combat. Players play cards from a hand, spen
 - **Reward card pool**: 20+ additional cards earned between fights
 - Cards have **energy cost** (0-3), **trait**, **base/upgraded** values
 - Cards **auto-upgrade** after being played X times (upgradeThreshold)
+- **Hand size**: 4 cards per turn
 - Card definitions: `src/content/cards.ts` (client) + `card_definitions` SQL table (server)
 
 #### Energy system
@@ -43,7 +44,7 @@ Slay the Spire-inspired deckbuilder combat. Players play cards from a hand, spen
 - Unspent energy is lost at end of turn
 
 #### Deck zones
-- **Draw pile** → **Hand** (draw 5) → **Discard pile**
+- **Draw pile** → **Hand** (draw 4) → **Discard pile**
 - When draw pile is exhausted, shuffle discard back in
 - Hand, draw pile, discard all tracked as JSONB arrays server-side
 
@@ -60,12 +61,7 @@ Slay the Spire-inspired deckbuilder combat. Players play cards from a hand, spen
 - Each tracks a **charge counter** (0 to 3)
 - Playing a card adds +1 charge to its trait
 - At **3 charges** = **empowered** — next card from that trait is **amplified** (+50% all values)
-- After amplified play: trait charge resets to 0, grants +1 Attune
-
-#### Attune
-- Start each fight with **1 Attune** (max 2)
-- Spend 1 to **retag** a card's trait for charging purposes
-- Consuming an amplified card grants +1 Attune
+- After amplified play: trait charge resets to 0
 
 #### Convergence
 - If **2+ traits** empowered simultaneously → **Convergence** button appears
@@ -84,7 +80,7 @@ Slay the Spire-inspired deckbuilder combat. Players play cards from a hand, spen
 ```
 TURN N
 ├── Player Phase (simultaneous)
-│   ├── Hand of 5 cards drawn from draw pile
+│   ├── Hand of 4 cards drawn from draw pile
 │   ├── Play cards by spending energy (3 base)
 │   ├── Optional: Convergence (free action, if 2+ traits empowered)
 │   ├── "End Turn" when done
@@ -96,7 +92,7 @@ TURN N
 │   ├── Damage goes through block first, then HP
 │   ├── Status effects decrement
 │   ├── Regen ticks on players
-│   ├── Hand → discard, draw new hand of 5
+│   ├── Hand → discard, draw new hand of 4
 │   └── Energy resets, block resets (unless persist)
 │
 └── TURN N+1
@@ -105,7 +101,7 @@ TURN N
 #### State tracking
 - `combat_turns` table — turn number, phase, per room+screen
 - `player_turn_state` table — has_ended_turn
-- `player_combat_state` table — identity, draw_pile, hand, discard_pile (all JSONB), energy, block, trait_charges, attune, status effects, bonuses
+- `player_combat_state` table — identity, draw_pile, hand, discard_pile (all JSONB), energy, block, trait_charges, status effects, bonuses
 - `enemy_combat_state` table — template_id, hp, strength, block, intent_index, status effects
 - `card_definitions` table — server-side card data (mirrors `src/content/cards.ts`)
 - Realtime subscriptions on all combat tables
@@ -124,7 +120,7 @@ TURN N
 - Bonus definitions: `src/content/bonuses.ts`
 
 #### Settings
-- `src/constants/combatSettings.ts` — base HP, energy, hand size, empower threshold, attune limits, reward params
+- `src/constants/combatSettings.ts` — base HP, energy, hand size, empower threshold, reward params
 - `src/content/cards.ts` — all card definitions, traits, convergence effects
 - `src/content/encounters.ts` — enemy templates, encounter compositions
 - `src/content/identities.ts` — identity definitions

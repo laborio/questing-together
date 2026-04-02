@@ -1,6 +1,7 @@
 const colors = {
   // Backgrounds
   backgroundDark: '#1e140d',
+  backgroundCombat: '#16171e',
   backgroundPaper: '#f4ead7',
   backgroundOverlay: 'rgba(24, 16, 12, 0.12)',
   backgroundInput: 'rgba(35, 24, 16, 0.62)',

@@ -15,6 +15,8 @@ const WARRIOR_STARTER: Card[] = [
     baseDamage: 8,
     upgradedDamage: 11,
     starterRole: 'warrior',
+    vfxSequenceId: 'Seq_ShieldDouble',
+    vfxTarget: 'target',
   },
   {
     id: 'w-quick-slash',
@@ -29,6 +31,8 @@ const WARRIOR_STARTER: Card[] = [
     baseDamage: 3,
     upgradedDamage: 5,
     starterRole: 'warrior',
+    vfxSequenceId: 'Seq_ShieldDouble',
+    vfxTarget: 'target',
   },
   {
     id: 'w-heavy-blow',
@@ -43,6 +47,8 @@ const WARRIOR_STARTER: Card[] = [
     baseDamage: 14,
     upgradedDamage: 19,
     starterRole: 'warrior',
+    vfxSequenceId: 'Seq_ShieldDouble',
+    vfxTarget: 'target',
   },
   // ── Iron (3 starters) ──────────────────────────────────────────
   {

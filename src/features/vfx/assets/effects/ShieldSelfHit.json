@@ -1,0 +1,207 @@
+{
+  "id": "ShieldSelfHit",
+  "label": "ShieldSelfHit",
+  "durationMs": 1200,
+  "motion": {
+    "mode": "fixed",
+    "tracks": {
+      "x": [
+        {
+          "at": 0,
+          "value": 0
+        },
+        {
+          "at": 0.06442811955576358,
+          "value": 15.380859375
+        },
+        {
+          "at": 0.12548892394356106,
+          "value": 24.609375
+        },
+        {
+          "at": 0.18384889156922052,
+          "value": 28.564453125
+        },
+        {
+          "at": 0.24017450083857,
+          "value": 28.125
+        },
+        {
+          "at": 0.29513223015743756,
+          "value": 24.169921875
+        },
+        {
+          "at": 0.34938855793165124,
+          "value": 17.578125
+        },
+        {
+          "at": 0.4036099625670392,
+          "value": 9.228515625
+        },
+        {
+          "at": 0.4584629224694294,
+          "value": 0
+        },
+        {
+          "at": 0.5146139160446499,
+          "value": -9.228515625
+        },
+        {
+          "at": 0.5727294216985288,
+          "value": -17.578125
+        },
+        {
+          "at": 0.6334759178368942,
+          "value": -24.169921875
+        },
+        {
+          "at": 0.697519882865574,
+          "value": -28.125
+        },
+        {
+          "at": 0.7655277951903965,
+          "value": -28.564453125
+        },
+        {
+          "at": 0.8381661332171897,
+          "value": -24.609375
+        },
+        {
+          "at": 0.9161013753517815,
+          "value": -15.380859375
+        },
+        {
+          "at": 1,
+          "value": 0
+        }
+      ]
+    }
+  },
+  "layers": [
+    {
+      "id": "Shield_Left",
+      "type": "sprite",
+      "spriteId": "t-shield",
+      "width": 42,
+      "height": 42,
+      "rotationDeg": 0,
+      "tintColor": "",
+      "tracks": {
+        "scale": [
+          {
+            "at": 0,
+            "value": 0
+          },
+          {
+            "at": 0.12,
+            "value": 1.4
+          },
+          {
+            "at": 0.3,
+            "value": 0.8
+          },
+          {
+            "at": 0.4,
+            "value": 1
+          }
+        ],
+        "alpha": [
+          {
+            "at": 0.6,
+            "value": 1
+          },
+          {
+            "at": 0.9,
+            "value": 0
+          }
+        ],
+        "x": [
+          {
+            "at": 0,
+            "value": -50
+          },
+          {
+            "at": 0.3,
+            "value": -55
+          },
+          {
+            "at": 0.4,
+            "value": 0
+          },
+          {
+            "at": 0.5,
+            "value": -20
+          },
+          {
+            "at": 0.6,
+            "value": -30
+          }
+        ]
+      },
+      "alignToMotionDirection": false
+    },
+    {
+      "id": "Shield_Right",
+      "type": "sprite",
+      "spriteId": "t-shield",
+      "width": 42,
+      "height": 42,
+      "rotationDeg": 0,
+      "tintColor": "",
+      "tracks": {
+        "scale": [
+          {
+            "at": 0,
+            "value": 0
+          },
+          {
+            "at": 0.12,
+            "value": 1.4
+          },
+          {
+            "at": 0.3,
+            "value": 0.8
+          },
+          {
+            "at": 0.4,
+            "value": 1
+          }
+        ],
+        "alpha": [
+          {
+            "at": 0.6,
+            "value": 1
+          },
+          {
+            "at": 0.9,
+            "value": 0
+          }
+        ],
+        "x": [
+          {
+            "at": 0,
+            "value": 50
+          },
+          {
+            "at": 0.3,
+            "value": 55
+          },
+          {
+            "at": 0.4,
+            "value": 0
+          },
+          {
+            "at": 0.5,
+            "value": 20
+          },
+          {
+            "at": 0.6,
+            "value": 30
+          }
+        ]
+      },
+      "alignToMotionDirection": false
+    }
+  ],
+  "loop": false
+}

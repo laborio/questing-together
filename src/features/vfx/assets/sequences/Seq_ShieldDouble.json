@@ -1,0 +1,18 @@
+{
+  "id": "Seq_ShieldDouble",
+  "label": "Seq_ShieldDouble",
+  "cues": [
+    {
+      "id": "ShieldSelfHit-cue-1",
+      "assetId": "ShieldSelfHit",
+      "atMs": 0,
+      "anchor": "caster"
+    },
+    {
+      "id": "SmallSparksImpact-cue-2",
+      "assetId": "SmallSparksImpact",
+      "atMs": 340,
+      "anchor": "caster"
+    }
+  ]
+}

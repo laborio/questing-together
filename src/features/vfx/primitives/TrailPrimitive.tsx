@@ -14,6 +14,105 @@ const AnimatedImage = Animated.createAnimatedComponent(SvgImage);
 const AnimatedPath = Animated.createAnimatedComponent(Path);
 const AnimatedRect = Animated.createAnimatedComponent(Rect);
 
+function lerp(start: number, end: number, amount: number) {
+  'worklet';
+  return start + (end - start) * amount;
+}
+
+function parseColorToRgba(color: string | undefined) {
+  if (typeof color !== 'string') {
+    return null;
+  }
+
+  const value = color.trim();
+  if (!value) {
+    return null;
+  }
+
+  if (value.startsWith('#')) {
+    const hex = value.slice(1);
+    if (hex.length === 3 || hex.length === 4) {
+      const expanded = hex
+        .split('')
+        .map((part) => part + part)
+        .join('');
+      const red = Number.parseInt(expanded.slice(0, 2), 16);
+      const green = Number.parseInt(expanded.slice(2, 4), 16);
+      const blue = Number.parseInt(expanded.slice(4, 6), 16);
+      const alpha = expanded.length === 8 ? Number.parseInt(expanded.slice(6, 8), 16) / 255 : 1;
+      return { red, green, blue, alpha };
+    }
+
+    if (hex.length === 6 || hex.length === 8) {
+      const red = Number.parseInt(hex.slice(0, 2), 16);
+      const green = Number.parseInt(hex.slice(2, 4), 16);
+      const blue = Number.parseInt(hex.slice(4, 6), 16);
+      const alpha = hex.length === 8 ? Number.parseInt(hex.slice(6, 8), 16) / 255 : 1;
+      return { red, green, blue, alpha };
+    }
+  }
+
+  const rgbMatch = value.match(
+    /^rgba?\(\s*([\d.]+)\s*,\s*([\d.]+)\s*,\s*([\d.]+)(?:\s*,\s*([\d.]+))?\s*\)$/i,
+  );
+
+  if (!rgbMatch) {
+    return null;
+  }
+
+  return {
+    red: Math.max(0, Math.min(255, Number(rgbMatch[1]))),
+    green: Math.max(0, Math.min(255, Number(rgbMatch[2]))),
+    blue: Math.max(0, Math.min(255, Number(rgbMatch[3]))),
+    alpha: rgbMatch[4] == null ? 1 : Math.max(0, Math.min(1, Number(rgbMatch[4]))),
+  };
+}
+
+function rgbaToCssColor({
+  red,
+  green,
+  blue,
+  alpha,
+}: {
+  red: number;
+  green: number;
+  blue: number;
+  alpha: number;
+}) {
+  const safeAlpha = Math.max(0, Math.min(1, alpha));
+  return `rgba(${Math.round(red)}, ${Math.round(green)}, ${Math.round(blue)}, ${Number(safeAlpha.toFixed(3))})`;
+}
+
+function mixColors(colorA: string, colorB: string, amount: number) {
+  const start = parseColorToRgba(colorA);
+  const end = parseColorToRgba(colorB);
+
+  if (start && end) {
+    return rgbaToCssColor({
+      red: lerp(start.red, end.red, amount),
+      green: lerp(start.green, end.green, amount),
+      blue: lerp(start.blue, end.blue, amount),
+      alpha: lerp(start.alpha, end.alpha, amount),
+    });
+  }
+
+  return amount < 0.5 ? colorA : colorB;
+}
+
+function transparentizeColor(color: string) {
+  const parsed = parseColorToRgba(color);
+  if (!parsed) {
+    return 'rgba(255, 255, 255, 0)';
+  }
+
+  return rgbaToCssColor({
+    red: parsed.red,
+    green: parsed.green,
+    blue: parsed.blue,
+    alpha: 0,
+  });
+}
+
 type TrailSegmentProps = {
   asset: EffectAsset;
   instance: EffectInstance;
@@ -297,6 +396,70 @@ const StarburstTrailSegment = ({ asset, instance, layer, progress, index }: Trai
   return <AnimatedPath animatedProps={animatedProps} fill={layer.color} />;
 };
 
+const StretchedSquareTrailSegment = ({
+  asset,
+  instance,
+  layer,
+  progress,
+  index,
+  sampleCount,
+}: TrailSegmentProps & { sampleCount: number }) => {
+  const startColor = layer.startColor ?? layer.color;
+  const endColor = layer.endColor ?? transparentizeColor(startColor);
+  const fill = mixColors(startColor, endColor, (index + 0.5) / sampleCount);
+
+  const animatedProps = useAnimatedProps(() => {
+    const trailLength = Math.max(0.01, layer.trailLength ?? 0.22);
+    const headAmount = index / sampleCount;
+    const tailAmount = (index + 1) / sampleCount;
+    const headProgress = Math.max(0, progress.value - trailLength * headAmount);
+    const tailProgress = Math.max(0, progress.value - trailLength * tailAmount);
+    const headBase = sampleMotionPosition(asset, instance, headProgress);
+    const tailBase = sampleMotionPosition(asset, instance, tailProgress);
+    const headX = headBase.x + sampleLayerTrack(layer, 'x', headProgress, 0);
+    const headY = headBase.y + sampleLayerTrack(layer, 'y', headProgress, 0);
+    const tailX = tailBase.x + sampleLayerTrack(layer, 'x', tailProgress, 0);
+    const tailY = tailBase.y + sampleLayerTrack(layer, 'y', tailProgress, 0);
+    const headScale = Math.max(0.1, sampleLayerTrack(layer, 'scale', headProgress, 1));
+    const tailScale = Math.max(0.1, sampleLayerTrack(layer, 'scale', tailProgress, 1));
+    const headWidth = Math.max(
+      0.5,
+      lerp(layer.startWidth ?? 28, layer.endWidth ?? 8, headAmount) * headScale,
+    );
+    const tailWidth = Math.max(
+      0.5,
+      lerp(layer.startWidth ?? 28, layer.endWidth ?? 8, tailAmount) * tailScale,
+    );
+    const headAlpha = sampleLayerTrack(layer, 'alpha', headProgress, 1);
+    const tailAlpha = sampleLayerTrack(layer, 'alpha', tailProgress, 1);
+    let dx = tailX - headX;
+    let dy = tailY - headY;
+    const distance = Math.hypot(dx, dy);
+
+    if (distance > 0.001) {
+      dx /= distance;
+      dy /= distance;
+    } else {
+      const angle =
+        (sampleResolvedLayerRotationDeg(asset, instance, layer, headProgress, 0) * Math.PI) / 180;
+      dx = Math.cos(angle);
+      dy = Math.sin(angle);
+    }
+
+    const normalX = -dy;
+    const normalY = dx;
+    const headHalfWidth = headWidth / 2;
+    const tailHalfWidth = tailWidth / 2;
+
+    return {
+      d: `M ${headX + normalX * headHalfWidth} ${headY + normalY * headHalfWidth} L ${headX - normalX * headHalfWidth} ${headY - normalY * headHalfWidth} L ${tailX - normalX * tailHalfWidth} ${tailY - normalY * tailHalfWidth} L ${tailX + normalX * tailHalfWidth} ${tailY + normalY * tailHalfWidth} Z`,
+      opacity: Math.max(0, (headAlpha + tailAlpha) / 2),
+    };
+  });
+
+  return <AnimatedPath animatedProps={animatedProps} fill={fill} />;
+};
+
 const TrailSegment = (props: TrailSegmentProps) => {
   const style = props.layer.style ?? 'fill';
 
@@ -324,6 +487,24 @@ const TrailSegment = (props: TrailSegmentProps) => {
     return <StarburstTrailSegment {...props} />;
   }
 
+  if (style === 'stretchedSquare') {
+    const trailLength = Math.max(0.01, props.layer.trailLength ?? 0.22);
+    const sampleCount = Math.max(6, Math.round(8 + trailLength * 28));
+
+    return (
+      <>
+        {Array.from({ length: sampleCount }, (_, index) => (
+          <StretchedSquareTrailSegment
+            key={`${props.layer.id}-stretch-${index}`}
+            {...props}
+            index={index}
+            sampleCount={sampleCount}
+          />
+        ))}
+      </>
+    );
+  }
+
   return <FillTrailSegment {...props} />;
 };
 
@@ -335,6 +516,12 @@ type TrailPrimitiveProps = {
 };
 
 const TrailPrimitive = ({ asset, instance, layer, progress }: TrailPrimitiveProps) => {
+  if ((layer.style ?? 'fill') === 'stretchedSquare') {
+    return (
+      <TrailSegment asset={asset} instance={instance} layer={layer} progress={progress} index={0} />
+    );
+  }
+
   return Array.from({ length: layer.segments }, (_, index) => (
     <TrailSegment
       key={`${layer.id}-${index}`}

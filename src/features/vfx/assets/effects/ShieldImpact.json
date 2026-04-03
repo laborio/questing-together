@@ -1,0 +1,56 @@
+{
+  "id": "SmallSparksImpact",
+  "label": "SmallSparksImpact",
+  "durationMs": 1200,
+  "motion": {
+    "mode": "fixed",
+    "tracks": {}
+  },
+  "layers": [
+    {
+      "id": "Sparks",
+      "type": "particleEmitter",
+      "renderer": "radialGradient",
+      "color": "#ffae00",
+      "color2": "#ff4000",
+      "maxParticles": 16,
+      "emissionRate": 0,
+      "particleLifetimeMs": 120,
+      "emitterShape": "point",
+      "emitterRadius": 32,
+      "emitterWidth": 120,
+      "emitterHeight": 120,
+      "tracks": {},
+      "particleTracks": {
+        "scale": [
+          {
+            "at": 0,
+            "value": 1
+          },
+          {
+            "at": 1,
+            "value": 0
+          }
+        ],
+        "alpha": [
+          {
+            "at": 0,
+            "value": 1
+          }
+        ]
+      },
+      "spriteId": "t-vfx-particle-default",
+      "speedMax": 300,
+      "particleLifetimeMaxMs": 320,
+      "burstCount": 16,
+      "tintColor": "#ff8800",
+      "tintColor2": "#ff5900",
+      "spreadDeg": 45,
+      "emitterTracks": {},
+      "startSizeMax": 8,
+      "startSize": 8,
+      "speed": 100
+    }
+  ],
+  "loop": false
+}

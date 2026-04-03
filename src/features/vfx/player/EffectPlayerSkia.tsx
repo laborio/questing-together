@@ -272,6 +272,11 @@ function sampleRandomRange(minValue: number, maxValue: number, seed: number) {
   return low === high ? low : low + (high - low) * random01(seed);
 }
 
+function lerp(start: number, end: number, amount: number) {
+  'worklet';
+  return start + (end - start) * amount;
+}
+
 function parseColorToRgba(color: string | undefined) {
   'worklet';
 
@@ -2013,6 +2018,87 @@ const TrailStarburstSegmentSkia = ({
   return <Path path={path} color={layer.color} opacity={opacity} />;
 };
 
+const TrailStretchedSquareSegmentSkia = ({
+  asset,
+  instance,
+  layer,
+  progress,
+  index,
+  sampleCount,
+}: {
+  asset: EffectAsset;
+  instance: EffectInstance;
+  layer: TrailLayer;
+  progress: SharedValue<number>;
+  index: number;
+  sampleCount: number;
+}) => {
+  const timelineProgress = useDerivedValue(() =>
+    resolveLayerTimelineProgress(asset, instance, layer, progress.value),
+  );
+  const layerVisible = useDerivedValue(() => (timelineProgress.value == null ? 0 : 1));
+  const path = useDerivedValue(() => {
+    const layerProgress = timelineProgress.value ?? 1;
+    const trailLength = Math.max(0.01, layer.trailLength ?? 0.22);
+    const headAmount = index / sampleCount;
+    const tailAmount = (index + 1) / sampleCount;
+    const headProgress = Math.max(0, layerProgress - trailLength * headAmount);
+    const tailProgress = Math.max(0, layerProgress - trailLength * tailAmount);
+    const headBase = sampleMotionPosition(asset, instance, headProgress);
+    const tailBase = sampleMotionPosition(asset, instance, tailProgress);
+    const headX = headBase.x + sampleLayerTrack(layer, 'x', headProgress, 0);
+    const headY = headBase.y + sampleLayerTrack(layer, 'y', headProgress, 0);
+    const tailX = tailBase.x + sampleLayerTrack(layer, 'x', tailProgress, 0);
+    const tailY = tailBase.y + sampleLayerTrack(layer, 'y', tailProgress, 0);
+    const headScale = Math.max(0.1, sampleLayerTrack(layer, 'scale', headProgress, 1));
+    const tailScale = Math.max(0.1, sampleLayerTrack(layer, 'scale', tailProgress, 1));
+    const headWidth = Math.max(
+      0.5,
+      lerp(layer.startWidth ?? 28, layer.endWidth ?? 8, headAmount) * headScale,
+    );
+    const tailWidth = Math.max(
+      0.5,
+      lerp(layer.startWidth ?? 28, layer.endWidth ?? 8, tailAmount) * tailScale,
+    );
+    let dx = tailX - headX;
+    let dy = tailY - headY;
+    const distance = Math.hypot(dx, dy);
+
+    if (distance > 0.001) {
+      dx /= distance;
+      dy /= distance;
+    } else {
+      const angle =
+        (sampleResolvedLayerRotationDeg(asset, instance, layer, headProgress, 0) * Math.PI) / 180;
+      dx = Math.cos(angle);
+      dy = Math.sin(angle);
+    }
+
+    const normalX = -dy;
+    const normalY = dx;
+    const headHalfWidth = headWidth / 2;
+    const tailHalfWidth = tailWidth / 2;
+
+    return `M ${headX + normalX * headHalfWidth} ${headY + normalY * headHalfWidth} L ${headX - normalX * headHalfWidth} ${headY - normalY * headHalfWidth} L ${tailX - normalX * tailHalfWidth} ${tailY - normalY * tailHalfWidth} L ${tailX + normalX * tailHalfWidth} ${tailY + normalY * tailHalfWidth} Z`;
+  });
+  const opacity = useDerivedValue(() => {
+    const layerProgress = timelineProgress.value ?? 1;
+    const trailLength = Math.max(0.01, layer.trailLength ?? 0.22);
+    const headProgress = Math.max(0, layerProgress - trailLength * (index / sampleCount));
+    const tailProgress = Math.max(0, layerProgress - trailLength * ((index + 1) / sampleCount));
+    const headAlpha = sampleLayerTrack(layer, 'alpha', headProgress, 1);
+    const tailAlpha = sampleLayerTrack(layer, 'alpha', tailProgress, 1);
+    return Math.max(0, layerVisible.value * (headAlpha + tailAlpha) * 0.5);
+  });
+  const color = mixColors(
+    layer.startColor ?? layer.color,
+    layer.endColor ?? transparentizeColor(layer.startColor ?? layer.color),
+    (index + 0.5) / sampleCount,
+  );
+
+  return <Path path={path} color={color} opacity={opacity} />;
+};
+
 const TrailSegmentSkia = ({
   asset,
   instance,
@@ -2100,6 +2186,27 @@ const TrailSegmentSkia = ({
     );
   }
 
+  if (style === 'stretchedSquare') {
+    const trailLength = Math.max(0.01, layer.trailLength ?? 0.22);
+    const sampleCount = Math.max(6, Math.round(8 + trailLength * 28));
+
+    return (
+      <>
+        {Array.from({ length: sampleCount }, (_, segmentIndex) => (
+          <TrailStretchedSquareSegmentSkia
+            key={`${layer.id}-stretch-${segmentIndex}`}
+            asset={asset}
+            instance={instance}
+            layer={layer}
+            progress={progress}
+            index={segmentIndex}
+            sampleCount={sampleCount}
+          />
+        ))}
+      </>
+    );
+  }
+
   return (
     <TrailFillSegmentSkia
       asset={asset}
@@ -2122,6 +2229,18 @@ const TrailPrimitiveSkia = ({
   layer: TrailLayer;
   progress: SharedValue<number>;
 }) => {
+  if ((layer.style ?? 'fill') === 'stretchedSquare') {
+    return (
+      <TrailSegmentSkia
+        asset={asset}
+        instance={instance}
+        layer={layer}
+        progress={progress}
+        index={0}
+      />
+    );
+  }
+
   return (
     <>
       {Array.from({ length: layer.segments }, (_, index) => (
